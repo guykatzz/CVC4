@@ -372,10 +372,10 @@ void LFSCBitVectorProof::printConstant(Expr term, std::ostream& os) {
   int size = utils::getSize(term);
   for (int i = size - 1; i >= 0; --i) {
     os << "(bvc ";
-    os << (utils::getBit(term, i) ? "b1" : "b0") <<" ";
+    os << (utils::getBit(term, i) ? "b1" : "b0") << " ";
     paren << ")";
   }
-  os << " bvn)";
+  os << "bvn)";
   os << paren.str();
 }
 
@@ -706,7 +706,7 @@ void LFSCBitVectorProof::printTermBitblasting(Expr term, std::ostream& os) {
       os << (utils::getBit(term, i) ? "b1" : "b0") <<" ";
       paren << ")";
     }
-    os << " bvn)";
+    os << "bvn)";
     os << paren.str();
     return;
   }
@@ -1057,6 +1057,36 @@ std::string LFSCBitVectorProof::assignAlias(Expr expr) {
 
 bool LFSCBitVectorProof::hasAlias(Expr expr) {
   return d_assignedAliases.find(expr) != d_assignedAliases.end();
+}
+
+void LFSCBitVectorProof::printConstantDisequalityProof(std::ostream& os, Expr c1, Expr c2) {
+  Assert (c1.isConst());
+  Assert (c2.isConst());
+  Assert (utils::getSize(c1) == utils::getSize(c2));
+
+  os << "(bv_disequal_constants " << utils::getSize(c1) << " ";
+
+  std::ostringstream paren;
+
+  for (int i = utils::getSize(c1) - 1; i >= 0; --i) {
+    os << "(bvc ";
+    os << (utils::getBit(c1, i) ? "b1" : "b0") << " ";
+    paren << ")";
+  }
+  os << "bvn";
+  os << paren.str();
+
+  os << " ";
+
+  for (int i = utils::getSize(c2) - 1; i >= 0; --i) {
+    os << "(bvc ";
+    os << (utils::getBit(c2, i) ? "b1" : "b0") << " ";
+
+  }
+  os << "bvn";
+  os << paren.str();
+
+  os << ")";
 }
 
 } /* namespace CVC4 */
