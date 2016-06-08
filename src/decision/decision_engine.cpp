@@ -1,27 +1,26 @@
 /*********************                                                        */
 /*! \file decision_engine.cpp
  ** \verbatim
- ** Original author: Kshitij Bansal
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King, Morgan Deters
+ ** Top contributors (to current version):
+ **   Kshitij Bansal, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Decision engine
  **
  ** Decision engine
  **/
-
 #include "decision/decision_engine.h"
+
+#include "decision/decision_attributes.h"
 #include "decision/justification_heuristic.h"
-
 #include "expr/node.h"
-#include "decision/options.h"
-#include "decision/decision_mode.h"
-
-#include "smt/options.h"
+#include "options/decision_mode.h"
+#include "options/decision_options.h"
+#include "options/smt_options.h"
 
 using namespace std;
 

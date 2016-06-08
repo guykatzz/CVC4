@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_black.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Clark Barrett
- ** Minor contributors (to current version): Liana Hadarean
+ ** Top contributors (to current version):
+ **   Clark Barrett, Tim King, Liana Hadarean
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::theory
  **
@@ -49,11 +49,14 @@ public:
   void setUp() {
     d_em = new ExprManager();
     d_smt = new SmtEngine(d_em);
-    d_nm = NodeManager::fromExprManager(d_em);
     d_scope = new SmtScope(d_smt);
+
+    d_nm = NodeManager::fromExprManager(d_em);
   }
 
   void tearDown() {
+    delete d_scope;
+    delete d_smt;
     delete d_em;
   }
 

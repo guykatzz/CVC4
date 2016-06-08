@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file normal_form.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Dejan Jovanovic, Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -20,18 +20,19 @@
 #ifndef __CVC4__THEORY__ARITH__NORMAL_FORM_H
 #define __CVC4__THEORY__ARITH__NORMAL_FORM_H
 
-#include "expr/node.h"
-#include "expr/node_self_iterator.h"
-#include "util/rational.h"
-#include "theory/arith/delta_rational.h"
-//#include "theory/arith/arith_utilities.h"
-
-#include <list>
 #include <algorithm>
+#include <list>
 
 #if IS_SORTED_IN_GNUCXX_NAMESPACE
 #  include <ext/algorithm>
 #endif /* IS_SORTED_IN_GNUCXX_NAMESPACE */
+
+#include "base/output.h"
+#include "expr/node.h"
+#include "expr/node_self_iterator.h"
+#include "theory/arith/delta_rational.h"
+#include "util/rational.h"
+
 
 namespace CVC4 {
 namespace theory {

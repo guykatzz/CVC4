@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file type_enumerator_white.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief White box testing of CVC4::theory::TypeEnumerator
  **
@@ -17,13 +17,13 @@
 
 #include <cxxtest/TestSuite.h>
 
-#include "expr/node_manager.h"
+#include "expr/array_store_all.h"
 #include "expr/expr_manager.h"
-#include "expr/type_node.h"
 #include "expr/kind.h"
+#include "expr/node_manager.h"
+#include "expr/type_node.h"
+#include "options/language.h"
 #include "theory/type_enumerator.h"
-#include "util/language.h"
-#include "util/array_store_all.h"
 
 using namespace CVC4;
 using namespace CVC4::theory;

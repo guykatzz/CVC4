@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_test_utils.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Andrew Reynolds, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Liana Hadarean
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Common utilities for testing theories
  **
@@ -19,15 +19,15 @@
 #ifndef __CVC4__THEORY__THEORY_TEST_UTILS_H
 #define __CVC4__THEORY__THEORY_TEST_UTILS_H
 
-#include "util/cvc4_assert.h"
-#include "expr/node.h"
-#include "theory/output_channel.h"
-#include "theory/interrupted.h"
-#include "util/unsafe_interrupt_exception.h"
-
-#include <vector>
-#include <utility>
 #include <iostream>
+#include <utility>
+#include <vector>
+
+#include "base/cvc4_assert.h"
+#include "expr/node.h"
+#include "theory/interrupted.h"
+#include "theory/output_channel.h"
+#include "util/unsafe_interrupt_exception.h"
 
 namespace CVC4 {
 namespace theory {
@@ -71,7 +71,7 @@ public:
 
   void safePoint(uint64_t ammount)  throw(Interrupted, AssertionException) {}
 
-  void conflict(TNode n)
+  void conflict(TNode n, Proof* pf = NULL)
     throw(AssertionException, UnsafeInterruptException) {
     push(CONFLICT, n);
   }
@@ -87,7 +87,10 @@ public:
     push(PROPAGATE_AS_DECISION, n);
   }
 
-  LemmaStatus lemma(TNode n, bool removable, bool preprocess) throw(AssertionException, UnsafeInterruptException) {
+  LemmaStatus lemma(TNode n, ProofRule rule,
+                    bool removable = false,
+                    bool preprocess = false,
+                    bool sendAtoms = false) throw(AssertionException, UnsafeInterruptException) {
     push(LEMMA, n);
     return LemmaStatus(Node::null(), 0);
   }

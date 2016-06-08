@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bv_subtheory.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: Andrew Reynolds, Dejan Jovanovic
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Dejan Jovanovic, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Interface for bit-vectors sub-solvers.
  **
@@ -74,6 +74,8 @@ protected:
 
   /** The bit-vector theory */
   TheoryBV* d_bv;
+  /** proof log */
+  BitVectorProof * d_bvp;
   AssertionQueue d_assertionQueue;
   context::CDO<uint32_t>  d_assertionIndex;
 public:
@@ -102,6 +104,7 @@ public:
     return res;
   }
   virtual void assertFact(TNode fact) { d_assertionQueue.push_back(fact); }
+  virtual void setProofLog( BitVectorProof * bvp ) {}
   AssertionQueue::const_iterator assertionsBegin() { return d_assertionQueue.begin(); }
   AssertionQueue::const_iterator assertionsEnd() { return d_assertionQueue.end(); }
 };

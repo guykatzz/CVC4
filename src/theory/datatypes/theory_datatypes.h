@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_datatypes.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Andrew Reynolds
- ** Minor contributors (to current version): Francois Bobot, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Theory of datatypes.
  **
@@ -19,26 +19,32 @@
 #ifndef __CVC4__THEORY__DATATYPES__THEORY_DATATYPES_H
 #define __CVC4__THEORY__DATATYPES__THEORY_DATATYPES_H
 
-#include "theory/theory.h"
-#include "util/datatype.h"
-#include "util/hash.h"
-#include "theory/uf/equality_engine.h"
-#include "theory/datatypes/datatypes_sygus.h"
-
 #include <ext/hash_set>
 #include <iostream>
 #include <map>
+
 #include "context/cdchunk_list.h"
+#include "expr/datatype.h"
+#include "theory/datatypes/datatypes_sygus.h"
+#include "theory/theory.h"
+#include "theory/uf/equality_engine.h"
+#include "util/hash.h"
 
 namespace CVC4 {
 namespace theory {
+
+namespace quantifiers{
+  class TermArgTrie;
+}
+
 namespace datatypes {
 
 class TheoryDatatypes : public Theory {
 private:
   typedef context::CDChunkList<Node> NodeList;
-  typedef context::CDHashMap<Node, NodeList*, NodeHashFunction> NodeListMap;
+  typedef context::CDHashMap< Node, int, NodeHashFunction> NodeIntMap;
   typedef context::CDHashMap< Node, bool, NodeHashFunction > BoolMap;
+  typedef context::CDHashMap< Node, Node, NodeHashFunction > NodeMap;
 
   /** transitive closure to record equivalence/subterm relation.  */
   //TransitiveClosureNode d_cycle_check;
@@ -86,19 +92,19 @@ private:
       d_dt.conflict(t1, t2);
     }
     void eqNotifyNewClass(TNode t) {
-      Debug("dt") << "NotifyClass::eqNotifyNewClass(" << t << std::endl;
+      Debug("dt") << "NotifyClass::eqNotifyNewClass(" << t << ")" << std::endl;
       d_dt.eqNotifyNewClass(t);
     }
     void eqNotifyPreMerge(TNode t1, TNode t2) {
-      Debug("dt") << "NotifyClass::eqNotifyPreMerge(" << t1 << ", " << t2 << std::endl;
+      Debug("dt") << "NotifyClass::eqNotifyPreMerge(" << t1 << ", " << t2 << ")" << std::endl;
       d_dt.eqNotifyPreMerge(t1, t2);
     }
     void eqNotifyPostMerge(TNode t1, TNode t2) {
-      Debug("dt") << "NotifyClass::eqNotifyPostMerge(" << t1 << ", " << t2 << std::endl;
+      Debug("dt") << "NotifyClass::eqNotifyPostMerge(" << t1 << ", " << t2 << ")" << std::endl;
       d_dt.eqNotifyPostMerge(t1, t2);
     }
     void eqNotifyDisequal(TNode t1, TNode t2, TNode reason) {
-      Debug("dt") << "NotifyClass::eqNotifyDisequal(" << t1 << ", " << t2 << ", " << reason << std::endl;
+      Debug("dt") << "NotifyClass::eqNotifyDisequal(" << t1 << ", " << t2 << ", " << reason << ")" << std::endl;
       d_dt.eqNotifyDisequal(t1, t2, reason);
     }
   };/* class TheoryDatatypes::NotifyClass */
@@ -130,8 +136,12 @@ private:
   bool hasTester( Node n );
   /** get the possible constructors for n */
   void getPossibleCons( EqcInfo* eqc, Node n, std::vector< bool >& cons );
+  void getSelectorsForCons( Node r, std::map< int, bool >& sels );
   /** mkExpDefSkolem */
   void mkExpDefSkolem( Node sel, TypeNode dt, TypeNode rt );
+  /** skolems for terms */
+  NodeMap d_term_sk;
+  Node getTermSkolemFor( Node n );
 private:
   /** The notify class */
   NotifyClass d_notify;
@@ -152,55 +162,69 @@ private:
    *   NOT is_[constructor_1]( t )...NOT is_[constructor_n]( t )  followed by
    *   is_[constructor_(n+1)]( t ), each of which is a unique tester.
   */
-  NodeListMap d_labels;
+  NodeIntMap d_labels;
+  std::map< Node, std::vector< Node > > d_labels_data;
   /** selector apps for eqch equivalence class */
-  NodeListMap d_selector_apps;
+  NodeIntMap d_selector_apps;
+  std::map< Node, std::vector< Node > > d_selector_apps_data;
   /** constructor terms */
   //BoolMap d_consEqc;
   /** Are we in conflict */
   context::CDO<bool> d_conflict;
   /** Added lemma ? */
   bool d_addedLemma;
+  bool d_addedFact;
   /** The conflict node */
   Node d_conflictNode;
   /** cache for which terms we have called collectTerms(...) on */
   BoolMap d_collectTermsCache;
   /** pending assertions/merges */
+  std::vector< Node > d_pending_lem;
   std::vector< Node > d_pending;
   std::map< Node, Node > d_pending_exp;
   std::vector< Node > d_pending_merge;
-  /** All the constructor terms that the theory has seen */
-  context::CDList<TNode> d_consTerms;
-  /** All the selector terms that the theory has seen */
-  context::CDList<TNode> d_selTerms;
+  /** All the function terms that the theory has seen */
+  context::CDList<TNode> d_functionTerms;
   /** counter for forcing assignments (ensures fairness) */
   unsigned d_dtfCounter;
   /** expand definition skolem functions */
-  std::map< Node, Node > d_exp_def_skolem;
+  std::map< TypeNode, std::map< Node, Node > > d_exp_def_skolem;
   /** sygus utilities */
   SygusSplit * d_sygus_split;
   SygusSymBreak * d_sygus_sym_break;
+
 private:
   /** singleton lemmas (for degenerate co-datatype case) */
   std::map< TypeNode, Node > d_singleton_lemma[2];
   /** Cache for singleton equalities processed */
   BoolMap d_singleton_eq;
+  /** list of all lemmas produced */
+  BoolMap d_lemmas_produced_c;
 private:
   /** assert fact */
   void assertFact( Node fact, Node exp );
+
   /** flush pending facts */
   void flushPendingFacts();
+
   /** do pending merged */
   void doPendingMerges();
+  /** do send lemma */
+  bool doSendLemma( Node lem );
   /** get or make eqc info */
   EqcInfo* getOrMakeEqcInfo( TNode n, bool doMake = false );
+
   /** has eqc info */
   bool hasEqcInfo( TNode n ) { return d_labels.find( n )!=d_labels.end(); }
+
   /** get eqc constructor */
   TNode getEqcConstructor( TNode r );
+
 protected:
+  void addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::TermArgTrie * t2, unsigned arity, unsigned depth, unsigned& n_pairs );
   /** compute care graph */
   void computeCareGraph();
+
 public:
   TheoryDatatypes(context::Context* c, context::UserContext* u,
                   OutputChannel& out, Valuation valuation,
@@ -244,9 +268,11 @@ public:
   std::string identify() const { return std::string("TheoryDatatypes"); }
   /** debug print */
   void printModelDebug( const char* c );
+  /** entailment check */
+  virtual std::pair<bool, Node> entailmentCheck(TNode lit, const EntailmentCheckParameters* params = NULL, EntailmentCheckSideEffects* out = NULL);
 private:
   /** add tester to equivalence class info */
-  void addTester( Node t, EqcInfo* eqc, Node n );
+  void addTester( int ttindex, Node t, EqcInfo* eqc, Node n, Node t_arg );
   /** add selector to equivalence class info */
   void addSelector( Node s, EqcInfo* eqc, Node n, bool assertFacts = true );
   /** add constructor */
@@ -266,7 +292,7 @@ private:
                           std::map< Node, Node >& cn,
                           std::map< Node, std::map< Node, int > >& dni, int dniLvl, bool mkExp );
   /** build model */
-  Node getCodatatypesValue( Node n, std::map< Node, Node >& eqc_cons, std::map< Node, Node >& eqc_mu, std::map< Node, Node >& vmap, std::vector< Node >& fv );
+  Node getCodatatypesValue( Node n, std::map< Node, Node >& eqc_cons, std::map< Node, int >& vmap, int depth );
   /** get singleton lemma */
   Node getSingletonLemma( TypeNode tn, bool pol );
   /** collect terms */
@@ -277,11 +303,6 @@ private:
   void processNewTerm( Node n );
   /** check instantiate */
   void instantiate( EqcInfo* eqc, Node n );
-  /** must specify model
-    *  This returns true when the datatypes theory is expected to specify the constructor
-    *  type for all equivalence classes.
-    */
-  bool mustSpecifyAssignment();
   /** must communicate fact */
   bool mustCommunicateFact( Node n, Node exp );
   /** check clash mod eq */

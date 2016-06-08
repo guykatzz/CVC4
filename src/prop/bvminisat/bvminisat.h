@@ -20,9 +20,11 @@
 
 #pragma once
 
-#include "prop/sat_solver.h"
-#include "prop/bvminisat/simp/SimpSolver.h"
 #include "context/cdo.h"
+#include "proof/clause_id.h"
+#include "prop/bvminisat/simp/SimpSolver.h"
+#include "prop/sat_solver.h"
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace prop {
@@ -42,7 +44,9 @@ private:
     }
     void notify(BVMinisat::vec<BVMinisat::Lit>& clause) {
       SatClause satClause;
-      toSatClause(clause, satClause);
+      for (int i = 0; i < clause.size(); ++i) {
+        satClause.push_back(toSatLiteral(clause[i])); 
+      }
       d_notify->notify(satClause);
     }
 
@@ -67,19 +71,17 @@ protected:
 
 public:
 
-  BVMinisatSatSolver() :
-    ContextNotifyObj(NULL, false),
-    d_assertionsRealCount(NULL, (unsigned)0),
-    d_lastPropagation(NULL, (unsigned)0),
-    d_statistics("")
-  { Unreachable(); }
-  BVMinisatSatSolver(context::Context* mainSatContext, const std::string& name = "");
+  BVMinisatSatSolver(StatisticsRegistry* registry, context::Context* mainSatContext, const std::string& name = "");
   ~BVMinisatSatSolver() throw(AssertionException);
 
   void setNotify(Notify* notify);
 
-  void addClause(SatClause& clause, bool removable, uint64_t proof_id);
+  ClauseId addClause(SatClause& clause, bool removable);
 
+  ClauseId addXorClause(SatClause& clause, bool rhs, bool removable) {
+    Unreachable("Minisat does not support native XOR reasoning");
+  }
+  
   SatValue propagate();
 
   SatVariable newVar(bool isTheoryAtom = false, bool preRegister = false, bool canErase = true);
@@ -90,9 +92,10 @@ public:
   void markUnremovable(SatLiteral lit);
 
   void interrupt();
-  
+
   SatValue solve();
   SatValue solve(long unsigned int&);
+  bool ok() const; 
   void getUnsatCore(SatClause& unsatCore);
 
   SatValue value(SatLiteral l);
@@ -111,17 +114,24 @@ public:
   static SatValue toSatLiteralValue(BVMinisat::lbool res);
 
   static void  toMinisatClause(SatClause& clause, BVMinisat::vec<BVMinisat::Lit>& minisat_clause);
-  static void  toSatClause    (BVMinisat::vec<BVMinisat::Lit>& clause, SatClause& sat_clause);
+  static void  toSatClause    (const BVMinisat::Clause& clause, SatClause& sat_clause);
   void addMarkerLiteral(SatLiteral lit);
 
   void explain(SatLiteral lit, std::vector<SatLiteral>& explanation);
 
   SatValue assertAssumption(SatLiteral lit, bool propagate);
-  
+
   void popAssumption();
+  
+  void setProofLog( BitVectorProof * bvp );
+
+private:
+  /* Disable the default constructor. */
+  BVMinisatSatSolver() CVC4_UNDEFINED;
 
   class Statistics {
   public:
+    StatisticsRegistry* d_registry;
     ReferenceStat<uint64_t> d_statStarts, d_statDecisions;
     ReferenceStat<uint64_t> d_statRndDecisions, d_statPropagations;
     ReferenceStat<uint64_t> d_statConflicts, d_statClausesLiterals;
@@ -131,7 +141,7 @@ public:
     IntStat d_statCallsToSolve;
     BackedStat<double> d_statSolveTime;
     bool d_registerStats;
-    Statistics(const std::string& prefix);
+    Statistics(StatisticsRegistry* registry, const std::string& prefix);
     ~Statistics();
     void init(BVMinisat::SimpSolver* minisat);
   };
@@ -139,9 +149,5 @@ public:
   Statistics d_statistics;
 };
 
-}
-}
-
-
-
-
+} /* CVC4::prop namespace */
+} /* CVC4 namespace */

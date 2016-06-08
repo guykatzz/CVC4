@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_uf.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Dejan Jovanovic, Morgan Deters
- ** Minor contributors (to current version): Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief This is the interface to TheoryUF implementations
  **
@@ -32,6 +32,11 @@
 
 namespace CVC4 {
 namespace theory {
+
+namespace quantifiers{
+  class TermArgTrie;
+}
+
 namespace uf {
 
 class UfTermDb;
@@ -103,13 +108,6 @@ public:
 
   };/* class TheoryUF::NotifyClass */
 
-  /** A callback class for ppRewrite().  See registerPpRewrite(), below. */
-  class PpRewrite {
-  public:
-    virtual Node ppRewrite(TNode node) = 0;
-    virtual ~PpRewrite() {}
-  };/* class TheoryUF::PpRewrite */
-
 private:
 
   /** The notify class */
@@ -135,8 +133,14 @@ private:
 
   /**
    * Explain why this literal is true by adding assumptions
+   * with proof (if "pf" is non-NULL).
    */
-  void explain(TNode literal, std::vector<TNode>& assumptions);
+  void explain(TNode literal, std::vector<TNode>& assumptions, eq::EqProof* pf);
+
+  /**
+   * Explain a literal, with proof (if "pf" is non-NULL).
+   */
+  Node explain(TNode literal, eq::EqProof* pf);
 
   /** Literals to propagate */
   context::CDList<Node> d_literalsToPropagate;
@@ -165,16 +169,12 @@ private:
   /** called when two equivalence classes are made disequal */
   void eqNotifyDisequal(TNode t1, TNode t2, TNode reason);
 
-  /** a registry type for keeping Node-specific callbacks for ppRewrite() */
-  typedef std::hash_map<Node, PpRewrite*, NodeHashFunction> RegisterPpRewrites;
-
-  /** a collection of callbacks to issue while doing a ppRewrite() */
-  RegisterPpRewrites d_registeredPpRewrites;
-
 public:
 
   /** Constructs a new instance of TheoryUF w.r.t. the provided context.*/
-  TheoryUF(context::Context* c, context::UserContext* u, OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo);
+  TheoryUF(context::Context* c, context::UserContext* u, OutputChannel& out,
+           Valuation valuation, const LogicInfo& logicInfo,
+           std::string instanceName = "");
 
   ~TheoryUF();
 
@@ -209,16 +209,8 @@ public:
   StrongSolverTheoryUF* getStrongSolver() {
     return d_thss;
   }
-
-  Node ppRewrite(TNode node);
-
-  /**
-   * Register a ppRewrite() callback on "op."  TheoryUF owns
-   * the callback, and will delete it when it is destructed.
-   */
-  void registerPpRewrite(TNode op, PpRewrite* callback) {
-    d_registeredPpRewrites.insert(std::make_pair(op, callback));
-  }
+private:
+  void addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::TermArgTrie * t2, unsigned arity, unsigned depth );
 };/* class TheoryUF */
 
 }/* CVC4::theory::uf namespace */

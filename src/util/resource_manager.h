@@ -1,17 +1,18 @@
 /*********************                                                        */
 /*! \file resource_manager.h
-** \verbatim
-** Original author: Liana Hadarean
-** Major contributors: none
-** Minor contributors (to current version): none
-** This file is part of the CVC4 project.
-** Copyright (c) 2009-2014  New York University and The University of Iowa
-** See the file COPYING in the top-level source directory for licensing
-** information.\endverbatim
-**
-** \brief Manages and updates various resource and time limits
-**
-** Manages and updates various resource and time limits.
+ ** \verbatim
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King, Morgan Deters
+ ** This file is part of the CVC4 project.
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
+ **
+ ** [[ Add lengthier description here ]]
+
+ ** \todo document this file
+
 **/
 
 #include "cvc4_public.h"
@@ -22,7 +23,8 @@
 #include <cstddef>
 #include <sys/time.h>
 
-#include "util/exception.h"
+#include "base/exception.h"
+#include "base/listener.h"
 #include "util/unsafe_interrupt_exception.h"
 
 namespace CVC4 {
@@ -107,6 +109,24 @@ class CVC4_PUBLIC ResourceManager {
   /** Counter indicating how often to check resource manager in loops */
   static const uint64_t s_resourceCount;
 
+  /** Receives a notification on reaching a hard limit. */
+  ListenerCollection d_hardListeners;
+
+  /** Receives a notification on reaching a hard limit. */
+  ListenerCollection d_softListeners;
+
+  /**
+   * ResourceManagers cannot be copied as they are given an explicit
+   * list of Listeners to respond to.
+   */
+  ResourceManager(const ResourceManager&) CVC4_UNDEFINED;
+
+  /**
+   * ResourceManagers cannot be assigned as they are given an explicit
+   * list of Listeners to respond to.
+   */
+  ResourceManager& operator=(const ResourceManager&) CVC4_UNDEFINED;
+
 public:
 
   ResourceManager();
@@ -119,7 +139,11 @@ public:
   bool outOfTime() const;
   bool out() const { return d_on && (outOfResources() || outOfTime()); }
 
-  uint64_t getResourceUsage() const;
+
+  /**
+   * This returns a const uint64_t& to support being used as a ReferenceStat.
+   */
+  const uint64_t& getResourceUsage() const;
   uint64_t getTimeUsage() const;
   uint64_t getResourceRemaining() const;
   uint64_t getTimeRemaining() const;
@@ -150,8 +174,25 @@ public:
   void endCall();
 
   static uint64_t getFrequencyCount() { return s_resourceCount; }
-  friend class SmtEngine;
+
+  /**
+   * Registers a listener that is notified on a hard resource out.
+   *
+   * This Registration must be destroyed by the user before this
+   * ResourceManager.
+   */
+  ListenerCollection::Registration* registerHardListener(Listener* listener);
+
+  /**
+   * Registers a listener that is notified on a soft resource out.
+   *
+   * This Registration must be destroyed by the user before this
+   * ResourceManager.
+   */
+  ListenerCollection::Registration* registerSoftListener(Listener* listener);
+
 };/* class ResourceManager */
+
 
 }/* CVC4 namespace */
 

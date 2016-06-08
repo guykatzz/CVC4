@@ -20,23 +20,15 @@
 
 #include "prop/sat_solver.h"
 #include "prop/minisat/simp/SimpSolver.h"
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace prop {
 
 class MinisatSatSolver : public DPLLSatSolverInterface {
-
-  /** The SatSolver used */
-  Minisat::SimpSolver* d_minisat;
-
-  /** Context we will be using to synchronize the sat solver */
-  context::Context* d_context;
-
-  void setupOptions();
-
 public:
 
-  MinisatSatSolver();
+  MinisatSatSolver(StatisticsRegistry* registry);
   ~MinisatSatSolver() throw();
 ;
 
@@ -48,11 +40,13 @@ public:
   //(Commented because not in use) static bool            tobool(SatValue val);
 
   static void  toMinisatClause(SatClause& clause, Minisat::vec<Minisat::Lit>& minisat_clause);
-  static void  toSatClause    (Minisat::vec<Minisat::Lit>& clause, SatClause& sat_clause);
   static void  toSatClause    (const Minisat::Clause& clause, SatClause& sat_clause);
   void initialize(context::Context* context, TheoryProxy* theoryProxy);
 
-  void addClause(SatClause& clause, bool removable, uint64_t proof_id);
+  ClauseId addClause(SatClause& clause, bool removable);
+  ClauseId addXorClause(SatClause& clause, bool rhs, bool removable) {
+    Unreachable("Minisat does not support native XOR reasoning");
+  }
 
   SatVariable newVar(bool isTheoryAtom, bool preRegister, bool canErase);
   SatVariable trueVar() { return d_minisat->trueVar(); }
@@ -61,6 +55,8 @@ public:
   SatValue solve();
   SatValue solve(long unsigned int&);
 
+  bool ok() const;
+  
   void interrupt();
 
   SatValue value(SatLiteral l);
@@ -83,15 +79,26 @@ public:
 
   bool isDecision(SatVariable decn) const;
 
+private:
+
+  /** The SatSolver used */
+  Minisat::SimpSolver* d_minisat;
+
+  /** Context we will be using to synchronize the sat solver */
+  context::Context* d_context;
+
+  void setupOptions();
+
   class Statistics {
   private:
+    StatisticsRegistry* d_registry;
     ReferenceStat<uint64_t> d_statStarts, d_statDecisions;
     ReferenceStat<uint64_t> d_statRndDecisions, d_statPropagations;
     ReferenceStat<uint64_t> d_statConflicts, d_statClausesLiterals;
     ReferenceStat<uint64_t> d_statLearntsLiterals,  d_statMaxLiterals;
     ReferenceStat<uint64_t> d_statTotLiterals;
   public:
-    Statistics();
+    Statistics(StatisticsRegistry* registry);
     ~Statistics();
     void init(Minisat::SimpSolver* d_minisat);
   };/* class MinisatSatSolver::Statistics */

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file node_builder.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Tim King, Christopher L. Conway
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Christopher L. Conway
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A builder interface for Nodes.
  **
@@ -169,11 +169,12 @@ namespace CVC4 {
   class NodeManager;
 }/* CVC4 namespace */
 
+#include "base/cvc4_assert.h"
+#include "base/output.h"
 #include "expr/kind.h"
 #include "expr/metakind.h"
-#include "util/cvc4_assert.h"
 #include "expr/node_value.h"
-#include "util/output.h"
+
 
 namespace CVC4 {
 
@@ -751,7 +752,7 @@ public:
 
 #include "expr/node.h"
 #include "expr/node_manager.h"
-#include "expr/options.h"
+#include "options/expr_options.h"
 
 namespace CVC4 {
 

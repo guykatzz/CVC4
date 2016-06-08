@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file word.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -26,6 +26,11 @@
 
 #include <vector>
 
+#include "expr/expr.h"
+#include "expr/expr_iomanip.h"
+#include "options/language.h"
+#include "options/options.h"
+
 using namespace std;
 using namespace hashsmt;
 using namespace CVC4;
@@ -37,7 +42,7 @@ Expr Word::extendToSize(unsigned newSize) const {
   } else {
     // 0-extend to size
     Expr extendOp = em()->mkConst(BitVectorZeroExtend(newSize - size()));
-    return em()->mkExpr(extendOp, d_expr);    
+    return em()->mkExpr(extendOp, d_expr);
   }
 }
 
@@ -46,8 +51,8 @@ ExprManager* Word::s_manager = 0;
 ExprManager* Word::em() {
   if (s_manager == 0) {
     CVC4::Options options;
-    options.set(inputLanguage, language::input::LANG_SMTLIB_V2);
-    options.set(outputLanguage, language::output::LANG_SMTLIB_V2);
+    options.setInputLanguage(language::input::LANG_SMTLIB_V2);
+    options.setOutputLanguage(language::output::LANG_SMTLIB_V2);
     s_manager = new CVC4::ExprManager(options);
   }
   return s_manager;
@@ -66,7 +71,7 @@ Word Word::concat(const Word words[], unsigned size) {
 }
 
 void Word::print(ostream& out) const {
-  out << CVC4::Expr::setdepth(-1) << d_expr;
+  out << CVC4::expr::ExprSetDepth(-1) << d_expr;
 }
 
 Word::Word(unsigned newSize, unsigned value) {
@@ -167,5 +172,3 @@ cvc4_uchar8::cvc4_uchar8(const Word& b) {
     d_expr = b.getExpr();
   }
 }
-
-

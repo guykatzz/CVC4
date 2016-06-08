@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file arith_utilities.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Dejan Jovanovic, Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Arith utilities are common inline functions for dealing with nodes.
  **
@@ -19,15 +19,16 @@
 #ifndef __CVC4__THEORY__ARITH__ARITH_UTILITIES_H
 #define __CVC4__THEORY__ARITH__ARITH_UTILITIES_H
 
-#include "util/rational.h"
-#include "util/integer.h"
-#include "util/dense_map.h"
-#include "expr/node.h"
-#include "theory/arith/delta_rational.h"
-#include "theory/arith/arithvar.h"
-#include "context/cdhashset.h"
 #include <ext/hash_map>
 #include <vector>
+
+#include "context/cdhashset.h"
+#include "expr/node.h"
+#include "theory/arith/arithvar.h"
+#include "theory/arith/delta_rational.h"
+#include "util/dense_map.h"
+#include "util/integer.h"
+#include "util/rational.h"
 
 namespace CVC4 {
 namespace theory {

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bv_subtheory_core.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: Andrew Reynolds
- ** Minor contributors (to current version): Dejan Jovanovic, Morgan Deters
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Algebraic solver.
  **
@@ -74,9 +74,10 @@ class CoreSolver : public SubtheorySolver {
 
   Slicer* d_slicer;
   context::CDO<bool> d_isComplete;
+  unsigned d_lemmaThreshold;
   
   /** Used to ensure that the core slicer is used properly*/
-  bool d_useSlicer; 
+  bool d_useSlicer;
   bool d_preregisterCalled;
   bool d_checkCalled;
   

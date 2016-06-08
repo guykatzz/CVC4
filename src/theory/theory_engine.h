@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_engine.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Andrew Reynolds, Dejan Jovanovic
- ** Minor contributors (to current version): Christopher L. Conway, Francois Bobot, Kshitij Bansal, Clark Barrett, Liana Hadarean, Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The theory engine
  **
@@ -20,35 +20,38 @@
 #define __CVC4__THEORY_ENGINE_H
 
 #include <deque>
+#include <set>
 #include <vector>
 #include <utility>
 
-#include "expr/node.h"
-#include "expr/command.h"
-#include "prop/prop_engine.h"
+#include "base/cvc4_assert.h"
 #include "context/cdhashset.h"
-#include "theory/theory.h"
-#include "theory/rewriter.h"
-#include "theory/substitutions.h"
-#include "theory/shared_terms_database.h"
-#include "theory/term_registration_visitor.h"
-#include "theory/valuation.h"
-#include "theory/interrupted.h"
+#include "expr/node.h"
 #include "options/options.h"
-#include "smt/options.h"
-#include "util/statistics_registry.h"
-#include "util/cvc4_assert.h"
-#include "util/sort_inference.h"
-#include "util/unsafe_interrupt_exception.h"
-#include "theory/quantifiers/quant_conflict_find.h"
-#include "theory/uf/equality_engine.h"
-#include "theory/bv/bv_to_bool.h"
+#include "options/smt_options.h"
+#include "prop/prop_engine.h"
+#include "smt/command.h"
+#include "smt_util/lemma_channels.h"
 #include "theory/atom_requests.h"
+#include "theory/bv/bv_to_bool.h"
+#include "theory/interrupted.h"
+#include "theory/quantifiers/quant_conflict_find.h"
+#include "theory/rewriter.h"
+#include "theory/shared_terms_database.h"
+#include "theory/sort_inference.h"
+#include "theory/substitutions.h"
+#include "theory/term_registration_visitor.h"
+#include "theory/theory.h"
+#include "theory/uf/equality_engine.h"
+#include "theory/valuation.h"
+#include "util/statistics_registry.h"
+#include "util/unsafe_interrupt_exception.h"
 
 namespace CVC4 {
 
 class ResourceManager;
-  
+class LemmaProofRecipe;
+
 /**
  * A pair of a theory and a node. This is used to mark the flow of
  * propagations between theories.
@@ -57,7 +60,7 @@ struct NodeTheoryPair {
   Node node;
   theory::TheoryId theory;
   size_t timestamp;
-  NodeTheoryPair(TNode node, theory::TheoryId theory, size_t timestamp)
+  NodeTheoryPair(TNode node, theory::TheoryId theory, size_t timestamp = 0)
   : node(node), theory(theory), timestamp(timestamp) {}
   NodeTheoryPair()
   : theory(theory::THEORY_LAST) {}
@@ -206,6 +209,7 @@ class TheoryEngine {
    */
   context::CDHashSet<Node, NodeHashFunction> d_hasPropagated;
 
+
   /**
    * Statistics for a particular theory.
    */
@@ -223,30 +227,8 @@ class TheoryEngine {
 
     IntStat conflicts, propagations, lemmas, requirePhase, flipDecision, restartDemands;
 
-    Statistics(theory::TheoryId theory):
-      conflicts(mkName("theory<", theory, ">::conflicts"), 0),
-      propagations(mkName("theory<", theory, ">::propagations"), 0),
-      lemmas(mkName("theory<", theory, ">::lemmas"), 0),
-      requirePhase(mkName("theory<", theory, ">::requirePhase"), 0),
-      flipDecision(mkName("theory<", theory, ">::flipDecision"), 0),
-      restartDemands(mkName("theory<", theory, ">::restartDemands"), 0)
-    {
-      StatisticsRegistry::registerStat(&conflicts);
-      StatisticsRegistry::registerStat(&propagations);
-      StatisticsRegistry::registerStat(&lemmas);
-      StatisticsRegistry::registerStat(&requirePhase);
-      StatisticsRegistry::registerStat(&flipDecision);
-      StatisticsRegistry::registerStat(&restartDemands);
-    }
-
-    ~Statistics() {
-      StatisticsRegistry::unregisterStat(&conflicts);
-      StatisticsRegistry::unregisterStat(&propagations);
-      StatisticsRegistry::unregisterStat(&lemmas);
-      StatisticsRegistry::unregisterStat(&requirePhase);
-      StatisticsRegistry::unregisterStat(&flipDecision);
-      StatisticsRegistry::unregisterStat(&restartDemands);
-    }
+    Statistics(theory::TheoryId theory);
+    ~Statistics();
   };/* class TheoryEngine::Statistics */
 
 
@@ -282,40 +264,25 @@ class TheoryEngine {
     {
     }
 
-      void safePoint(uint64_t ammount) throw(theory::Interrupted, UnsafeInterruptException, AssertionException) {
+    void safePoint(uint64_t ammount) throw(theory::Interrupted, UnsafeInterruptException, AssertionException) {
       spendResource(ammount);
       if (d_engine->d_interrupted) {
         throw theory::Interrupted();
       }
     }
 
-    void conflict(TNode conflictNode) throw(AssertionException, UnsafeInterruptException) {
-      Trace("theory::conflict") << "EngineOutputChannel<" << d_theory << ">::conflict(" << conflictNode << ")" << std::endl;
-      ++ d_statistics.conflicts;
-      d_engine->d_outputChannelUsed = true;
-      d_engine->conflict(conflictNode, d_theory);
-    }
+    void conflict(TNode conflictNode, Proof* pf = NULL) throw(AssertionException, UnsafeInterruptException);
 
-    bool propagate(TNode literal) throw(AssertionException, UnsafeInterruptException) {
-      Trace("theory::propagate") << "EngineOutputChannel<" << d_theory << ">::propagate(" << literal << ")" << std::endl;
-      ++ d_statistics.propagations;
-      d_engine->d_outputChannelUsed = true;
-      return d_engine->propagate(literal, d_theory);
-    }
+    bool propagate(TNode literal) throw(AssertionException, UnsafeInterruptException);
 
-    theory::LemmaStatus lemma(TNode lemma, bool removable = false, bool preprocess = false) throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException, LogicException) {
-      Trace("theory::lemma") << "EngineOutputChannel<" << d_theory << ">::lemma(" << lemma << ")" << std::endl;
-      ++ d_statistics.lemmas;
-      d_engine->d_outputChannelUsed = true;
-      return d_engine->lemma(lemma, false, removable, preprocess, theory::THEORY_LAST);
-    }
+    theory::LemmaStatus lemma(TNode lemma,
+                              ProofRule rule,
+                              bool removable = false,
+                              bool preprocess = false,
+                              bool sendAtoms = false)
+      throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException);
 
-    theory::LemmaStatus splitLemma(TNode lemma, bool removable = false) throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) {
-      Trace("theory::lemma") << "EngineOutputChannel<" << d_theory << ">::lemma(" << lemma << ")" << std::endl;
-      ++ d_statistics.lemmas;
-      d_engine->d_outputChannelUsed = true;
-      return d_engine->lemma(lemma, false, removable, false, d_theory);
-    }
+    theory::LemmaStatus splitLemma(TNode lemma, bool removable = false) throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException);
 
     void demandRestart() throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) {
       NodeManager* curr = NodeManager::currentNM();
@@ -324,7 +291,7 @@ class TheoryEngine {
                                         "A boolean variable asserted to be true to force a restart");
       Trace("theory::restart") << "EngineOutputChannel<" << d_theory << ">::restart(" << restartVar << ")" << std::endl;
       ++ d_statistics.restartDemands;
-      lemma(restartVar, true);
+      lemma(restartVar, RULE_INVALID, true);
     }
 
     void requirePhase(TNode n, bool phase)
@@ -456,7 +423,13 @@ class TheoryEngine {
    * @param removable can the lemma be remove (restrictions apply)
    * @param needAtoms if not THEORY_LAST, then
    */
-  theory::LemmaStatus lemma(TNode node, bool negated, bool removable, bool preprocess, theory::TheoryId atomsTo);
+  theory::LemmaStatus lemma(TNode node,
+                            ProofRule rule,
+                            bool negated,
+                            bool removable,
+                            bool preprocess,
+                            theory::TheoryId atomsTo,
+                            LemmaProofRecipe* proofRecipe);
 
   /** Enusre that the given atoms are send to the given theory */
   void ensureLemmaAtoms(const std::vector<TNode>& atoms, theory::TheoryId theory);
@@ -476,10 +449,15 @@ class TheoryEngine {
   bool d_interrupted;
   ResourceManager* d_resourceManager;
 
+  /** Container for lemma input and output channels. */
+  LemmaChannels* d_channels;
+
 public:
 
   /** Constructs a theory engine */
-  TheoryEngine(context::Context* context, context::UserContext* userContext, RemoveITE& iteRemover, const LogicInfo& logic);
+  TheoryEngine(context::Context* context, context::UserContext* userContext,
+               RemoveITE& iteRemover, const LogicInfo& logic,
+               LemmaChannels* channels);
 
   /** Destroys a theory engine */
   ~TheoryEngine();
@@ -498,7 +476,9 @@ public:
   inline void addTheory(theory::TheoryId theoryId) {
     Assert(d_theoryTable[theoryId] == NULL && d_theoryOut[theoryId] == NULL);
     d_theoryOut[theoryId] = new EngineOutputChannel(this, theoryId);
-    d_theoryTable[theoryId] = new TheoryClass(d_context, d_userContext, *d_theoryOut[theoryId], theory::Valuation(this), d_logicInfo);
+    d_theoryTable[theoryId] =
+        new TheoryClass(d_context, d_userContext, *d_theoryOut[theoryId],
+                        theory::Valuation(this), d_logicInfo);
   }
 
   inline void setPropEngine(prop::PropEngine* propEngine) {
@@ -599,9 +579,10 @@ private:
    * asking relevant theories to explain the propagations. Initially
    * the explanation vector should contain only the element (node, theory)
    * where the node is the one to be explained, and the theory is the
-   * theory that sent the literal.
+   * theory that sent the literal. The lemmaProofRecipe will contain a list
+   * of the explanation steps required to produce the original node.
    */
-  void getExplanation(std::vector<NodeTheoryPair>& explanationVector);
+  void getExplanation(std::vector<NodeTheoryPair>& explanationVector, LemmaProofRecipe* lemmaProofRecipe);
 
 public:
 
@@ -720,6 +701,12 @@ public:
   Node getExplanation(TNode node);
 
   /**
+   * Returns an explanation of the node propagated to the SAT solver and the theory
+   * that propagated it.
+   */
+  Node getExplanationAndRecipe(TNode node, LemmaProofRecipe* proofRecipe);
+
+  /**
    * collect model info
    */
   void collectModelInfo( theory::TheoryModel* m, bool fullModel );
@@ -756,7 +743,7 @@ public:
   inline bool isTheoryEnabled(theory::TheoryId theoryId) const {
     return d_logicInfo.isTheoryEnabled(theoryId);
   }
-  
+
   /**
    * Returns the equality status of the two terms, from the theory
    * that owns the domain type.  The types of a and b must be the same.
@@ -783,7 +770,12 @@ public:
    * Print solution for synthesis conjectures found by ce_guided_instantiation module
    */
   void printSynthSolution( std::ostream& out );
-  
+
+  /**
+   * Get instantiations
+   */
+  void getInstantiations( std::map< Node, std::vector< Node > >& insts );
+
   /**
    * Forwards an entailment check according to the given theoryOfMode.
    * See theory.h for documentation on entailmentCheck().
@@ -797,9 +789,6 @@ private:
 
   /** Visitor for collecting shared terms */
   SharedTermsVisitor d_sharedTermsVisitor;
-
-  /** Prints the assertions to the debug stream */
-  void printAssertions(const char* tag);
 
   /** Dump the assertions to the dump */
   void dumpAssertions(const char* tag);
@@ -831,8 +820,22 @@ public:
 
   theory::eq::EqualityEngine* getMasterEqualityEngine() { return d_masterEqualityEngine; }
 
+  RemoveITE* getIteRemover() { return &d_iteRemover; }
+
   SortInference* getSortInference() { return &d_sortInfer; }
+
+  /** Prints the assertions to the debug stream */
+  void printAssertions(const char* tag);
+
+  /** Theory alternative is in use. */
+  bool useTheoryAlternative(const std::string& name);
+
+  /** Enables using a theory alternative by name. */
+  void enableTheoryAlternative(const std::string& name);
+
 private:
+  std::set< std::string > d_theoryAlternatives;
+
   std::map< std::string, std::vector< theory::Theory* > > d_attr_handle;
 public:
 
@@ -841,7 +844,7 @@ public:
    * This function is called when an attribute is set by a user.  In SMT-LIBv2 this is done
    * via the syntax (! n :attr)
    */
-  void setUserAttribute(const std::string& attr, Node n, std::vector<Node> node_values, std::string str_value);
+  void setUserAttribute(const std::string& attr, Node n, std::vector<Node>& node_values, std::string str_value);
 
   /**
    * Handle user attribute.

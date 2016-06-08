@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file node_manager.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Christopher L. Conway, Morgan Deters
- ** Minor contributors (to current version): ACSYS, Tianyi Liang, Kshitij Bansal, Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A manager for Nodes
  **
@@ -32,11 +32,11 @@
 #include <string>
 #include <ext/hash_set>
 
+#include "base/tls.h"
 #include "expr/kind.h"
 #include "expr/metakind.h"
 #include "expr/node_value.h"
 #include "util/subrange_bound.h"
-#include "util/tls.h"
 #include "options/options.h"
 
 namespace CVC4 {
@@ -102,7 +102,14 @@ class NodeManager {
 
   Options* d_options;
   StatisticsRegistry* d_statisticsRegistry;
+
   ResourceManager* d_resourceManager;
+
+  /**
+   * A list of registrations on d_options to that call into d_resourceManager.
+   * These must be garbage collected before d_options and d_resourceManager.
+   */
+  ListenerRegistrationList* d_registrations;
 
   NodeValuePool d_nodeValuePool;
 
@@ -159,7 +166,20 @@ class NodeManager {
   /**
    * A map of tuple and record types to their corresponding datatype.
    */
-  std::hash_map<TypeNode, TypeNode, TypeNodeHashFunction> d_tupleAndRecordTypes;
+  class TupleTypeCache {
+  public:
+    std::map< TypeNode, TupleTypeCache > d_children;
+    TypeNode d_data;
+    TypeNode getTupleType( NodeManager * nm, std::vector< TypeNode >& types, unsigned index = 0 );
+  };
+  class RecTypeCache {
+  public:
+    std::map< TypeNode, std::map< std::string, RecTypeCache > > d_children;
+    TypeNode d_data;
+    TypeNode getRecordType( NodeManager * nm, const Record& rec, unsigned index = 0 );
+  };
+  TupleTypeCache d_tt_cache;
+  RecTypeCache d_rt_cache;
 
   /**
    * Keep a count of all abstract values produced by this NodeManager.
@@ -294,6 +314,8 @@ class NodeManager {
 
   // undefined private copy constructor (disallow copy)
   NodeManager(const NodeManager&) CVC4_UNDEFINED;
+
+  NodeManager& operator=(const NodeManager&) CVC4_UNDEFINED;
 
   void init();
 
@@ -683,7 +705,7 @@ public:
   inline TypeNode stringType();
 
   /** Get the (singleton) type for RegExp. */
-  inline TypeNode regexpType();
+  inline TypeNode regExpType();
 
   /** Get the (singleton) type for rounding modes. */
   inline TypeNode roundingModeType();
@@ -747,7 +769,7 @@ public:
    * @param types a vector of types
    * @returns the tuple type (types[0], ..., types[n])
    */
-  inline TypeNode mkTupleType(const std::vector<TypeNode>& types);
+  TypeNode mkTupleType(const std::vector<TypeNode>& types);
 
   /**
    * Make a record type with the description from rec.
@@ -755,7 +777,7 @@ public:
    * @param rec a description of the record
    * @returns the record type
    */
-  inline TypeNode mkRecordType(const Record& rec);
+  TypeNode mkRecordType(const Record& rec);
 
   /**
    * Make a symbolic expression type with types from
@@ -828,12 +850,6 @@ public:
    */
   TypeNode mkSubrangeType(const SubrangeBounds& bounds)
     throw(TypeCheckingExceptionPrivate);
-
-  /**
-   * Given a tuple or record type, get the internal datatype used for
-   * it.  Makes the DatatypeType if necessary.
-   */
-  TypeNode getDatatypeForTupleRecord(TypeNode tupleRecordType);
 
   /**
    * Get the type for the given node and optionally do type checking.
@@ -940,24 +956,25 @@ public:
 class NodeManagerScope {
   /** The old NodeManager, to be restored on destruction. */
   NodeManager* d_oldNodeManager;
-
+  Options::OptionsScope d_optionsScope;
 public:
 
-  NodeManagerScope(NodeManager* nm) :
-    d_oldNodeManager(NodeManager::s_current) {
+  NodeManagerScope(NodeManager* nm)
+      : d_oldNodeManager(NodeManager::s_current)
+      , d_optionsScope(nm ? nm->d_options : NULL) {
     // There are corner cases where nm can be NULL and it's ok.
     // For example, if you write { Expr e; }, then when the null
     // Expr is destructed, there's no active node manager.
     //Assert(nm != NULL);
     NodeManager::s_current = nm;
-    Options::s_current = nm ? nm->d_options : NULL;
+    //Options::s_current = nm ? nm->d_options : NULL;
     Debug("current") << "node manager scope: "
                      << NodeManager::s_current << "\n";
   }
 
   ~NodeManagerScope() {
     NodeManager::s_current = d_oldNodeManager;
-    Options::s_current = d_oldNodeManager ? d_oldNodeManager->d_options : NULL;
+    //Options::s_current = d_oldNodeManager ? d_oldNodeManager->d_options : NULL;
     Debug("current") << "node manager scope: "
                      << "returning to " << NodeManager::s_current << "\n";
   }
@@ -984,7 +1001,7 @@ inline TypeNode NodeManager::stringType() {
 }
 
 /** Get the (singleton) type for regexps. */
-inline TypeNode NodeManager::regexpType() {
+inline TypeNode NodeManager::regExpType() {
   return TypeNode(mkTypeConst<TypeConstant>(REGEXP_TYPE));
 }
 
@@ -1053,20 +1070,6 @@ NodeManager::mkPredicateType(const std::vector<TypeNode>& sorts) {
   return mkTypeNode(kind::FUNCTION_TYPE, sortNodes);
 }
 
-inline TypeNode NodeManager::mkTupleType(const std::vector<TypeNode>& types) {
-  std::vector<TypeNode> typeNodes;
-  for (unsigned i = 0; i < types.size(); ++ i) {
-    CheckArgument(!types[i].isFunctionLike(), types,
-                  "cannot put function-like types in tuples");
-    typeNodes.push_back(types[i]);
-  }
-  return mkTypeNode(kind::TUPLE_TYPE, typeNodes);
-}
-
-inline TypeNode NodeManager::mkRecordType(const Record& rec) {
-  return mkTypeConst(rec);
-}
-
 inline TypeNode NodeManager::mkSExprType(const std::vector<TypeNode>& types) {
   std::vector<TypeNode> typeNodes;
   for (unsigned i = 0; i < types.size(); ++ i) {
@@ -1097,7 +1100,8 @@ inline TypeNode NodeManager::mkArrayType(TypeNode indexType,
                 "cannot index arrays by a function-like type");
   CheckArgument(!constituentType.isFunctionLike(), constituentType,
                 "cannot store function-like types in arrays");
-  Debug("arrays") << "making array type " << indexType << " " << constituentType << std::endl;
+  Debug("arrays") << "making array type " << indexType << " "
+                  << constituentType << std::endl;
   return mkTypeNode(kind::ARRAY_TYPE, indexType, constituentType);
 }
 

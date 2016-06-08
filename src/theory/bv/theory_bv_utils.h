@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_bv_utils.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Liana Hadarean
- ** Minor contributors (to current version): Kshitij Bansal, Clark Barrett, Morgan Deters
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Dejan Jovanovic, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -51,11 +51,11 @@ inline unsigned getSize(TNode node) {
   return node.getType().getBitVectorSize();
 }
 
-// this seems to behave strangely
-inline const Integer& getBit(TNode node, unsigned i) {
-  Assert (0); 
-  Assert (node.getKind() == kind::CONST_BITVECTOR);
-  return node.getConst<BitVector>().extract(i, i).getValue();
+inline const bool getBit(TNode node, unsigned i) {
+  Assert (i < utils::getSize(node) && 
+          node.getKind() == kind::CONST_BITVECTOR);
+  Integer bit = node.getConst<BitVector>().extract(i, i).getValue();
+  return (bit == 1u); 
 }
 
 inline Node mkTrue() {
@@ -385,6 +385,8 @@ inline bool isBVPredicate(TNode node) {
       node.getKind() == kind::BITVECTOR_SGE ||
       node.getKind() == kind::BITVECTOR_ULE || 
       node.getKind() == kind::BITVECTOR_SLE ||
+      node.getKind() == kind::BITVECTOR_REDOR ||
+      node.getKind() == kind::BITVECTOR_REDAND ||
       ( node.getKind() == kind::NOT && (node[0].getKind() == kind::EQUAL ||
                                         node[0].getKind() == kind::BITVECTOR_ULT ||
                                         node[0].getKind() == kind::BITVECTOR_SLT ||
@@ -393,7 +395,9 @@ inline bool isBVPredicate(TNode node) {
                                         node[0].getKind() == kind::BITVECTOR_SGT ||
                                         node[0].getKind() == kind::BITVECTOR_SGE ||
                                         node[0].getKind() == kind::BITVECTOR_ULE || 
-                                        node[0].getKind() == kind::BITVECTOR_SLE)))
+                                        node[0].getKind() == kind::BITVECTOR_SLE ||
+                                        node[0].getKind() == kind::BITVECTOR_REDOR ||
+                                        node[0].getKind() == kind::BITVECTOR_REDAND)))
     {
       return true; 
     }
@@ -508,6 +512,8 @@ bool isEqualityTerm(TNode term, TNodeBoolMap& cache);
 typedef __gnu_cxx::hash_set<Node, NodeHashFunction> NodeSet;
 
 uint64_t numNodes(TNode node, NodeSet& seen);
+
+void collectVariables(TNode node, NodeSet& vars);
 
 }
 }

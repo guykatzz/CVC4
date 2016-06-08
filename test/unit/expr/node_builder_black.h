@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file node_builder_black.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Christopher L. Conway, Morgan Deters
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Christopher L. Conway
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::NodeBuilder.
  **
@@ -20,12 +20,12 @@
 #include <limits.h>
 #include <sstream>
 
-#include "expr/node_builder.h"
+#include "base/cvc4_assert.h"
 #include "expr/convenience_node_builders.h"
-#include "expr/node_manager.h"
-#include "expr/node.h"
 #include "expr/kind.h"
-#include "util/cvc4_assert.h"
+#include "expr/node.h"
+#include "expr/node_builder.h"
+#include "expr/node_manager.h"
 #include "util/rational.h"
 
 using namespace CVC4;

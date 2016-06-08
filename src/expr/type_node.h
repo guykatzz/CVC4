@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file type_node.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Clark Barrett, Andrew Reynolds, Tianyi Liang, Kshitij Bansal, Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Martin Brain
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Reference-counted encapsulation of a pointer to node information.
  **
@@ -27,9 +27,9 @@
 #include <iostream>
 #include <stdint.h>
 
+#include "base/cvc4_assert.h"
 #include "expr/kind.h"
 #include "expr/metakind.h"
-#include "util/cvc4_assert.h"
 #include "util/cardinality.h"
 
 namespace CVC4 {
@@ -372,12 +372,7 @@ public:
    *
    * @return the string representation of this type.
    */
-  inline std::string toString() const {
-    std::stringstream ss;
-    OutputLanguage outlang = (this == &s_null) ? language::output::LANG_AUTO : options::outputLanguage();
-    d_nv->toStream(ss, -1, false, 0, outlang);
-    return ss.str();
-  }
+  std::string toString() const;
 
   /**
    * Converts this node into a string representation and sends it to the
@@ -424,6 +419,13 @@ public:
    * @return a finite or infinite cardinality
    */
   Cardinality getCardinality() const;
+  
+  /**
+   * Is this type interpreted as being finite.
+   * If finite model finding is enabled, this assumes all uninterpreted sorts 
+   *   are interpreted as finite.
+   */
+  bool isInterpretedFinite() const;
 
   /**
    * Returns whether this type is well-founded.
@@ -582,6 +584,9 @@ public:
   /** Is this a parameterized datatype type */
   bool isParametricDatatype() const;
 
+  /** Is this a codatatype type */
+  bool isCodatatype() const;
+
   /** Is this a fully instantiated datatype type */
   bool isInstantiatedDatatype() const;
 
@@ -644,8 +649,10 @@ public:
    * For more information see: http://cvc4.cs.nyu.edu/wiki/Cvc4_Type_Lattice
    */
   static TypeNode leastCommonTypeNode(TypeNode t0, TypeNode t1);
+  static TypeNode mostCommonTypeNode(TypeNode t0, TypeNode t1);
 
 private:
+  static TypeNode commonTypeNode(TypeNode t0, TypeNode t1, bool isLeast);
 
   /**
    * Returns the leastUpperBound in the extended type lattice of two
@@ -931,18 +938,6 @@ inline TypeNode TypeNode::getRangeType() const {
   return (*this)[getNumChildren() - 1];
 }
 
-/** Is this a tuple type? */
-inline bool TypeNode::isTuple() const {
-  return getKind() == kind::TUPLE_TYPE ||
-    ( isPredicateSubtype() && getSubtypeParentType().isTuple() );
-}
-
-/** Is this a record type? */
-inline bool TypeNode::isRecord() const {
-  return getKind() == kind::RECORD_TYPE ||
-    ( isPredicateSubtype() && getSubtypeParentType().isRecord() );
-}
-
 /** Is this a symbolic expression type? */
 inline bool TypeNode::isSExpr() const {
   return getKind() == kind::SEXPR_TYPE ||
@@ -975,7 +970,6 @@ inline bool TypeNode::isBitVector() const {
 /** Is this a datatype type */
 inline bool TypeNode::isDatatype() const {
   return getKind() == kind::DATATYPE_TYPE ||
-    getKind() == kind::TUPLE_TYPE || getKind() == kind::RECORD_TYPE ||
     ( isPredicateSubtype() && getSubtypeParentType().isDatatype() );
 }
 
@@ -983,6 +977,15 @@ inline bool TypeNode::isDatatype() const {
 inline bool TypeNode::isParametricDatatype() const {
   return getKind() == kind::PARAMETRIC_DATATYPE ||
     ( isPredicateSubtype() && getSubtypeParentType().isParametricDatatype() );
+}
+
+/** Is this a codatatype type */
+inline bool TypeNode::isCodatatype() const {
+  if( isDatatype() ){
+    return getDatatype().isCodatatype();
+  }else{
+    return false;
+  }
 }
 
 /** Is this a constructor type */
@@ -1004,7 +1007,7 @@ inline bool TypeNode::isTester() const {
     and <code>sig</code> significand bits */
 inline bool TypeNode::isFloatingPoint(unsigned exp, unsigned sig) const {
   return
-    ( getKind() == kind::FLOATINGPOINT_TYPE && 
+    ( getKind() == kind::FLOATINGPOINT_TYPE &&
       getConst<FloatingPointSize>().exponent() == exp &&
       getConst<FloatingPointSize>().significand() == sig ) ||
     ( isPredicateSubtype() && getSubtypeParentType().isFloatingPoint(exp,sig) );
@@ -1020,11 +1023,7 @@ inline bool TypeNode::isBitVector(unsigned size) const {
 /** Get the datatype specification from a datatype type */
 inline const Datatype& TypeNode::getDatatype() const {
   Assert(isDatatype());
-  if(getKind() == kind::DATATYPE_TYPE) {
-    return getConst<Datatype>();
-  } else {
-    return NodeManager::currentNM()->getDatatypeForTupleRecord(*this).getConst<Datatype>();
-  }
+  return getConst<Datatype>();
 }
 
 /** Get the exponent size of this floating-point type */

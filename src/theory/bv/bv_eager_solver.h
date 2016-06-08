@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bv_eager_solver.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Eager bit-blasting solver. 
  **
@@ -33,15 +33,18 @@ class AigBitblaster;
  * BitblastSolver
  */
 class EagerBitblastSolver {
-  typedef __gnu_cxx::hash_set<TNode, TNodeHashFunction> AssertionSet; 
+  typedef __gnu_cxx::hash_set<TNode, TNodeHashFunction> AssertionSet;
   AssertionSet d_assertionSet;
   /** Bitblasters */
   EagerBitblaster* d_bitblaster;
   AigBitblaster* d_aigBitblaster;
   bool d_useAig;
+
   TheoryBV* d_bv; 
+  BitVectorProof * d_bvp;
+
 public:
-  EagerBitblastSolver(theory::bv::TheoryBV* bv); 
+  EagerBitblastSolver(theory::bv::TheoryBV* bv);
   ~EagerBitblastSolver();
   bool checkSat();
   void assertFormula(TNode formula);
@@ -52,6 +55,7 @@ public:
   bool isInitialized();
   void initialize();
   void collectModelInfo(theory::TheoryModel* m, bool fullModel);
+  void setProofLog( BitVectorProof * bvp );
 };
 
 }

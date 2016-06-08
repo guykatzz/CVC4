@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file regexp_operation.cpp
  ** \verbatim
- ** Original author: Tianyi Liang
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tianyi Liang, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Symbolic Regular Expresion Operations
  **
@@ -15,8 +15,9 @@
  **/
 
 #include "theory/strings/regexp_operation.h"
+
 #include "expr/kind.h"
-#include "theory/strings/options.h"
+#include "options/strings_options.h"
 
 namespace CVC4 {
 namespace theory {
@@ -36,6 +37,10 @@ RegExpOpr::RegExpOpr()
   d_emptyRegexp = NodeManager::currentNM()->mkNode( kind::REGEXP_EMPTY, nvec );
   d_sigma = NodeManager::currentNM()->mkNode( kind::REGEXP_SIGMA, nvec );
   d_sigma_star = NodeManager::currentNM()->mkNode( kind::REGEXP_STAR, d_sigma );
+}
+
+RegExpOpr::~RegExpOpr(){ 
+
 }
 
 int RegExpOpr::gcd ( int a, int b ) {
@@ -975,8 +980,8 @@ void RegExpOpr::simplifyNRegExp( Node s, Node r, std::vector< Node > &new_nodes 
         Node b1v = NodeManager::currentNM()->mkNode(kind::BOUND_VAR_LIST, b1);
         Node g1 = NodeManager::currentNM()->mkNode( kind::AND, NodeManager::currentNM()->mkNode(kind::GEQ, b1, d_zero),
               NodeManager::currentNM()->mkNode( kind::GEQ, NodeManager::currentNM()->mkNode(kind::STRING_LENGTH, s), b1 ) );
-        Node s1 = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR_TOTAL, s, d_zero, b1));
-        Node s2 = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR_TOTAL, s, b1, NodeManager::currentNM()->mkNode(kind::MINUS, lens, b1)));
+        Node s1 = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR, s, d_zero, b1));
+        Node s2 = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR, s, b1, NodeManager::currentNM()->mkNode(kind::MINUS, lens, b1)));
         Node s1r1 = NodeManager::currentNM()->mkNode(kind::STRING_IN_REGEXP, s1, r[0]).negate();
         if(r[0].getKind() == kind::STRING_TO_REGEXP) {
           s1r1 = s1.eqNode(r[0][0]).negate();
@@ -1054,8 +1059,8 @@ void RegExpOpr::simplifyNRegExp( Node s, Node r, std::vector< Node > &new_nodes 
           Node g1 = NodeManager::currentNM()->mkNode( kind::AND, NodeManager::currentNM()->mkNode(kind::GEQ, b1, d_one),
                 NodeManager::currentNM()->mkNode( kind::GEQ, lens, b1 ) );
           //internal
-          Node s1 = NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR_TOTAL, s, d_zero, b1);
-          Node s2 = NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR_TOTAL, s, b1, NodeManager::currentNM()->mkNode(kind::MINUS, lens, b1));
+          Node s1 = NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR, s, d_zero, b1);
+          Node s2 = NodeManager::currentNM()->mkNode(kind::STRING_SUBSTR, s, b1, NodeManager::currentNM()->mkNode(kind::MINUS, lens, b1));
           Node s1r1 = NodeManager::currentNM()->mkNode(kind::STRING_IN_REGEXP, s1, r[0]).negate();
           Node s2r2 = NodeManager::currentNM()->mkNode(kind::STRING_IN_REGEXP, s2, r).negate();
 

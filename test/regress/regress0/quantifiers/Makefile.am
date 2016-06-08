@@ -22,7 +22,6 @@ TESTS =	\
 	bug269.smt2 \
 	bug290.smt2 \
 	bug291.smt2 \
-	ex3.smt2 \
 	Arrays_Q1-noinfer.smt2 \
 	bignum_quant.smt2 \
 	bug269.smt2 \
@@ -39,33 +38,66 @@ TESTS =	\
 	gauss_init_0030.fof.smt2 \
 	qcft-javafe.filespace.TreeWalker.006.smt2 \
 	qcft-smtlib3dbc51.smt2 \
-	symmetric_unsat_7.smt2 \
 	javafe.ast.StmtVec.009.smt2 \
 	ARI176e1.smt2 \
-        bi-artm-s.smt2 \
+	bi-artm-s.smt2 \
 	simp-typ-test.smt2 \
 	macros-int-real.smt2 \
 	stream-x2014-09-18-unsat.smt2 \
 	simp-len.smt2 \
 	is-even.smt2 \
-	is-even-pred.smt2
+	is-even-pred.smt2 \
+	delta-simp.smt2  \
+	nested-delta.smt2 \
+	nested-inf.smt2 \
+	RND-small.smt2 \
+	clock-3.smt2 \
+	006-cbqi-ite.smt2 \
+	cbqi-lia-dt-simp.smt2 \
+	is-int.smt2 \
+	floor.smt2 \
+	array-unsat-simp3.smt2 \
+	mix-simp.smt2 \
+	mix-coeff.smt2 \
+	mix-match.smt2 \
+	ari056.smt2 \
+	ext-ex-deq-trigger.smt2 \
+	matching-lia-1arg.smt2 \
+	RND_4_16.smt2 \
+	cdt-0208-to.smt2 \
+	psyco-196.smt2 \
+	agg-rew-test.smt2 \
+	agg-rew-test-cf.smt2 \
+	rew-to-0211-dd.smt2 \
+	rew-to-scala.smt2 \
+	macro-subtype-param.smt2 \
+	macros-real-arg.smt2 \
+	subtype-param-unk.smt2 \
+	subtype-param.smt2 \
+	anti-sk-simp.smt2 \
+	pure_dt_cbqi.smt2 \
+	florian-case-ax.smt2 \
+	double-pattern.smt2 \
+	qcf-rel-dom-opt.smt2 \
+	parametric-lists.smt2 \
+	partial-trigger.smt2 \
+	inst-max-level-segf.smt2 \
+	small-bug1-fixpoint-3.smt2 \
+	z3.620661-no-fv-trigger.smt2
+
 
 # regression can be solved with --finite-model-find --fmf-inst-engine
 # set3.smt2
 
 
 # removed because they take more than 20s
-#		ex1.smt2 \
-#		ex6.smt2 \
-#	        ex7.smt2 \
-#		array-unsat-simp3.smt2are
 #		javafe.ast.ArrayInit.35.smt2 \
 #		javafe.ast.StandardPrettyPrint.319.smt2 \
 #		javafe.ast.StmtVec.009.smt2 \
 #		javafe.ast.WhileStmt.447.smt2 \
 #		javafe.tc.CheckCompilationUnit.001.smt2 \
 #		javafe.tc.FlowInsensitiveChecks.682.smt2 \
-#		array-unsat-simp3.smt2
+#		clock-10.smt2
 #
 
 EXTRA_DIST = $(TESTS) \

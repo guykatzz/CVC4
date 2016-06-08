@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file antlr_line_buffered_input.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,22 +15,19 @@
  ** \todo document this file
  **/
 
-#include <antlr3.h>
+// We rely on the inclusion of #include <antlr3.h> in
+//   "parser/antlr_line_buffered_input.h".
+// This is avoid having to undefine the symbols in <antlr3.h>.
+// See the documentation in "parser/antlr_undefines.h" for more
+// details.
 
-// ANTLR3 headers define these in our space :(
-// undef them so that we don't get multiple-definition warnings
-#undef PACKAGE_BUGREPORT
-#undef PACKAGE_NAME
-#undef PACKAGE_STRING
-#undef PACKAGE_TARNAME
-#undef PACKAGE_VERSION
+#include "parser/antlr_line_buffered_input.h"
 
 #include <iostream>
 #include <string>
 #include <cassert>
 
-#include "util/output.h"
-#include "parser/antlr_line_buffered_input.h"
+#include "base/output.h"
 
 namespace CVC4 {
 namespace parser {
@@ -380,4 +377,3 @@ antlr3CreateLineBufferedStream(std::istream& in)
 
 }/* CVC4::parser namespace */
 }/* CVC4 namespace */
-

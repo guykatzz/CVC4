@@ -1,27 +1,30 @@
 /*********************                                                        */
 /*! \file input.cpp
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A super-class for input language parsers.
  **
  ** A super-class for input language parsers
  **/
 
-#include "parser/input.h"
-#include "parser/parser_exception.h"
-#include "parser/parser.h"
-
-#include "expr/command.h"
-#include "expr/type.h"
+// This must be included first.
 #include "parser/antlr_input.h"
-#include "util/output.h"
+
+#include "parser/input.h"
+
+#include "base/output.h"
+#include "expr/type.h"
+#include "parser/parser.h"
+#include "parser/parser_exception.h"
+#include "smt/command.h"
+
 
 using namespace std;
 using namespace CVC4;
@@ -60,12 +63,12 @@ Input* Input::newFileInput(InputLanguage lang,
   return AntlrInput::newInput(lang, *inputStream);
 }
 
-Input* Input::newStreamInput(InputLanguage lang, 
-                             std::istream& input, 
+Input* Input::newStreamInput(InputLanguage lang,
+                             std::istream& input,
                              const std::string& name,
                              bool lineBuffered)
   throw (InputStreamException) {
-  AntlrInputStream *inputStream = 
+  AntlrInputStream *inputStream =
     AntlrInputStream::newStreamInputStream(input, name, lineBuffered);
   return AntlrInput::newInput(lang, *inputStream);
 }

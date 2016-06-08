@@ -1,47 +1,56 @@
 /*********************                                                        */
 /*! \file prop_engine.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic
- ** Minor contributors (to current version): Clark Barrett, Liana Hadarean, Kshitij Bansal, Christopher L. Conway, Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Implementation of the propositional engine of CVC4
  **
  ** Implementation of the propositional engine of CVC4.
  **/
 
-#include "prop/cnf_stream.h"
 #include "prop/prop_engine.h"
-#include "prop/theory_proxy.h"
+
+#include <iomanip>
+#include <map>
+#include <utility>
+
+#include "base/cvc4_assert.h"
+#include "base/output.h"
+#include "decision/decision_engine.h"
+#include "expr/expr.h"
+#include "options/base_options.h"
+#include "options/decision_options.h"
+#include "options/main_options.h"
+#include "options/options.h"
+#include "options/smt_options.h"
+#include "proof/proof_manager.h"
+#include "proof/proof_manager.h"
+#include "prop/cnf_stream.h"
 #include "prop/sat_solver.h"
 #include "prop/sat_solver_factory.h"
-#include "proof/proof_manager.h"
-
-#include "decision/decision_engine.h"
-#include "decision/options.h"
+#include "prop/theory_proxy.h"
+#include "smt/smt_statistics_registry.h"
+#include "smt/command.h"
 #include "theory/theory_engine.h"
 #include "theory/theory_registrar.h"
-#include "proof/proof_manager.h"
-#include "util/cvc4_assert.h"
-#include "options/options.h"
-#include "smt/options.h"
-#include "main/options.h"
-#include "util/output.h"
-#include "util/result.h"
 #include "util/resource_manager.h"
-#include "expr/expr.h"
-#include "expr/command.h"
-
-#include <utility>
-#include <map>
-#include <iomanip>
+#include "util/result.h"
 
 using namespace std;
 using namespace CVC4::context;
+
+
+#ifdef CVC4_REPLAY
+#  define CVC4_USE_REPLAY true
+#else /* CVC4_REPLAY */
+#  define CVC4_USE_REPLAY false
+#endif /* CVC4_REPLAY */
 
 namespace CVC4 {
 namespace prop {
@@ -66,7 +75,9 @@ public:
   }
 };
 
-PropEngine::PropEngine(TheoryEngine* te, DecisionEngine *de, Context* satContext, Context* userContext) :
+PropEngine::PropEngine(TheoryEngine* te, DecisionEngine *de, Context* satContext,
+                       Context* userContext, std::ostream* replayLog,
+                       ExprStream* replayStream, LemmaChannels* channels) :
   d_inCheckSat(false),
   d_theoryEngine(te),
   d_decisionEngine(de),
@@ -76,27 +87,31 @@ PropEngine::PropEngine(TheoryEngine* te, DecisionEngine *de, Context* satContext
   d_registrar(NULL),
   d_cnfStream(NULL),
   d_interrupted(false),
-  d_resourceManager(NodeManager::currentResourceManager()) {
+  d_resourceManager(NodeManager::currentResourceManager())
+{
 
   Debug("prop") << "Constructing the PropEngine" << endl;
 
-  d_satSolver = SatSolverFactory::createDPLLMinisat();
+  d_satSolver = SatSolverFactory::createDPLLMinisat(smtStatisticsRegistry());
 
   d_registrar = new theory::TheoryRegistrar(d_theoryEngine);
   d_cnfStream = new CVC4::prop::TseitinCnfStream
-    (d_satSolver, d_registrar,
-     userContext,
+    (d_satSolver, d_registrar, userContext,
      // fullLitToNode Map =
      options::threads() > 1 ||
-     options::decisionMode() == decision::DECISION_STRATEGY_RELEVANCY
-     );
+     options::decisionMode() == decision::DECISION_STRATEGY_RELEVANCY ||
+     ( CVC4_USE_REPLAY && replayLog != NULL ));
 
-  d_theoryProxy = new TheoryProxy(this, d_theoryEngine, d_decisionEngine, d_context, d_cnfStream);
+  d_theoryProxy = new TheoryProxy(
+      this, d_theoryEngine, d_decisionEngine, d_context, d_cnfStream, replayLog,
+      replayStream, channels);
   d_satSolver->initialize(d_context, d_theoryProxy);
 
   d_decisionEngine->setSatSolver(d_satSolver);
   d_decisionEngine->setCnfStream(d_cnfStream);
-  PROOF (ProofManager::currentPM()->initCnfProof(d_cnfStream); );
+  PROOF (
+         ProofManager::currentPM()->initCnfProof(d_cnfStream, userContext);
+         );
 }
 
 PropEngine::~PropEngine() {
@@ -114,12 +129,16 @@ void PropEngine::assertFormula(TNode node) {
   d_cnfStream->convertAndAssert(node, false, false, RULE_GIVEN);
 }
 
-void PropEngine::assertLemma(TNode node, bool negated, bool removable, ProofRule rule, TNode from) {
+void PropEngine::assertLemma(TNode node, bool negated,
+                             bool removable,
+                             ProofRule rule,
+                             LemmaProofRecipe* proofRecipe,
+                             TNode from) {
   //Assert(d_inCheckSat, "Sat solver should be in solve()!");
   Debug("prop::lemmas") << "assertLemma(" << node << ")" << endl;
 
   // Assert as (possibly) removable
-  d_cnfStream->convertAndAssert(node, removable, negated, rule, from);
+  d_cnfStream->convertAndAssert(node, removable, negated, rule, from, proofRecipe);
 }
 
 void PropEngine::requirePhase(TNode n, bool phase) {

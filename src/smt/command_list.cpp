@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file command_list.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A context-sensitive list of Commands, and their cleanup
  **
@@ -15,10 +15,9 @@
  **/
 
 // we include both of these to make sure they agree on the typedef
+#include "smt/command.h"
 #include "smt/command_list.h"
 #include "smt/smt_engine.h"
-
-#include "expr/command.h"
 
 namespace CVC4 {
 namespace smt {

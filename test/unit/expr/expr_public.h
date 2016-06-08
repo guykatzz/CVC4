@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file expr_public.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway, Dejan Jovanovic
- ** Minor contributors (to current version): Tim King, Clark Barrett
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Christopher L. Conway
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Public black-box testing of CVC4::Expr.
  **
@@ -19,9 +19,10 @@
 #include <sstream>
 #include <string>
 
+#include "base/exception.h"
 #include "expr/expr_manager.h"
 #include "expr/expr.h"
-#include "util/exception.h"
+#include "options/options.h"
 
 using namespace CVC4;
 using namespace CVC4::kind;
@@ -53,10 +54,11 @@ public:
 
   void setUp() {
     try {
+
       char *argv[2];
       argv[0] = strdup("");
       argv[1] = strdup("--output-language=ast");
-      opts.parseOptions(2, argv);
+      Options::parseOptions(&opts, 2, argv);
       free(argv[0]);
       free(argv[1]);
 

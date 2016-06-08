@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file output_black.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4 output classes.
  **
@@ -19,7 +19,7 @@
 #include <iostream>
 #include <sstream>
 
-#include "util/output.h"
+#include "base/output.h"
 
 using namespace CVC4;
 using namespace std;
@@ -36,12 +36,12 @@ class OutputBlack : public CxxTest::TestSuite {
 public:
 
   void setUp() {
-    DebugChannel.setStream(d_debugStream);
-    TraceChannel.setStream(d_traceStream);
-    NoticeChannel.setStream(d_noticeStream);
-    ChatChannel.setStream(d_chatStream);
-    MessageChannel.setStream(d_messageStream);
-    WarningChannel.setStream(d_warningStream);
+    DebugChannel.setStream(&d_debugStream);
+    TraceChannel.setStream(&d_traceStream);
+    NoticeChannel.setStream(&d_noticeStream);
+    ChatChannel.setStream(&d_chatStream);
+    MessageChannel.setStream(&d_messageStream);
+    WarningChannel.setStream(&d_warningStream);
 
     d_debugStream.str("");
     d_traceStream.str("");

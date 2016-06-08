@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file statistics.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A simple statistics test for CVC4.
  **
@@ -20,6 +20,7 @@
 
 #include "expr/expr.h"
 #include "smt/smt_engine.h"
+#include "util/sexpr.h"
 #include "util/statistics.h"
 
 using namespace CVC4;
@@ -53,7 +54,8 @@ int main() {
     cout << "stat1 " << (*i).first << " is " << stats.getStatistic((*i).first) << endl;
     cout << "stat2 " << (*i).first << " is " << (*i).second << endl;
     if(smt.getStatistic((*i).first) != (*i).second) {
-      cout << "SMT engine reports different value for statistic " << (*i).first << ": " << smt.getStatistic((*i).first) << endl;
+      cout << "SMT engine reports different value for statistic "
+           << (*i).first << ": " << smt.getStatistic((*i).first) << endl;
       exit(1);
     }
     different = different || stats.getStatistic((*i).first) != (*i).second;
@@ -68,5 +70,3 @@ int main() {
 
   return r == Result::VALID ? 0 : 1;
 }
-
-

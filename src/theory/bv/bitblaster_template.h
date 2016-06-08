@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bitblaster_template.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Wrapper around the SAT solver used for bitblasting
  **
@@ -19,15 +19,15 @@
 #ifndef __CVC4__BITBLASTER_TEMPLATE_H
 #define __CVC4__BITBLASTER_TEMPLATE_H
 
-
-#include "expr/node.h"
-#include <vector>
 #include <ext/hash_map>
-#include "context/cdhashmap.h"
+#include <vector>
+
 #include "bitblast_strategies_template.h"
+#include "context/cdhashmap.h"
+#include "expr/node.h"
 #include "prop/sat_solver.h"
-#include "theory/valuation.h"
 #include "theory/theory_registrar.h"
+#include "theory/valuation.h"
 #include "util/resource_manager.h"
 
 class Abc_Obj_t_;
@@ -83,28 +83,30 @@ protected:
   // caches and mappings
   TermDefMap d_termCache;
   ModelCache d_modelCache;
-  
+
+  BitVectorProof * d_bvp;
+
   void initAtomBBStrategies();
   void initTermBBStrategies();
 protected:
   /// function tables for the various bitblasting strategies indexed by node kind
   TermBBStrategy d_termBBStrategies[kind::LAST_KIND];
-  AtomBBStrategy d_atomBBStrategies[kind::LAST_KIND]; 
-  virtual Node getModelFromSatSolver(TNode node, bool fullModel) = 0; 
+  AtomBBStrategy d_atomBBStrategies[kind::LAST_KIND];
+  virtual Node getModelFromSatSolver(TNode node, bool fullModel) = 0;
 public:
-  TBitblaster(); 
+  TBitblaster();
   virtual ~TBitblaster() {}
-  virtual void bbAtom(TNode node) = 0; 
+  virtual void bbAtom(TNode node) = 0;
   virtual void bbTerm(TNode node, Bits&  bits) = 0;
   virtual void makeVariable(TNode node, Bits& bits) = 0;
   virtual T getBBAtom(TNode atom) const = 0;
   virtual bool hasBBAtom(TNode atom) const = 0;
   virtual void storeBBAtom(TNode atom, T atom_bb) = 0;
-  
-  
+
+
   bool hasBBTerm(TNode node) const;
   void getBBTerm(TNode node, Bits& bits) const;
-  void storeBBTerm(TNode term, const Bits& bits);
+  virtual void storeBBTerm(TNode term, const Bits& bits);
   /**
    * Return a constant representing the value of a in the  model.
    * If fullModel is true set unconstrained bits to 0. If not return
@@ -113,10 +115,10 @@ public:
    */
   Node getTermModel(TNode node, bool fullModel);
   void invalidateModelCache();
-}; 
+};
 
 
-class TheoryBV; 
+class TheoryBV;
 
 class TLazyBitblaster :  public TBitblaster<Node> {
   typedef std::vector<Node> Bits;
@@ -126,19 +128,20 @@ class TLazyBitblaster :  public TBitblaster<Node> {
   class MinisatNotify : public prop::BVSatSolverInterface::Notify {
     prop::CnfStream* d_cnf;
     TheoryBV *d_bv;
-    TLazyBitblaster* d_lazyBB; 
+    TLazyBitblaster* d_lazyBB;
   public:
     MinisatNotify(prop::CnfStream* cnf, TheoryBV *bv, TLazyBitblaster* lbv)
     : d_cnf(cnf)
     , d_bv(bv)
     , d_lazyBB(lbv)
     {}
+
     bool notify(prop::SatLiteral lit);
     void notify(prop::SatClause& clause);
     void spendResource(unsigned ammount);
     void safePoint(unsigned ammount);
   };
-  
+
   TheoryBV *d_bv;
   context::Context* d_ctx;
 
@@ -154,24 +157,27 @@ class TLazyBitblaster :  public TBitblaster<Node> {
   ExplanationMap* d_explanations; /**< context dependent list of explanations for the propagated literals.
                                     Only used when bvEagerPropagate option enabled. */
   TNodeSet d_variables;
-  TNodeSet d_bbAtoms; 
+  TNodeSet d_bbAtoms;
   AbstractionModule* d_abstraction;
   bool d_emptyNotify;
 
   context::CDO<bool> d_satSolverFullModel;
-  
+
   void addAtom(TNode atom);
   bool hasValue(TNode a);
-  Node getModelFromSatSolver(TNode a, bool fullModel);  
+  Node getModelFromSatSolver(TNode a, bool fullModel);
+
 public:
   void bbTerm(TNode node, Bits&  bits);
   void bbAtom(TNode node);
   Node getBBAtom(TNode atom) const;
   void storeBBAtom(TNode atom, Node atom_bb);
+  void storeBBTerm(TNode node, const Bits& bits);
   bool hasBBAtom(TNode atom) const; 
+
   TLazyBitblaster(context::Context* c, bv::TheoryBV* bv, const std::string name="", bool emptyNotify = false);
   ~TLazyBitblaster() throw();
-  /** 
+  /**
    * Pushes the assumption literal associated with node to the SAT
    * solver assumption queue. 
    * 
@@ -198,6 +204,7 @@ public:
    * constants to equivalence classes that don't already have them
    */
   void collectModelInfo(TheoryModel* m, bool fullModel);
+  void setProofLog( BitVectorProof * bvp );
 
   typedef TNodeSet::const_iterator vars_iterator;
   vars_iterator beginVars() { return d_variables.begin(); }
@@ -250,7 +257,7 @@ public:
 class EagerBitblaster : public TBitblaster<Node> {
   typedef __gnu_cxx::hash_set<TNode, TNodeHashFunction> TNodeSet;
   // sat solver used for bitblasting and associated CnfStream
-  prop::BVSatSolverInterface*        d_satSolver;
+  prop::SatSolver*                   d_satSolver;
   BitblastingRegistrar*              d_bitblastingRegistrar;
   context::Context*                  d_nullContext;
   prop::CnfStream*                   d_cnfStream;
@@ -259,27 +266,33 @@ class EagerBitblaster : public TBitblaster<Node> {
   TNodeSet d_bbAtoms;
   TNodeSet d_variables;
 
+  MinisatEmptyNotify d_notify;
+
   Node getModelFromSatSolver(TNode a, bool fullModel);
-  bool isSharedTerm(TNode node); 
+  bool isSharedTerm(TNode node);
 
 public:
+  EagerBitblaster(theory::bv::TheoryBV* theory_bv);
+  ~EagerBitblaster();
+
   void addAtom(TNode atom);
   void makeVariable(TNode node, Bits& bits);
   void bbTerm(TNode node, Bits&  bits);
   void bbAtom(TNode node);
   Node getBBAtom(TNode node) const;
-  bool hasBBAtom(TNode atom) const; 
+  bool hasBBAtom(TNode atom) const;
   void bbFormula(TNode formula);
   void storeBBAtom(TNode atom, Node atom_bb);
-  EagerBitblaster(theory::bv::TheoryBV* theory_bv); 
-  ~EagerBitblaster();
+  void storeBBTerm(TNode node, const Bits& bits);
+
   bool assertToSat(TNode node, bool propagate = true);
   bool solve();
   void collectModelInfo(TheoryModel* m, bool fullModel);
+  void setProofLog( BitVectorProof * bvp );
 };
 
 class BitblastingRegistrar: public prop::Registrar {
-  EagerBitblaster* d_bitblaster; 
+  EagerBitblaster* d_bitblaster;
 public:
   BitblastingRegistrar(EagerBitblaster* bb)
     : d_bitblaster(bb)
@@ -293,7 +306,7 @@ class AigBitblaster : public TBitblaster<Abc_Obj_t*> {
   
   static Abc_Ntk_t* abcAigNetwork;
   context::Context* d_nullContext;
-  prop::BVSatSolverInterface* d_satSolver;
+  prop::SatSolver* d_satSolver;
   TNodeAigMap d_aigCache;
   NodeAigMap d_bbAtoms;
   
@@ -402,6 +415,7 @@ template <class T>
 TBitblaster<T>::TBitblaster()
   : d_termCache()
   , d_modelCache()
+  , d_bvp( NULL )
 {
   initAtomBBStrategies();
   initTermBBStrategies(); 
@@ -445,7 +459,7 @@ Node TBitblaster<T>::getTermModel(TNode node, bool fullModel) {
 
   if (Theory::isLeafOf(node, theory::THEORY_BV)) {
     // if it is a leaf may ask for fullModel
-    value = getModelFromSatSolver(node, fullModel); 
+    value = getModelFromSatSolver(node, true); 
     Debug("bv-equality-status")<< "TLazyBitblaster::getTermModel from VarValue" << node <<" => " << value <<"\n";
     Assert ((fullModel && !value.isNull() && value.isConst()) || !fullModel); 
     if (!value.isNull()) {

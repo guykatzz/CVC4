@@ -1,31 +1,33 @@
 /*********************                                                        */
 /*! \file parser_builder.cpp
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Dejan Jovanovic, Francois Bobot
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A builder for parsers.
  **
  ** A builder for parsers.
  **/
 
-#include <string>
+// This must be included first.
+#include "parser/antlr_input.h"
 
 #include "parser/parser_builder.h"
+
+#include <string>
+
+#include "expr/expr_manager.h"
 #include "parser/input.h"
 #include "parser/parser.h"
+#include "options/options.h"
 #include "smt1/smt1.h"
 #include "smt2/smt2.h"
 #include "tptp/tptp.h"
-
-#include "expr/expr_manager.h"
-#include "parser/options.h"
-#include "smt/options.h"
 
 namespace CVC4 {
 namespace parser {
@@ -161,14 +163,15 @@ ParserBuilder& ParserBuilder::withParseOnly(bool flag) {
 ParserBuilder& ParserBuilder::withOptions(const Options& options) {
   ParserBuilder& retval = *this;
   retval =
-    retval.withInputLanguage(options[options::inputLanguage])
-      .withMmap(options[options::memoryMap])
-      .withChecks(options[options::semanticChecks])
-      .withStrictMode(options[options::strictParsing])
-      .withParseOnly(options[options::parseOnly])
-      .withIncludeFile(options[options::filesystemAccess]);
-  if(options.wasSetByUser(options::forceLogic)) {
-    retval = retval.withForcedLogic(options[options::forceLogic].getLogicString());
+      retval.withInputLanguage(options.getInputLanguage())
+      .withMmap(options.getMemoryMap())
+      .withChecks(options.getSemanticChecks())
+      .withStrictMode(options.getStrictParsing())
+      .withParseOnly(options.getParseOnly())
+      .withIncludeFile(options.getFilesystemAccess());
+  if(options.wasSetByUserForceLogicString()) {
+    LogicInfo tmp(options.getForceLogicString());
+    retval = retval.withForcedLogic(tmp.getLogicString());
   }
   return retval;
 }

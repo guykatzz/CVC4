@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file ouroborous.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief "Ouroborous" test: does CVC4 read its own output?
  **
@@ -29,9 +29,11 @@
 #include <string>
 
 #include "expr/expr.h"
-#include "expr/command.h"
+#include "expr/expr_iomanip.h"
+#include "options/set_language.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
+#include "smt/command.h"
 
 using namespace CVC4;
 using namespace CVC4::parser;
@@ -69,7 +71,7 @@ string translate(string in, InputLanguage inlang, OutputLanguage outlang) {
   psr->setInput(Input::newStringInput(inlang, in, "internal-buffer"));
   Expr e = psr->nextExpression();
   stringstream ss;
-  ss << Expr::setlanguage(outlang) << Expr::setdepth(-1) << e;
+  ss << language::SetLanguage(outlang) << expr::ExprSetDepth(-1) << e;
   assert(psr->nextExpression().isNull());// next expr should be null
   assert(psr->done());// parser should be done
   string s = ss.str();
@@ -121,7 +123,7 @@ int runTest() {
 
   assert(psr->done());// parser should be done
 
-  cout << Expr::setdepth(-1);
+  cout << expr::ExprSetDepth(-1);
 
   runTestString("(= (f (f y)) x)");
   runTestString("~BVPLUS(3, 0bin00, 0bin11)[2:1] = 0bin10", input::LANG_CVC4);

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cdlist.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Tim King
- ** Minor contributors (to current version): Kshitij Bansal, Francois Bobot
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Francois Bobot
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Context-dependent list class (only supports append)
  **
@@ -20,17 +20,16 @@
 #ifndef __CVC4__CONTEXT__CDLIST_H
 #define __CVC4__CONTEXT__CDLIST_H
 
+#include <boost/static_assert.hpp>
 #include <iterator>
 #include <memory>
 #include <string>
 #include <sstream>
 
+#include "base/cvc4_assert.h"
 #include "context/context.h"
 #include "context/context_mm.h"
 #include "context/cdlist_forward.h"
-#include "util/cvc4_assert.h"
-
-#include <boost/static_assert.hpp>
 
 namespace CVC4 {
 namespace context {

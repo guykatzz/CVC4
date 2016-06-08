@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file arith_static_learner.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Dejan Jovanovic
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Dejan Jovanovic, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,18 +15,17 @@
  ** \todo document this file
  **/
 
-#include "theory/rewriter.h"
-
-#include "theory/arith/arith_utilities.h"
-#include "theory/arith/arith_static_learner.h"
-#include "theory/arith/options.h"
-
-#include "theory/arith/normal_form.h"
-
-#include "expr/expr.h"
-#include "expr/convenience_node_builders.h"
-
 #include <vector>
+
+#include "base/output.h"
+#include "expr/convenience_node_builders.h"
+#include "expr/expr.h"
+#include "options/arith_options.h"
+#include "smt/smt_statistics_registry.h"
+#include "theory/arith/arith_static_learner.h"
+#include "theory/arith/arith_utilities.h"
+#include "theory/arith/normal_form.h"
+#include "theory/rewriter.h"
 
 using namespace std;
 using namespace CVC4::kind;
@@ -50,13 +49,13 @@ ArithStaticLearner::Statistics::Statistics():
   d_iteMinMaxApplications("theory::arith::iteMinMaxApplications", 0),
   d_iteConstantApplications("theory::arith::iteConstantApplications", 0)
 {
-  StatisticsRegistry::registerStat(&d_iteMinMaxApplications);
-  StatisticsRegistry::registerStat(&d_iteConstantApplications);
+  smtStatisticsRegistry()->registerStat(&d_iteMinMaxApplications);
+  smtStatisticsRegistry()->registerStat(&d_iteConstantApplications);
 }
 
 ArithStaticLearner::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_iteMinMaxApplications);
-  StatisticsRegistry::unregisterStat(&d_iteConstantApplications);
+  smtStatisticsRegistry()->unregisterStat(&d_iteMinMaxApplications);
+  smtStatisticsRegistry()->unregisterStat(&d_iteConstantApplications);
 }
 
 void ArithStaticLearner::staticLearning(TNode n, NodeBuilder<>& learned){

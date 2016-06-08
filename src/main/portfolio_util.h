@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file portfolio_util.h
  ** \verbatim
- ** Original author: Kshitij Bansal
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Kshitij Bansal, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Code relevant only for portfolio builds
  **/
@@ -17,12 +17,12 @@
 
 #include <queue>
 
+#include "base/output.h"
 #include "expr/pickler.h"
+#include "smt/smt_engine.h"
+#include "smt_util/lemma_input_channel.h"
+#include "smt_util/lemma_output_channel.h"
 #include "util/channel.h"
-#include "util/lemma_input_channel.h"
-#include "util/lemma_output_channel.h"
-#include "util/output.h"
-#include "main/options.h"
 
 namespace CVC4 {
 
@@ -49,25 +49,7 @@ public:
 
   ~PortfolioLemmaOutputChannel() throw() { }
 
-  void notifyNewLemma(Expr lemma) {
-    if(int(lemma.getNumChildren()) > options::sharingFilterByLength()) {
-      return;
-    }
-    ++cnt;
-    Trace("sharing") << d_tag << ": " << lemma << std::endl;
-    expr::pickle::Pickle pkl;
-    try {
-      d_pickler.toPickle(lemma, pkl);
-      d_sharedChannel->push(pkl);
-      if(Trace.isOn("showSharing") && options::thread_id() == 0) {
-        *options::out() << "thread #0: notifyNewLemma: " << lemma
-                        << std::endl;
-      }
-    } catch(expr::pickle::PicklingException& p){
-      Trace("sharing::blocked") << lemma << std::endl;
-    }
-  }
-
+  void notifyNewLemma(Expr lemma);
 };/* class PortfolioLemmaOutputChannel */
 
 class PortfolioLemmaInputChannel : public LemmaInputChannel {
@@ -81,33 +63,35 @@ public:
                              SharedChannel<ChannelFormat>* c,
                              ExprManager* em,
                              VarMap& to,
-                             VarMap& from) :
-    d_tag(tag),
-    d_sharedChannel(c),
-    d_pickler(em, to, from){
-  }
+                               VarMap& from);
 
   ~PortfolioLemmaInputChannel() throw() { }
 
-  bool hasNewLemma(){
-    Debug("lemmaInputChannel") << d_tag << ": " << "hasNewLemma" << std::endl;
-    return !d_sharedChannel->empty();
-  }
-
-  Expr getNewLemma() {
-    Debug("lemmaInputChannel") << d_tag << ": " << "getNewLemma" << std::endl;
-    expr::pickle::Pickle pkl = d_sharedChannel->pop();
-
-    Expr e = d_pickler.fromPickle(pkl);
-    if(Trace.isOn("showSharing") && options::thread_id() == 0) {
-      *options::out() << "thread #0: getNewLemma: " << e << std::endl;
-    }
-    return e;
-  }
+  bool hasNewLemma();
+  Expr getNewLemma();
 
 };/* class PortfolioLemmaInputChannel */
 
-std::vector<Options> parseThreadSpecificOptions(Options opts);
+class OptionsList {
+ public:
+  OptionsList();
+  ~OptionsList();
+
+  void push_back_copy(const Options& options);
+
+  Options& operator[](size_t position);
+  const Options& operator[](size_t position) const;
+
+  Options& back();
+
+  size_t size() const;
+ private:
+  OptionsList(const OptionsList&) CVC4_UNDEFINED;
+  OptionsList& operator=(const OptionsList&) CVC4_UNDEFINED;
+  std::vector<Options*> d_options;
+};
+
+void parseThreadSpecificOptions(OptionsList& list, const Options& opts);
 
 template<typename T>
 void sharingManager(unsigned numThreads,

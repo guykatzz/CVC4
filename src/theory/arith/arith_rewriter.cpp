@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file arith_rewriter.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,14 +15,15 @@
  ** \todo document this file
  **/
 
-#include "theory/theory.h"
-#include "theory/arith/normal_form.h"
-#include "theory/arith/arith_rewriter.h"
-#include "theory/arith/arith_utilities.h"
-
-#include <vector>
 #include <set>
 #include <stack>
+#include <vector>
+
+#include "base/output.h"
+#include "theory/arith/arith_rewriter.h"
+#include "theory/arith/arith_utilities.h"
+#include "theory/arith/normal_form.h"
+#include "theory/theory.h"
 
 namespace CVC4 {
 namespace theory {

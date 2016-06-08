@@ -1,30 +1,34 @@
 /*********************                                                        */
 /*! \file rational_cln_imp.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters, Christopher L. Conway
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King, Christopher L. Conway, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A multi-precision rational constant.
  **
  ** A multi-precision rational constant.
  **/
+#include "util/rational.h"
+
+#include <sstream>
+#include <string>
 
 #include "cvc4autoconfig.h"
-#include "util/rational.h"
-#include <string>
-#include <sstream>
 
 #ifndef CVC4_CLN_IMP
 #  error "This source should only ever be built if CVC4_CLN_IMP is on !"
 #endif /* CVC4_CLN_IMP */
 
+#include "base/cvc4_assert.h"
+
 using namespace std;
-using namespace CVC4;
+
+namespace CVC4 {
 
 /* Computes a rational given a decimal string. The rational
  * version of <code>xxx.yyy</code> is <code>xxxyyy/(10^3)</code>.
@@ -47,7 +51,7 @@ Rational Rational::fromDecimal(const std::string& dec) {
   }
 }
 
-std::ostream& CVC4::operator<<(std::ostream& os, const Rational& q){
+std::ostream& operator<<(std::ostream& os, const Rational& q){
   return os << q.toString();
 }
 
@@ -104,3 +108,5 @@ RationalFromDoubleException::RationalFromDoubleException(double d) throw()
   ss << ")";
   setMessage(ss.str());
 }
+
+} /* namespace CVC4 */

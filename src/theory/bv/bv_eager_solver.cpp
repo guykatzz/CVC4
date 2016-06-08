@@ -1,22 +1,23 @@
 /*********************                                                        */
 /*! \file bv_eager_solver.cpp
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Eager bit-blasting solver. 
  **
  ** Eager bit-blasting solver.
  **/
 
-#include "theory/bv/bv_eager_solver.h"
+#include "options/bv_options.h"
 #include "theory/bv/bitblaster_template.h"
-#include "theory/bv/options.h"
+#include "proof/bitvector_proof.h"
+#include "theory/bv/bv_eager_solver.h"
 
 using namespace std;
 using namespace CVC4;
@@ -54,6 +55,12 @@ void EagerBitblastSolver::initialize() {
     d_aigBitblaster = new AigBitblaster();
   } else {
     d_bitblaster = new EagerBitblaster(d_bv);
+    THEORY_PROOF(
+      if( d_bvp ){
+        d_bitblaster->setProofLog( d_bvp );
+        d_bvp->setBitblaster(d_bitblaster);
+      }
+    );
   }
 }
 
@@ -111,4 +118,8 @@ bool EagerBitblastSolver::hasAssertions(const std::vector<TNode> &formulas) {
 void EagerBitblastSolver::collectModelInfo(TheoryModel* m, bool fullModel) {
   AlwaysAssert(!d_useAig && d_bitblaster);
   d_bitblaster->collectModelInfo(m, fullModel); 
+}
+
+void EagerBitblastSolver::setProofLog( BitVectorProof * bvp ) {
+  d_bvp = bvp;
 }

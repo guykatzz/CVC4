@@ -1,29 +1,30 @@
 /*********************                                                        */
 /*! \file smt2_compliance.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A test of SMT-LIBv2 commands, checks for compliant output
  **
  ** A test of SMT-LIBv2 commands, checks for compliant output.
  **/
 
+#include <cassert>
 #include <iostream>
 #include <sstream>
-#include <cassert>
 
-#include "smt/options.h"
-#include "parser/parser.h"
 #include "expr/expr_manager.h"
-#include "expr/command.h"
-#include "smt/smt_engine.h"
+#include "options/options.h"
+#include "options/set_language.h"
+#include "parser/parser.h"
 #include "parser/parser_builder.h"
+#include "smt/command.h"
+#include "smt/smt_engine.h"
 
 using namespace CVC4;
 using namespace CVC4::parser;
@@ -33,10 +34,10 @@ void testGetInfo(SmtEngine& smt, const char* s);
 
 int main() {
   Options opts;
-  opts.set(options::inputLanguage, language::input::LANG_SMTLIB_V2);
-  opts.set(options::outputLanguage, language::output::LANG_SMTLIB_V2);
+  opts.setInputLanguage(language::input::LANG_SMTLIB_V2);
+  opts.setOutputLanguage(language::output::LANG_SMTLIB_V2);
 
-  cout << Expr::setlanguage(language::output::LANG_SMTLIB_V2);
+  cout << language::SetLanguage(language::output::LANG_SMTLIB_V2);
 
   ExprManager em(opts);
   SmtEngine smt(&em);
@@ -57,7 +58,8 @@ int main() {
 }
 
 void testGetInfo(SmtEngine& smt, const char* s) {
-  ParserBuilder pb(smt.getExprManager(), "<internal>", smt.getExprManager()->getOptions());
+  ParserBuilder pb(smt.getExprManager(), "<internal>",
+                   smt.getExprManager()->getOptions());
   Parser* p = pb.withStringInput(string("(get-info ") + s + ")").build();
   assert(p != NULL);
   Command* c = p->nextCommand();
@@ -67,6 +69,6 @@ void testGetInfo(SmtEngine& smt, const char* s) {
   c->invoke(&smt, ss);
   assert(p->nextCommand() == NULL);
   delete p;
-
+  delete c;
   cout << ss.str() << endl << endl;
 }

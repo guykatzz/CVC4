@@ -1,32 +1,32 @@
 /*********************                                                        */
 /*! \file ast_printer.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Dejan Jovanovic, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Liana Hadarean
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The pretty-printer interface for the AST output language
  **
  ** The pretty-printer interface for the AST output language.
  **/
-
 #include "printer/ast/ast_printer.h"
-#include "expr/expr.h" // for ExprSetDepth etc..
-#include "util/language.h" // for LANG_AST
-#include "expr/node_manager_attributes.h" // for VarNameAttr
-#include "expr/command.h"
-#include "printer/dagification_visitor.h"
-#include "util/node_visitor.h"
-#include "theory/substitutions.h"
 
 #include <iostream>
-#include <vector>
 #include <string>
 #include <typeinfo>
+#include <vector>
+
+#include "expr/expr.h" // for ExprSetDepth etc..
+#include "expr/node_manager_attributes.h" // for VarNameAttr
+#include "options/language.h" // for LANG_AST
+#include "printer/dagification_visitor.h"
+#include "smt/command.h"
+#include "smt_util/node_visitor.h"
+#include "theory/substitutions.h"
 
 using namespace std;
 
@@ -398,4 +398,3 @@ static bool tryToStream(std::ostream& out, const CommandStatus* s) throw() {
 }/* CVC4::printer::ast namespace */
 }/* CVC4::printer namespace */
 }/* CVC4 namespace */
-

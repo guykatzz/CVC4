@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file expr_manager_template.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic
- ** Minor contributors (to current version): Andrew Reynolds, Kshitij Bansal, Tim King, Christopher L. Conway
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Christopher L. Conway
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Public-facing expression manager interface
  **
@@ -21,12 +21,11 @@
 
 #include <vector>
 
+#include "expr/expr.h"
 #include "expr/kind.h"
 #include "expr/type.h"
-#include "expr/expr.h"
-#include "util/subrange_bound.h"
 #include "util/statistics.h"
-#include "util/sexpr.h"
+#include "util/subrange_bound.h"
 
 ${includes}
 
@@ -34,7 +33,7 @@ ${includes}
 // compiler directs the user to the template file instead of the
 // generated one.  We don't want the user to modify the generated one,
 // since it'll get overwritten on a later build.
-#line 38 "${template}"
+#line 37 "${template}"
 
 namespace CVC4 {
 
@@ -44,7 +43,6 @@ class NodeManager;
 class Options;
 class IntStat;
 struct ExprManagerMapCollection;
-class StatisticsRegistry;
 class ResourceManager;
 
 namespace expr {
@@ -52,10 +50,6 @@ namespace expr {
     class Pickler;
   }/* CVC4::expr::pickle namespace */
 }/* CVC4::expr namespace */
-
-namespace stats {
-  StatisticsRegistry* getStatisticsRegistry(ExprManager*);
-}/* CVC4::stats namespace */
 
 class CVC4_PUBLIC ExprManager {
 private:
@@ -88,12 +82,6 @@ private:
 
   /** NodeManager reaches in to get the NodeManager */
   friend class NodeManager;
-
-  /** Statistics reach in to get the StatisticsRegistry */
-  friend ::CVC4::StatisticsRegistry* ::CVC4::stats::getStatisticsRegistry(ExprManager*);
-
-  /** Get the underlying statistics registry. */
-  StatisticsRegistry* getStatisticsRegistry() throw();
 
   // undefined, private copy constructor and assignment op (disallow copy)
   ExprManager(const ExprManager&) CVC4_UNDEFINED;
@@ -132,6 +120,9 @@ public:
 
   /** Get the type for strings. */
   StringType stringType() const;
+
+  /** Get the type for regular expressions. */
+  RegExpType regExpType() const;
 
   /** Get the type for reals. */
   RealType realType() const;
@@ -353,12 +344,12 @@ public:
    * <code>types[0..types.size()-1]</code>.  <code>types</code> must
    * have at least one element.
    */
-  TupleType mkTupleType(const std::vector<Type>& types);
+  DatatypeType mkTupleType(const std::vector<Type>& types);
 
   /**
    * Make a record type with types from the rec parameter.
    */
-  RecordType mkRecordType(const Record& rec);
+  DatatypeType mkRecordType(const Record& rec);
 
   /**
    * Make a symbolic expressiontype with types from

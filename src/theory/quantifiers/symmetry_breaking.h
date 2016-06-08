@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file symmetry_breaking.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Pre-process step for first-order reasoning
  **/
@@ -17,20 +17,19 @@
 #ifndef __CVC4__QUANT_SYMMETRY_BREAKING_H
 #define __CVC4__QUANT_SYMMETRY_BREAKING_H
 
-#include "theory/theory.h"
-
 #include <iostream>
+#include <map>
 #include <string>
 #include <vector>
-#include <map>
-#include "expr/node.h"
-#include "expr/type_node.h"
 
-#include "util/sort_inference.h"
+#include "context/cdchunk_list.h"
+#include "context/cdhashmap.h"
 #include "context/context.h"
 #include "context/context_mm.h"
-#include "context/cdhashmap.h"
-#include "context/cdchunk_list.h"
+#include "expr/node.h"
+#include "expr/type_node.h"
+#include "theory/sort_inference.h"
+#include "theory/theory.h"
 
 namespace CVC4 {
 namespace theory {
@@ -43,9 +42,7 @@ class SubsortSymmetryBreaker {
   typedef context::CDHashMap<Node, bool, NodeHashFunction> NodeBoolMap;
   typedef context::CDHashMap<Node, int, NodeHashFunction> NodeIntMap;
   typedef context::CDHashMap<Node, Node, NodeHashFunction> NodeNodeMap;
-  //typedef context::CDChunkList<int> IntList;
   typedef context::CDList<Node> NodeList;
-  typedef context::CDHashMap<Node, NodeList*, NodeHashFunction> NodeListMap;
 private:
   /** quantifiers engine */
   QuantifiersEngine* d_qe;

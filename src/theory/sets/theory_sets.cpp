@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_sets.cpp
  ** \verbatim
- ** Original author: Kshitij Bansal
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Kshitij Bansal, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Sets theory.
  **
@@ -25,10 +25,10 @@ TheorySets::TheorySets(context::Context* c,
                        context::UserContext* u,
                        OutputChannel& out,
                        Valuation valuation,
-                       const LogicInfo& logicInfo) :
-  Theory(THEORY_SETS, c, u, out, valuation, logicInfo),
-  d_internal(new TheorySetsPrivate(*this, c, u)) {
-}
+                       const LogicInfo& logicInfo)
+    : Theory(THEORY_SETS, c, u, out, valuation, logicInfo),
+      d_internal(new TheorySetsPrivate(*this, c, u))
+{}
 
 TheorySets::~TheorySets() {
   delete d_internal;
@@ -68,6 +68,10 @@ Node TheorySets::getModelValue(TNode node) {
 
 void TheorySets::preRegisterTerm(TNode node) {
   d_internal->preRegisterTerm(node);
+}
+
+void TheorySets::presolve() {
+  d_internal->presolve();
 }
 
 void TheorySets::propagate(Effort e) {

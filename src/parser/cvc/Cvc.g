@@ -1,13 +1,13 @@
 /* *******************                                                        */
 /*! \file Cvc.g
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Tim King, Dejan Jovanovic, Tianyi Liang, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Parser for CVC presentation input language
  **
@@ -79,6 +79,8 @@ tokens {
   COUNTEREXAMPLE_TOK = 'COUNTEREXAMPLE';
   COUNTERMODEL_TOK = 'COUNTERMODEL';
   ARITH_VAR_ORDER_TOK = 'ARITH_VAR_ORDER';
+  CONTINUE_TOK = 'CONTINUE';
+  RESTART_TOK = 'RESTART';
 
   /* operators */
 
@@ -203,16 +205,35 @@ tokens {
   // Strings
 
   STRING_TOK = 'STRING';
-  SCONCAT_TOK = 'SCONCAT';
-  SCONTAINS_TOK = 'CONTAINS';
-  SSUBSTR_TOK = 'SUBSTR';
-  SINDEXOF_TOK = 'INDEXOF';
-  SREPLACE_TOK = 'REPLACE';
-  SPREFIXOF_TOK = 'PREFIXOF';
-  SSUFFIXOF_TOK = 'SUFFIXOF';
-  STOINTEGER_TOK = 'TO_INTEGER';
-  STOSTRING_TOK = 'TO_STRING';
-  STORE_TOK = 'TO_RE';
+  STRING_CONCAT_TOK = 'CONCAT';
+  STRING_LENGTH_TOK = 'LENGTH';
+  STRING_CONTAINS_TOK = 'CONTAINS';
+  STRING_SUBSTR_TOK = 'SUBSTR';
+  STRING_CHARAT_TOK = 'CHARAT';
+  STRING_INDEXOF_TOK = 'INDEXOF';
+  STRING_REPLACE_TOK = 'REPLACE';
+  STRING_PREFIXOF_TOK = 'PREFIXOF';
+  STRING_SUFFIXOF_TOK = 'SUFFIXOF';
+  STRING_STOI_TOK = 'STRING_TO_INTEGER';
+  STRING_ITOS_TOK = 'INTEGER_TO_STRING';
+  STRING_U16TOS_TOK = 'UINT16_TO_STRING';
+  STRING_STOU16_TOK = 'STRING_TO_UINT16';
+  STRING_U32TOS_TOK = 'UINT32_TO_STRING';
+  STRING_STOU32_TOK = 'STRING_TO_UINT32';
+  //Regular expressions (TODO)
+  //STRING_IN_REGEXP_TOK
+  //STRING_TO_REGEXP_TOK
+  //REGEXP_CONCAT_TOK 
+  //REGEXP_UNION_TOK 
+  //REGEXP_INTER_TOK 
+  //REGEXP_STAR_TOK 
+  //REGEXP_PLUS_TOK 
+  //REGEXP_OPT_TOK 
+  //REGEXP_RANGE_TOK 
+  //REGEXP_LOOP_TOK 
+  //REGEXP_EMPTY_TOK
+  //REGEXP_SIGMA_TOK
+  
   
   FMF_CARD_TOK = 'HAS_CARD';
 
@@ -349,6 +370,7 @@ Kind getOperatorKind(int type, bool& negate) {
   case CONCAT_TOK: return kind::BITVECTOR_CONCAT;
   case BAR: return kind::BITVECTOR_OR;
   case BVAND_TOK: return kind::BITVECTOR_AND;
+  
   }
 
   std::stringstream ss;
@@ -434,7 +456,7 @@ Expr createPrecedenceTree(Parser* parser, ExprManager* em,
 
   Expr e = createPrecedenceTree(parser, em, expressions, operators, 0, expressions.size() - 1);
   if(Debug.isOn("prec") && operators.size() > 1) {
-    Expr::setlanguage::Scope ls(Debug("prec"), language::output::LANG_AST);
+    language::SetLanguage::Scope ls(Debug("prec"), language::output::LANG_AST);
     Debug("prec") << "=> " << e << std::endl;
   }
   return e;
@@ -461,6 +483,10 @@ Expr addNots(ExprManager* em, size_t n, Expr e) {
 
 @lexer::includes {
 
+// This should come immediately after #include <antlr3.h> in the generated
+// files. See the documentation in "parser/antlr_undefines.h" for more details.
+#include "parser/antlr_undefines.h"
+
 /** This suppresses warnings about the redefinition of token symbols between different
   * parsers. The redefinitions should be harmless as long as no client: (a) #include's
   * the lexer headers for two grammars AND (b) uses the token symbol definitions. */
@@ -476,21 +502,26 @@ Expr addNots(ExprManager* em, size_t n, Expr e) {
 #  define ANTLR3_INLINE_INPUT_8BIT
 #endif /* CVC4_COMPETITION_MODE && !CVC4_SMTCOMP_APPLICATION_TRACK */
 
-#include "parser/antlr_tracing.h"
-#include "util/integer.h"
 #include "parser/antlr_input.h"
+#include "parser/antlr_tracing.h"
 #include "parser/parser.h"
+#include "util/integer.h"
 
 }/* @lexer::includes */
 
 @parser::includes {
 
+// This should come immediately after #include <antlr3.h> in the generated
+// files. See the documentation in "parser/antlr_undefines.h" for more details.
+#include "parser/antlr_undefines.h"
+
 #include <stdint.h>
 #include <cassert>
-#include "expr/command.h"
-#include "parser/parser.h"
-#include "util/subrange_bound.h"
+#include "options/set_language.h"
 #include "parser/antlr_tracing.h"
+#include "parser/parser.h"
+#include "smt/command.h"
+#include "util/subrange_bound.h"
 
 namespace CVC4 {
   class Expr;
@@ -541,16 +572,17 @@ namespace CVC4 {
 
 @parser::postinclude {
 
+#include <sstream>
+#include <string>
+#include <vector>
+
+#include "base/output.h"
 #include "expr/expr.h"
 #include "expr/kind.h"
 #include "expr/type.h"
 #include "parser/antlr_input.h"
 #include "parser/parser.h"
-#include "util/output.h"
 
-#include <vector>
-#include <string>
-#include <sstream>
 
 #define REPEAT_COMMAND(k, CommandCtor)                      \
   ({                                                        \
@@ -829,6 +861,9 @@ mainCommand[CVC4::Command*& cmd]
   | ARITH_VAR_ORDER_TOK LPAREN formula[f] ( COMMA formula[f] )* RPAREN
     { UNSUPPORTED("ARITH_VAR_ORDER command"); }
 
+  | CONTINUE_TOK
+    { UNSUPPORTED("CONTINUE command"); }
+  | RESTART_TOK formula[f] { UNSUPPORTED("RESTART command"); }
   | toplevelDeclaration[cmd]
   ;
 
@@ -880,7 +915,10 @@ toplevelDeclaration[CVC4::Command*& cmd]
  * A bound variable declaration.
  */
 boundVarDecl[std::vector<std::string>& ids, CVC4::Type& t]
-  : identifierList[ids,CHECK_NONE,SYM_VARIABLE] COLON declareVariables[*(Command**)NULL,t,ids,false]
+@init {
+  Command* local_cmd = NULL;
+}
+  : identifierList[ids,CHECK_NONE,SYM_VARIABLE] COLON declareVariables[local_cmd,t,ids,false]
   ;
 
 /**
@@ -994,7 +1032,7 @@ declareVariables[CVC4::Command*& cmd, CVC4::Type& t, const std::vector<std::stri
                             << "with type " << oldType << std::endl;
             if(oldType != t) {
               std::stringstream ss;
-              ss << Expr::setlanguage(language::output::LANG_CVC4)
+              ss << language::SetLanguage(language::output::LANG_CVC4)
                  << "incompatible type for `" << *i << "':" << std::endl
                  << "  old type: " << oldType << std::endl
                  << "  new type: " << t << std::endl;
@@ -1088,7 +1126,7 @@ type[CVC4::Type& t,
   : restrictedTypePossiblyFunctionLHS[t,check,lhs]
     { if(lhs) {
         assert(t.isTuple());
-        args = TupleType(t).getTypes();
+        args = ((DatatypeType)t).getTupleTypes();
       } else {
         args.push_back(t);
       }
@@ -1417,7 +1455,7 @@ letDecl
   std::string name;
 }
   : identifier[name,CHECK_NONE,SYM_VARIABLE] EQUAL_TOK formula[e]
-    { Debug("parser") << Expr::setlanguage(language::output::LANG_CVC4) << e.getType() << std::endl;
+    { Debug("parser") << language::SetLanguage(language::output::LANG_CVC4) << e.getType() << std::endl;
       PARSER_STATE->defineVar(name, e);
       Debug("parser") << "LET[" << PARSER_STATE->scopeLevel() << "]: "
                       << name << std::endl
@@ -1524,13 +1562,17 @@ tupleStore[CVC4::Expr& f]
       if(! t.isTuple()) {
         PARSER_STATE->parseError("tuple-update applied to non-tuple");
       }
-      size_t length = TupleType(t).getLength();
+      size_t length = ((DatatypeType)t).getTupleLength();
       if(k >= length) {
         std::stringstream ss;
         ss << "tuple is of length " << length << "; cannot update index " << k;
         PARSER_STATE->parseError(ss.str());
       }
-      f2 = MK_EXPR(MK_CONST(TupleSelect(k)), f);
+      std::vector<Expr> args;
+      const Datatype & dt = ((DatatypeType)t).getDatatype();
+      args.push_back( dt[0][k].getSelector() );
+      args.push_back( f );
+      f2 = MK_EXPR(CVC4::kind::APPLY_SELECTOR_TOTAL,args);
     }
     ( ( arrayStore[f2]
       | DOT ( tupleStore[f2]
@@ -1557,12 +1599,15 @@ recordStore[CVC4::Expr& f]
            << "its type: " << t;
         PARSER_STATE->parseError(ss.str());
       }
-      const Record& rec = RecordType(t).getRecord();
-      Record::const_iterator fld = rec.find(id);
-      if(fld == rec.end()) {
+      const Record& rec = ((DatatypeType)t).getRecord();
+      if(! rec.contains(id)) {
         PARSER_STATE->parseError(std::string("no such field `") + id + "' in record");
       }
-      f2 = MK_EXPR(MK_CONST(RecordSelect(id)), f);
+      std::vector<Expr> args;
+      const Datatype & dt = ((DatatypeType)t).getDatatype();
+      args.push_back( dt[0][id].getSelector() );
+      args.push_back( f );
+      f2 = MK_EXPR(CVC4::kind::APPLY_SELECTOR_TOTAL,args);
     }
     ( ( arrayStore[f2]
       | DOT ( tupleStore[f2]
@@ -1640,7 +1685,6 @@ postfixTerm[CVC4::Expr& f]
           f = MK_EXPR(CVC4::kind::SELECT, f, f2);
         }
       }
-
       /* left- or right-shift */
     | ( LEFTSHIFT_TOK { left = true; }
       | RIGHTSHIFT_TOK { left = false; } ) k=numeral
@@ -1685,25 +1729,32 @@ postfixTerm[CVC4::Expr& f]
           if(! t.isRecord()) {
             PARSER_STATE->parseError("record-select applied to non-record");
           }
-          const Record& rec = RecordType(t).getRecord();
-          Record::const_iterator fld = rec.find(id);
-          if(fld == rec.end()) {
+          const Record& rec = ((DatatypeType)t).getRecord();
+          if(!rec.contains(id)){
             PARSER_STATE->parseError(std::string("no such field `") + id + "' in record");
           }
-          f = MK_EXPR(MK_CONST(RecordSelect(id)), f);
+          const Datatype & dt = ((DatatypeType)t).getDatatype();
+          std::vector<Expr> sargs;
+          sargs.push_back( dt[0][id].getSelector() );
+          sargs.push_back( f );
+          f = MK_EXPR(CVC4::kind::APPLY_SELECTOR_TOTAL,sargs);
         }
       | k=numeral
         { Type t = f.getType();
           if(! t.isTuple()) {
             PARSER_STATE->parseError("tuple-select applied to non-tuple");
           }
-          size_t length = TupleType(t).getLength();
+          size_t length = ((DatatypeType)t).getTupleLength();
           if(k >= length) {
             std::stringstream ss;
             ss << "tuple is of length " << length << "; cannot access index " << k;
             PARSER_STATE->parseError(ss.str());
           }
-          f = MK_EXPR(MK_CONST(TupleSelect(k)), f);
+          const Datatype & dt = ((DatatypeType)t).getDatatype();
+          std::vector<Expr> sargs;
+          sargs.push_back( dt[0][k].getSelector() );
+          sargs.push_back( f );
+          f = MK_EXPR(CVC4::kind::APPLY_SELECTOR_TOTAL,sargs);
         }
       )
     )*
@@ -1859,7 +1910,6 @@ bvTerm[CVC4::Expr& f]
     { f = MK_EXPR(CVC4::kind::BITVECTOR_SGT, f, f2); }
   | BVSGE_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
     { f = MK_EXPR(CVC4::kind::BITVECTOR_SGE, f, f2); }
-
   | stringTerm[f]
   ;
 
@@ -1871,27 +1921,35 @@ stringTerm[CVC4::Expr& f]
   std::vector<Expr> args;
 }
     /* String prefix operators */
-  : SCONCAT_TOK LPAREN formula[f] { args.push_back(f); }
+  : STRING_CONCAT_TOK LPAREN formula[f] { args.push_back(f); }
     ( COMMA formula[f2] { args.push_back(f2); } )+ RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_CONCAT, args); }
-  | SCONTAINS_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
+  | STRING_LENGTH_TOK LPAREN formula[f] RPAREN
+    { f = MK_EXPR(CVC4::kind::STRING_LENGTH, f); }
+  | STRING_CONTAINS_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_STRCTN, f, f2); }
-  | SSUBSTR_TOK LPAREN formula[f] COMMA formula[f2] COMMA formula[f3] RPAREN
+  | STRING_SUBSTR_TOK LPAREN formula[f] COMMA formula[f2] COMMA formula[f3] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_SUBSTR, f, f2, f3); }
-  | SINDEXOF_TOK LPAREN formula[f] COMMA formula[f2] COMMA formula[f3] RPAREN
+  | STRING_INDEXOF_TOK LPAREN formula[f] COMMA formula[f2] COMMA formula[f3] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_STRIDOF, f, f2, f3); }
-  | SREPLACE_TOK LPAREN formula[f] COMMA formula[f2] COMMA formula[f3] RPAREN
+  | STRING_REPLACE_TOK LPAREN formula[f] COMMA formula[f2] COMMA formula[f3] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_STRREPL, f, f2, f3); }
-  | SPREFIXOF_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
+  | STRING_PREFIXOF_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_PREFIX, f, f2); }
-  | SSUFFIXOF_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
+  | STRING_SUFFIXOF_TOK LPAREN formula[f] COMMA formula[f2] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_SUFFIX, f, f2); }
-  | STOINTEGER_TOK LPAREN formula[f] RPAREN
+  | STRING_STOI_TOK LPAREN formula[f] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_STOI, f); }
-  | STOSTRING_TOK LPAREN formula[f] RPAREN
+  | STRING_ITOS_TOK LPAREN formula[f] RPAREN
     { f = MK_EXPR(CVC4::kind::STRING_ITOS, f); }
-  | STORE_TOK LPAREN formula[f] RPAREN
-    { f = MK_EXPR(CVC4::kind::STRING_TO_REGEXP, f); }
+  | STRING_U16TOS_TOK LPAREN formula[f] RPAREN
+    { f = MK_EXPR(CVC4::kind::STRING_U16TOS, f); }
+  | STRING_STOU16_TOK LPAREN formula[f] RPAREN
+    { f = MK_EXPR(CVC4::kind::STRING_STOU16, f); }
+  | STRING_U32TOS_TOK LPAREN formula[f] RPAREN
+    { f = MK_EXPR(CVC4::kind::STRING_U32TOS, f); }
+  | STRING_STOU32_TOK LPAREN formula[f] RPAREN
+    { f = MK_EXPR(CVC4::kind::STRING_STOU32, f); }    
 
     /* string literal */
   | str[s]
@@ -1924,20 +1982,25 @@ simpleTerm[CVC4::Expr& f]
         for(std::vector<Expr>::const_iterator i = args.begin(); i != args.end(); ++i) {
           types.push_back((*i).getType());
         }
-        TupleType t = EXPR_MANAGER->mkTupleType(types);
-        f = MK_EXPR(kind::TUPLE, args);
+        DatatypeType t = EXPR_MANAGER->mkTupleType(types);
+        const Datatype& dt = t.getDatatype();
+        args.insert( args.begin(), dt[0].getConstructor() );
+        f = MK_EXPR(kind::APPLY_CONSTRUCTOR, args);
       }
     }
 
     /* empty tuple literal */
   | LPAREN RPAREN
-    { f = MK_EXPR(kind::TUPLE, std::vector<Expr>()); }
+    { std::vector<Type> types;
+      DatatypeType t = EXPR_MANAGER->mkTupleType(types);
+      const Datatype& dt = t.getDatatype();
+      f = MK_EXPR(kind::APPLY_CONSTRUCTOR, dt[0].getConstructor()); }
     /* empty record literal */
   | PARENHASH HASHPAREN
-    { RecordType t = EXPR_MANAGER->mkRecordType(std::vector< std::pair<std::string, Type> >());
-      f = MK_EXPR(kind::RECORD, MK_CONST(t.getRecord()), std::vector<Expr>());
+    { DatatypeType t = EXPR_MANAGER->mkRecordType(std::vector< std::pair<std::string, Type> >());
+      const Datatype& dt = t.getDatatype();
+      f = MK_EXPR(kind::APPLY_CONSTRUCTOR, dt[0].getConstructor());
     }
-
     /* empty set literal */
   | LBRACE RBRACE
     { f = MK_CONST(EmptySet(Type())); }
@@ -1949,6 +2012,11 @@ simpleTerm[CVC4::Expr& f]
       for(size_t i = 1; i < args.size(); ++i) {
         f = MK_EXPR(kind::UNION, f, MK_EXPR(kind::SINGLETON, args[i]));
       }
+    }
+
+    /* set cardinality literal */
+  | BAR BAR formula[f] { args.push_back(f); } BAR BAR
+    { f = MK_EXPR(kind::CARD, args[0]);
     }
 
     /* array literals */
@@ -2003,8 +2071,10 @@ simpleTerm[CVC4::Expr& f]
       for(unsigned i = 0; i < names.size(); ++i) {
         typeIds.push_back(std::make_pair(names[i], args[i].getType()));
       }
-      RecordType t = EXPR_MANAGER->mkRecordType(typeIds);
-      f = MK_EXPR(kind::RECORD, MK_CONST(t.getRecord()), args);
+      DatatypeType t = EXPR_MANAGER->mkRecordType(typeIds);
+      const Datatype& dt = t.getDatatype();
+      args.insert( args.begin(), dt[0].getConstructor() );
+      f = MK_EXPR(kind::APPLY_CONSTRUCTOR, args);
     }
 
     /* variable / zero-ary constructor application */

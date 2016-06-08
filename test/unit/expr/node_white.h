@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file node_white.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief White box testing of CVC4::Node.
  **
@@ -18,11 +18,11 @@
 
 #include <string>
 
-#include "expr/node_value.h"
+#include "base/cvc4_assert.h"
+#include "expr/node.h"
 #include "expr/node_builder.h"
 #include "expr/node_manager.h"
-#include "expr/node.h"
-#include "util/cvc4_assert.h"
+#include "expr/node_value.h"
 
 using namespace CVC4;
 using namespace CVC4::kind;

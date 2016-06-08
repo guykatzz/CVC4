@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file dense_map.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief This is an abstraction of a Map from unsigned integers to elements of type T.
  **
@@ -26,10 +26,12 @@
 
 #pragma once
 
-#include <vector>
 #include <boost/integer_traits.hpp>
+#include <vector>
+
+#include "base/cvc4_assert.h"
 #include "util/index.h"
-#include "util/cvc4_assert.h"
+
 
 namespace CVC4 {
 

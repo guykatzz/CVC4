@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file prop_engine.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic
- ** Minor contributors (to current version): Clark Barrett, Liana Hadarean, Christopher L. Conway, Kshitij Bansal, Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The PropEngine (propositional engine); main interface point
  ** between CVC4's SMT infrastructure and the SAT solver
@@ -21,19 +21,23 @@
 #ifndef __CVC4__PROP_ENGINE_H
 #define __CVC4__PROP_ENGINE_H
 
+#include <sys/time.h>
+
+#include "base/modal_exception.h"
+#include "expr/expr_stream.h"
 #include "expr/node.h"
 #include "options/options.h"
+#include "proof/proof_manager.h"
+#include "smt_util/lemma_channels.h"
 #include "util/result.h"
 #include "util/unsafe_interrupt_exception.h"
-#include "smt/modal_exception.h"
-#include "proof/proof_manager.h"
-#include <sys/time.h>
 
 namespace CVC4 {
 
 class ResourceManager;
 class DecisionEngine;
 class TheoryEngine;
+class LemmaProofRecipe;
 
 namespace theory {
   class TheoryRegistrar;
@@ -95,7 +99,9 @@ public:
   /**
    * Create a PropEngine with a particular decision and theory engine.
    */
-  PropEngine(TheoryEngine*, DecisionEngine*, context::Context* satContext, context::Context* userContext);
+  PropEngine(TheoryEngine*, DecisionEngine*, context::Context* satContext,
+             context::Context* userContext, std::ostream* replayLog,
+             ExprStream* replayStream, LemmaChannels* channels);
 
   /**
    * Destructor.
@@ -129,7 +135,7 @@ public:
    * @param removable whether this lemma can be quietly removed based
    * on an activity heuristic (or not)
    */
-  void assertLemma(TNode node, bool negated, bool removable, ProofRule rule, TNode from = TNode::null());
+  void assertLemma(TNode node, bool negated, bool removable, ProofRule rule, LemmaProofRecipe* proofRecipe, TNode from = TNode::null());
 
   /**
    * If ever n is decided upon, it must be in the given phase.  This

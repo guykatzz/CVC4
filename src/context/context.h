@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file context.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Clark Barrett
- ** Minor contributors (to current version): Tim King, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Morgan Deters, Clark Barrett, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Context class and context manager.
  **
@@ -26,8 +26,10 @@
 #include <new>
 #include <typeinfo>
 
+#include "base/cvc4_assert.h"
+#include "base/output.h"
 #include "context/context_mm.h"
-#include "util/cvc4_assert.h"
+
 
 namespace CVC4 {
 namespace context {

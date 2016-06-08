@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file symbol_table.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway
- ** Minor contributors (to current version): Andrew Reynolds, Dejan Jovanovic, Francois Bobot
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Convenience class for scoping variable and type
  ** declarations (implementation)
@@ -17,17 +17,18 @@
  **/
 
 #include "expr/symbol_table.h"
-#include "expr/expr.h"
-#include "expr/type.h"
-#include "expr/expr_manager_scope.h"
-#include "context/cdhashmap.h"
-#include "context/cdhashset.h"
-#include "context/context.h"
 
 #include <string>
 #include <utility>
 
-using namespace CVC4;
+#include "context/cdhashmap.h"
+#include "context/cdhashset.h"
+#include "context/context.h"
+#include "expr/expr.h"
+#include "expr/expr_manager_scope.h"
+#include "expr/type.h"
+
+
 using namespace CVC4::context;
 using namespace std;
 
@@ -49,7 +50,7 @@ SymbolTable::~SymbolTable() {
 
 void SymbolTable::bind(const std::string& name, Expr obj,
                        bool levelZero) throw() {
-  CheckArgument(!obj.isNull(), obj, "cannot bind to a null Expr");
+  PrettyCheckArgument(!obj.isNull(), obj, "cannot bind to a null Expr");
   ExprManagerScope ems(obj);
   if(levelZero) d_exprMap->insertAtContextLevelZero(name, obj);
   else d_exprMap->insert(name, obj);
@@ -57,7 +58,7 @@ void SymbolTable::bind(const std::string& name, Expr obj,
 
 void SymbolTable::bindDefinedFunction(const std::string& name, Expr obj,
                                       bool levelZero) throw() {
-  CheckArgument(!obj.isNull(), obj, "cannot bind to a null Expr");
+  PrettyCheckArgument(!obj.isNull(), obj, "cannot bind to a null Expr");
   ExprManagerScope ems(obj);
   if(levelZero){
     d_exprMap->insertAtContextLevelZero(name, obj);
@@ -121,7 +122,7 @@ bool SymbolTable::isBoundType(const std::string& name) const throw() {
 
 Type SymbolTable::lookupType(const std::string& name) const throw() {
   pair<vector<Type>, Type> p = (*d_typeMap->find(name)).second;
-  CheckArgument(p.first.size() == 0, name,
+  PrettyCheckArgument(p.first.size() == 0, name,
                 "type constructor arity is wrong: "
                 "`%s' requires %u parameters but was provided 0",
                 name.c_str(), p.first.size());
@@ -131,12 +132,12 @@ Type SymbolTable::lookupType(const std::string& name) const throw() {
 Type SymbolTable::lookupType(const std::string& name,
                              const std::vector<Type>& params) const throw() {
   pair<vector<Type>, Type> p = (*d_typeMap->find(name)).second;
-  CheckArgument(p.first.size() == params.size(), params,
+  PrettyCheckArgument(p.first.size() == params.size(), params,
                 "type constructor arity is wrong: "
                 "`%s' requires %u parameters but was provided %u",
          name.c_str(), p.first.size(), params.size());
   if(p.first.size() == 0) {
-    CheckArgument(p.second.isSort(), name);
+    PrettyCheckArgument(p.second.isSort(), name.c_str());
     return p.second;
   }
   if(p.second.isSortConstructor()) {
@@ -161,7 +162,7 @@ Type SymbolTable::lookupType(const std::string& name,
 
     return instantiation;
   } else if(p.second.isDatatype()) {
-    CheckArgument(DatatypeType(p.second).isParametric(), name, "expected parametric datatype");
+    PrettyCheckArgument(DatatypeType(p.second).isParametric(), name, "expected parametric datatype");
     return DatatypeType(p.second).instantiate(params);
   } else {
     if(Debug.isOn("sort")) {

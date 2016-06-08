@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file smt2.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Tianyi Liang, Kshitij Bansal
+ ** Top contributors (to current version):
+ **   Morgan Deters, Andrew Reynolds, Christopher L. Conway
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Definitions of SMT2 constants.
  **
@@ -19,16 +19,15 @@
 #ifndef __CVC4__PARSER__SMT2_H
 #define __CVC4__PARSER__SMT2_H
 
+#include <sstream>
+#include <stack>
+#include <string>
+#include <utility>
+
 #include "parser/parser.h"
 #include "parser/smt1/smt1.h"
 #include "theory/logic_info.h"
 #include "util/abstract_value.h"
-#include "parser/smt2/smt2_input.h"
-
-#include <string>
-#include <sstream>
-#include <utility>
-#include <stack>
 
 namespace CVC4 {
 
@@ -64,6 +63,7 @@ private:
   std::stack< std::map<Expr, std::string> > d_unsatCoreNames;
   std::vector<Expr> d_sygusVars, d_sygusConstraints, d_sygusFunSymbols;
   std::vector< std::pair<std::string, Expr> > d_sygusFuns;
+  std::map< Expr, bool > d_sygusVarPrimed;
   size_t d_nextSygusFun;
 
 protected:
@@ -114,9 +114,7 @@ public:
     return getInput()->getLanguage() == language::input::LANG_SYGUS;
   }
 
-  void setLanguage(InputLanguage lang) {
-    ((Smt2Input*) getInput())->setLanguage(lang);
-  }
+  void setLanguage(InputLanguage lang);
 
   void setInfo(const std::string& flag, const SExpr& sexpr);
 
@@ -172,36 +170,46 @@ public:
     return getExprManager()->mkConst(AbstractValue(Integer(name.substr(1))));
   }
 
-  Expr mkSygusVar(const std::string& name, const Type& type) {
-    Expr e = mkBoundVar(name, type);
-    d_sygusVars.push_back(e);
-    return e;
-  }
+  Expr mkSygusVar(const std::string& name, const Type& type, bool isPrimed = false);
 
   void mkSygusDefaultGrammar( const Type& range, Expr& bvl, const std::string& fun, std::vector<CVC4::Datatype>& datatypes,
-                              std::vector<Type>& sorts, std::vector< std::vector<Expr> >& ops, std::vector<Expr> sygus_vars );
+                              std::vector<Type>& sorts, std::vector< std::vector<Expr> >& ops, std::vector<Expr> sygus_vars, int& startIndex );
 
   void mkSygusConstantsForType( const Type& type, std::vector<CVC4::Expr>& ops );
+
+  void processSygusGTerm( CVC4::SygusGTerm& sgt, int index,
+                          std::vector< CVC4::Datatype >& datatypes,
+                          std::vector< CVC4::Type>& sorts,
+                          std::vector< std::vector<CVC4::Expr> >& ops,
+                          std::vector< std::vector<std::string> >& cnames,
+                          std::vector< std::vector< std::vector< CVC4::Type > > >& cargs,
+                          std::vector< bool >& allow_const,
+                          std::vector< std::vector< std::string > >& unresolved_gterm_sym,
+                          std::vector<CVC4::Expr>& sygus_vars,
+                          std::map< CVC4::Type, CVC4::Type >& sygus_to_builtin, std::map< CVC4::Type, CVC4::Expr >& sygus_to_builtin_expr,
+                          CVC4::Type& ret, bool isNested = false );
 
   static bool pushSygusDatatypeDef( Type t, std::string& dname,
                                     std::vector< CVC4::Datatype >& datatypes,
                                     std::vector< CVC4::Type>& sorts,
                                     std::vector< std::vector<CVC4::Expr> >& ops,
                                     std::vector< std::vector<std::string> >& cnames,
-                                    std::vector< std::vector< std::vector< CVC4::Type > > >& cargs );
+                                    std::vector< std::vector< std::vector< CVC4::Type > > >& cargs,
+                                    std::vector< bool >& allow_const,
+                                    std::vector< std::vector< std::string > >& unresolved_gterm_sym );
 
   static bool popSygusDatatypeDef( std::vector< CVC4::Datatype >& datatypes,
                                    std::vector< CVC4::Type>& sorts,
                                    std::vector< std::vector<CVC4::Expr> >& ops,
                                    std::vector< std::vector<std::string> >& cnames,
-                                   std::vector< std::vector< std::vector< CVC4::Type > > >& cargs );
+                                   std::vector< std::vector< std::vector< CVC4::Type > > >& cargs,
+                                   std::vector< bool >& allow_const,
+                                   std::vector< std::vector< std::string > >& unresolved_gterm_sym );
 
-  Type processSygusNestedGTerm( int sub_dt_index, std::string& sub_dname, std::vector< CVC4::Datatype >& datatypes,
-                                std::vector< CVC4::Type>& sorts,
-                                std::vector< std::vector<CVC4::Expr> >& ops,
-                                std::vector< std::vector<std::string> >& cnames,
-                                std::vector< std::vector< std::vector< CVC4::Type > > >& cargs,
-                                std::map< CVC4::Type, CVC4::Type >& sygus_to_builtin, Type sub_ret );
+  void setSygusStartIndex( std::string& fun, int startIndex,
+                           std::vector< CVC4::Datatype >& datatypes,
+                           std::vector< CVC4::Type>& sorts,
+                           std::vector< std::vector<CVC4::Expr> >& ops );
 
   void addSygusFun(const std::string& fun, Expr eval) {
     d_sygusFuns.push_back(std::make_pair(fun, eval));
@@ -210,13 +218,17 @@ public:
   void defineSygusFuns();
 
   void mkSygusDatatype( CVC4::Datatype& dt, std::vector<CVC4::Expr>& ops,
-                        std::vector<std::string>& cnames, std::vector< std::vector< CVC4::Type > >& cargs );
+                        std::vector<std::string>& cnames, std::vector< std::vector< CVC4::Type > >& cargs,
+                        std::vector<std::string>& unresolved_gterm_sym,
+                        std::map< CVC4::Type, CVC4::Type >& sygus_to_builtin );
 
   // i is index in datatypes/ops
   // j is index is datatype
   Expr getSygusAssertion( std::vector<DatatypeType>& datatypeTypes, std::vector< std::vector<Expr> >& ops,
                           std::map<DatatypeType, Expr>& evals, std::vector<Expr>& terms,
                           Expr eval, const Datatype& dt, size_t i, size_t j );
+
+
 
   void addSygusConstraint(Expr constraint) {
     d_sygusConstraints.push_back(constraint);
@@ -233,6 +245,7 @@ public:
   const std::vector<Expr>& getSygusVars() {
     return d_sygusVars;
   }
+  const void getSygusPrimedVars( std::vector<Expr>& vars, bool isPrimed );
 
   const std::vector<Expr>& getSygusFunSymbols() {
     return d_sygusFunSymbols;
@@ -252,6 +265,12 @@ public:
         name.find_first_not_of("0123456789", 1) != std::string::npos ) {
       this->Parser::checkDeclaration(name, check, type, notes);
       return;
+    }else{
+      //it is allowable in sygus
+      if( sygus() && name[0]=='-' ){
+        //do not check anything
+        return;
+      }
     }
 
     std::stringstream ss;
@@ -285,6 +304,37 @@ public:
   }
 
 private:
+  std::map< CVC4::Expr, CVC4::Type > d_sygus_bound_var_type;
+  std::map< CVC4::Expr, std::vector< CVC4::Expr > > d_sygus_let_func_to_vars;
+  std::map< CVC4::Expr, CVC4::Expr > d_sygus_let_func_to_body;
+  std::map< CVC4::Expr, unsigned > d_sygus_let_func_to_num_input_vars;
+  //auxiliary define-fun functions introduced for production rules
+  std::vector< CVC4::Expr > d_sygus_defined_funs;
+
+  void collectSygusLetArgs( CVC4::Expr e, std::vector< CVC4::Type >& sygusArgs, std::vector< CVC4::Expr >& builtinArgs );
+
+  void addSygusDatatypeConstructor( CVC4::Datatype& dt, CVC4::Expr op, std::string& cname, std::vector< CVC4::Type >& cargs,
+                                    CVC4::Expr& let_body, std::vector< CVC4::Expr >& let_args, unsigned let_num_input_args );
+
+  Type processSygusNestedGTerm( int sub_dt_index, std::string& sub_dname, std::vector< CVC4::Datatype >& datatypes,
+                                std::vector< CVC4::Type>& sorts,
+                                std::vector< std::vector<CVC4::Expr> >& ops,
+                                std::vector< std::vector<std::string> >& cnames,
+                                std::vector< std::vector< std::vector< CVC4::Type > > >& cargs,
+                                std::vector< bool >& allow_const,
+                                std::vector< std::vector< std::string > >& unresolved_gterm_sym,
+                                std::map< CVC4::Type, CVC4::Type >& sygus_to_builtin,
+                                std::map< CVC4::Type, CVC4::Expr >& sygus_to_builtin_expr, Type sub_ret );
+
+  void processSygusLetConstructor( std::vector< CVC4::Expr >& let_vars, int index,
+                                   std::vector< CVC4::Datatype >& datatypes,
+                                   std::vector< CVC4::Type>& sorts,
+                                   std::vector< std::vector<CVC4::Expr> >& ops,
+                                   std::vector< std::vector<std::string> >& cnames,
+                                   std::vector< std::vector< std::vector< CVC4::Type > > >& cargs,
+                                   std::vector<CVC4::Expr>& sygus_vars,
+                                   std::map< CVC4::Type, CVC4::Type >& sygus_to_builtin,
+                                   std::map< CVC4::Type, CVC4::Expr >& sygus_to_builtin_expr );
 
   void addArithmeticOperators();
 

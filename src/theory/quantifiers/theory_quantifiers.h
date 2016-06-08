@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_quantifiers.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Francois Bobot, Dejan Jovanovic, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Theory of quantifiers.
  **
@@ -19,14 +19,14 @@
 #ifndef __CVC4__THEORY__QUANTIFIERS__THEORY_QUANTIFIERS_H
 #define __CVC4__THEORY__QUANTIFIERS__THEORY_QUANTIFIERS_H
 
+#include <ext/hash_set>
+#include <iostream>
+#include <map>
+
 #include "context/cdhashmap.h"
 #include "theory/theory.h"
 #include "util/hash.h"
 #include "util/statistics_registry.h"
-
-#include <ext/hash_set>
-#include <iostream>
-#include <map>
 
 namespace CVC4 {
 class TheoryEngine;
@@ -46,10 +46,14 @@ private:
   int d_baseDecLevel;
 
   eq::EqualityEngine* d_masterEqualityEngine;
+
 private:
-  void computeCareGraph();  
+  void computeCareGraph();
+
 public:
-  TheoryQuantifiers(context::Context* c, context::UserContext* u, OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo);
+  TheoryQuantifiers(context::Context* c, context::UserContext* u,
+                    OutputChannel& out, Valuation valuation,
+                    const LogicInfo& logicInfo);
   ~TheoryQuantifiers();
 
   void setMasterEqualityEngine(eq::EqualityEngine* eq);

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file abstract_value.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Representation of abstract values
  **
@@ -18,8 +18,9 @@
 
 #pragma once
 
-#include "expr/type.h"
-#include <iostream>
+#include <iosfwd>
+
+#include "util/integer.h"
 
 namespace CVC4 {
 
@@ -28,13 +29,9 @@ class CVC4_PUBLIC AbstractValue {
 
 public:
 
-  AbstractValue(Integer index) throw(IllegalArgumentException) :
-    d_index(index) {
-    CheckArgument(index >= 1, index, "index >= 1 required for abstract value, not `%s'", index.toString().c_str());
-  }
+  AbstractValue(Integer index) throw(IllegalArgumentException);
 
-  ~AbstractValue() throw() {
-  }
+  ~AbstractValue() throw() {}
 
   const Integer& getIndex() const throw() {
     return d_index;

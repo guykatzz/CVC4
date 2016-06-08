@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Clark Barrett, Dejan Jovanovic, Tim King
- ** Minor contributors (to current version): Kshitij Bansal, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Tim King, Dejan Jovanovic, Clark Barrett
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Base for theory interface.
  **
@@ -15,11 +15,17 @@
  **/
 
 #include "theory/theory.h"
-#include "util/cvc4_assert.h"
-#include "theory/quantifiers_engine.h"
-#include "theory/substitutions.h"
 
 #include <vector>
+#include <sstream>
+#include <iostream>
+#include <string>
+
+#include "base/cvc4_assert.h"
+#include "smt/smt_statistics_registry.h"
+#include "theory/substitutions.h"
+#include "theory/quantifiers_engine.h"
+
 
 using namespace std;
 
@@ -45,9 +51,35 @@ std::ostream& operator<<(std::ostream& os, Theory::Effort level){
   return os;
 }/* ostream& operator<<(ostream&, Theory::Effort) */
 
+
+Theory::Theory(TheoryId id, context::Context* satContext,
+               context::UserContext* userContext, OutputChannel& out,
+               Valuation valuation, const LogicInfo& logicInfo,
+               std::string name) throw()
+    : d_id(id)
+    , d_instanceName(name)
+    , d_satContext(satContext)
+    , d_userContext(userContext)
+    , d_logicInfo(logicInfo)
+    , d_facts(satContext)
+    , d_factsHead(satContext, 0)
+    , d_sharedTermsIndex(satContext, 0)
+    , d_careGraph(NULL)
+    , d_quantEngine(NULL)
+    , d_checkTime(getFullInstanceName() + "::checkTime")
+    , d_computeCareGraphTime(getFullInstanceName() + "::computeCareGraphTime")
+    , d_sharedTerms(satContext)
+    , d_out(&out)
+    , d_valuation(valuation)
+    , d_proofsEnabled(false)
+{
+  smtStatisticsRegistry()->registerStat(&d_checkTime);
+  smtStatisticsRegistry()->registerStat(&d_computeCareGraphTime);
+}
+
 Theory::~Theory() {
-  StatisticsRegistry::unregisterStat(&d_checkTime);
-  StatisticsRegistry::unregisterStat(&d_computeCareGraphTime);
+  smtStatisticsRegistry()->unregisterStat(&d_checkTime);
+  smtStatisticsRegistry()->unregisterStat(&d_computeCareGraphTime);
 }
 
 TheoryId Theory::theoryOf(TheoryOfMode mode, TNode node) {
@@ -176,7 +208,8 @@ void Theory::debugPrintFacts() const{
 
 std::hash_set<TNode, TNodeHashFunction> Theory::currentlySharedTerms() const{
   std::hash_set<TNode, TNodeHashFunction> currentlyShared;
-  for(shared_terms_iterator i = shared_terms_begin(), i_end = shared_terms_end(); i != i_end; ++i){
+  for (shared_terms_iterator i = shared_terms_begin(),
+           i_end = shared_terms_end(); i != i_end; ++i) {
     currentlyShared.insert (*i);
   }
   return currentlyShared;
@@ -198,13 +231,15 @@ void Theory::collectTerms(TNode n, set<Node>& termSet) const
 }
 
 
-void Theory::computeRelevantTerms(set<Node>& termSet) const
+void Theory::computeRelevantTerms(set<Node>& termSet, bool includeShared) const
 {
   // Collect all terms appearing in assertions
   context::CDList<Assertion>::const_iterator assert_it = facts_begin(), assert_it_end = facts_end();
   for (; assert_it != assert_it_end; ++assert_it) {
     collectTerms(*assert_it, termSet);
   }
+
+  if (!includeShared) return;
 
   // Add terms that are shared terms
   context::CDList<TNode>::const_iterator shared_it = shared_terms_begin(), shared_it_end = shared_terms_end();
@@ -214,18 +249,21 @@ void Theory::computeRelevantTerms(set<Node>& termSet) const
 }
 
 
-Theory::PPAssertStatus Theory::ppAssert(TNode in, SubstitutionMap& outSubstitutions)
+Theory::PPAssertStatus Theory::ppAssert(TNode in,
+                                        SubstitutionMap& outSubstitutions)
 {
   if (in.getKind() == kind::EQUAL) {
     // (and (= x t) phi) can be replaced by phi[x/t] if
     // 1) x is a variable
     // 2) x is not in the term t
     // 3) x : T and t : S, then S <: T
-    if (in[0].isVar() && !in[1].hasSubterm(in[0]) && (in[1].getType()).isSubtypeOf(in[0].getType()) ){
+    if (in[0].isVar() && !in[1].hasSubterm(in[0]) &&
+        (in[1].getType()).isSubtypeOf(in[0].getType()) ){
       outSubstitutions.addSubstitution(in[0], in[1]);
       return PP_ASSERT_STATUS_SOLVED;
     }
-    if (in[1].isVar() && !in[0].hasSubterm(in[1]) && (in[0].getType()).isSubtypeOf(in[1].getType())){
+    if (in[1].isVar() && !in[0].hasSubterm(in[1]) &&
+        (in[0].getType()).isSubtypeOf(in[1].getType())){
       outSubstitutions.addSubstitution(in[1], in[0]);
       return PP_ASSERT_STATUS_SOLVED;
     }
@@ -239,14 +277,21 @@ Theory::PPAssertStatus Theory::ppAssert(TNode in, SubstitutionMap& outSubstituti
   return PP_ASSERT_STATUS_UNSOLVED;
 }
 
-std::pair<bool, Node> Theory::entailmentCheck(TNode lit,
-                                              const EntailmentCheckParameters* params,
-                                              EntailmentCheckSideEffects* out){
+std::pair<bool, Node> Theory::entailmentCheck(
+    TNode lit,
+    const EntailmentCheckParameters* params,
+    EntailmentCheckSideEffects* out) {
   return make_pair(false, Node::null());
 }
 
 EntailmentCheckParameters::EntailmentCheckParameters(TheoryId tid)
   : d_tid(tid) {
+}
+
+std::string Theory::getFullInstanceName() const {
+  std::stringstream ss;
+  ss << "theory<" << d_id << ">" << d_instanceName;
+  return ss.str();
 }
 
 EntailmentCheckParameters::~EntailmentCheckParameters(){}

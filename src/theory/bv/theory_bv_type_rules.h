@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_bv_type_rules.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Christopher L. Conway, Liana Hadarean, Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Liana Hadarean
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Bitvector theory typing rules
  **
@@ -111,6 +111,20 @@ public:
     return nodeManager->booleanType();
   }
 };/* class BitVectorPredicateTypeRule */
+
+class BitVectorUnaryPredicateTypeRule {
+public:
+  inline static TypeNode computeType(NodeManager* nodeManager, TNode n, bool check)
+      throw (TypeCheckingExceptionPrivate, AssertionException) {
+    if( check ) {
+      TypeNode type = n[0].getType(check);
+      if (!type.isBitVector()) {
+        throw TypeCheckingExceptionPrivate(n, "expecting bit-vector terms");
+      }
+    }
+    return nodeManager->booleanType();
+  }
+};/* class BitVectorUnaryPredicateTypeRule */
 
 class BitVectorEagerAtomTypeRule {
 public:

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file simplex.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Clark Barrett
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief This is an implementation of the Simplex Module for the Simplex for DPLL(T)
  ** decision procedure.
@@ -54,12 +54,11 @@
 #pragma once
 
 #include "theory/arith/arithvar.h"
-#include "theory/arith/error_set.h"
 #include "theory/arith/delta_rational.h"
-#include "theory/arith/tableau.h"
-#include "theory/arith/partial_model.h"
+#include "theory/arith/error_set.h"
 #include "theory/arith/linear_equality.h"
-
+#include "theory/arith/partial_model.h"
+#include "theory/arith/tableau.h"
 #include "util/dense_map.h"
 #include "util/result.h"
 

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file type.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Dejan Jovanovic, Morgan Deters
- ** Minor contributors (to current version): Andrew Reynolds, Kshitij Bansal
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Martin Brain
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Interface for expression types.
  **
@@ -38,7 +38,7 @@ struct CVC4_PUBLIC ExprManagerMapCollection;
 class CVC4_PUBLIC SmtEngine;
 
 class CVC4_PUBLIC Datatype;
-class CVC4_PUBLIC Record;
+class Record;
 
 template <bool ref_count>
 class NodeTemplate;
@@ -47,6 +47,7 @@ class BooleanType;
 class IntegerType;
 class RealType;
 class StringType;
+class RegExpType;
 class RoundingModeType;
 class BitVectorType;
 class ArrayType;
@@ -56,8 +57,6 @@ class ConstructorType;
 class SelectorType;
 class TesterType;
 class FunctionType;
-class TupleType;
-class RecordType;
 class SExprType;
 class SortType;
 class SortConstructorType;
@@ -260,6 +259,12 @@ public:
   bool isString() const;
 
   /**
+   * Is this the regexp type?
+   * @return true if the type is the regexp type
+   */
+  bool isRegExp() const;
+
+  /**
    * Is this the rounding mode type?
    * @return true if the type is the rounding mode type
    */
@@ -426,6 +431,18 @@ public:
 };/* class StringType */
 
 /**
+ * Singleton class encapsulating the string type.
+ */
+class CVC4_PUBLIC RegExpType : public Type {
+
+public:
+
+  /** Construct from the base type */
+  RegExpType(const Type& type) throw(IllegalArgumentException);
+};/* class RegExpType */
+
+
+/**
  * Singleton class encapsulating the rounding mode type.
  */
 class CVC4_PUBLIC RoundingModeType : public Type {
@@ -459,39 +476,7 @@ public:
 };/* class FunctionType */
 
 /**
- * Class encapsulating a tuple type.
- */
-class CVC4_PUBLIC TupleType : public Type {
-
-public:
-
-  /** Construct from the base type */
-  TupleType(const Type& type = Type()) throw(IllegalArgumentException);
-
-  /** Get the length of the tuple.  The same as getTypes().size(). */
-  size_t getLength() const;
-
-  /** Get the constituent types */
-  std::vector<Type> getTypes() const;
-
-};/* class TupleType */
-
-/**
- * Class encapsulating a record type.
- */
-class CVC4_PUBLIC RecordType : public Type {
-
-public:
-
-  /** Construct from the base type */
-  RecordType(const Type& type = Type()) throw(IllegalArgumentException);
-
-  /** Get the constituent types */
-  const Record& getRecord() const;
-};/* class RecordType */
-
-/**
- * Class encapsulating a tuple type.
+ * Class encapsulating a sexpr type.
  */
 class CVC4_PUBLIC SExprType : public Type {
 
@@ -703,6 +688,15 @@ public:
 
   /** Instantiate a datatype using this datatype constructor */
   DatatypeType instantiate(const std::vector<Type>& params) const;
+
+  /** Get the length of a tuple type */
+  size_t getTupleLength() const;
+
+  /** Get the constituent types of a tuple type */
+  std::vector<Type> getTupleTypes() const;
+
+  /** Get the description of the record type */
+  const Record& getRecord() const;
 
 };/* class DatatypeType */
 

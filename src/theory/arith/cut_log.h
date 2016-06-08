@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cut_log.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Kshitij Bansal, Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Kshitij Bansal
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -20,15 +20,16 @@
 
 #pragma once
 
+#include <ext/hash_map>
+#include <map>
+#include <set>
+#include <vector>
+
 #include "expr/kind.h"
-#include "util/statistics_registry.h"
 #include "theory/arith/arithvar.h"
 #include "theory/arith/constraint_forward.h"
 #include "util/dense_map.h"
-#include <vector>
-#include <map>
-#include <set>
-#include <ext/hash_map>
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace theory {

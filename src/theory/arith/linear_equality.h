@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file linear_equality.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Clark Barrett, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief This module maintains the relationship between a Tableau and PartialModel.
  **
@@ -29,14 +29,13 @@
 
 #pragma once
 
-#include "theory/arith/delta_rational.h"
+#include "options/arith_options.h"
 #include "theory/arith/arithvar.h"
-#include "theory/arith/partial_model.h"
-#include "theory/arith/tableau.h"
 #include "theory/arith/constraint_forward.h"
+#include "theory/arith/delta_rational.h"
+#include "theory/arith/partial_model.h"
 #include "theory/arith/simplex_update.h"
-#include "theory/arith/options.h"
-
+#include "theory/arith/tableau.h"
 #include "util/maybe.h"
 #include "util/statistics_registry.h"
 

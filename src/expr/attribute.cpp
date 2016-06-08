@@ -1,25 +1,24 @@
 /*********************                                                        */
 /*! \file attribute.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic, Tim King
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief AttributeManager implementation.
  **
  ** AttributeManager implementation.
  **/
+#include <utility>
 
+#include "base/output.h"
 #include "expr/attribute.h"
 #include "expr/node_value.h"
-#include "util/output.h"
 #include "smt/smt_engine.h"
-
-#include <utility>
 
 using namespace std;
 

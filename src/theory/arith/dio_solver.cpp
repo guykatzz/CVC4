@@ -1,23 +1,25 @@
 /*********************                                                        */
 /*! \file dio_solver.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Tim King
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Diophantine equation solver
  **
  ** A Diophantine equation solver for the theory of arithmetic.
  **/
-
 #include "theory/arith/dio_solver.h"
-#include "theory/arith/options.h"
 
 #include <iostream>
+
+#include "base/output.h"
+#include "options/arith_options.h"
+#include "smt/smt_statistics_registry.h"
 
 using namespace std;
 
@@ -55,25 +57,25 @@ DioSolver::Statistics::Statistics() :
   d_conflictTimer("theory::arith::dio::conflictTimer"),
   d_cutTimer("theory::arith::dio::cutTimer")
 {
-  StatisticsRegistry::registerStat(&d_conflictCalls);
-  StatisticsRegistry::registerStat(&d_cutCalls);
+  smtStatisticsRegistry()->registerStat(&d_conflictCalls);
+  smtStatisticsRegistry()->registerStat(&d_cutCalls);
 
-  StatisticsRegistry::registerStat(&d_cuts);
-  StatisticsRegistry::registerStat(&d_conflicts);
+  smtStatisticsRegistry()->registerStat(&d_cuts);
+  smtStatisticsRegistry()->registerStat(&d_conflicts);
 
-  StatisticsRegistry::registerStat(&d_conflictTimer);
-  StatisticsRegistry::registerStat(&d_cutTimer);
+  smtStatisticsRegistry()->registerStat(&d_conflictTimer);
+  smtStatisticsRegistry()->registerStat(&d_cutTimer);
 }
 
 DioSolver::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_conflictCalls);
-  StatisticsRegistry::unregisterStat(&d_cutCalls);
+  smtStatisticsRegistry()->unregisterStat(&d_conflictCalls);
+  smtStatisticsRegistry()->unregisterStat(&d_cutCalls);
 
-  StatisticsRegistry::unregisterStat(&d_cuts);
-  StatisticsRegistry::unregisterStat(&d_conflicts);
+  smtStatisticsRegistry()->unregisterStat(&d_cuts);
+  smtStatisticsRegistry()->unregisterStat(&d_conflicts);
 
-  StatisticsRegistry::unregisterStat(&d_conflictTimer);
-  StatisticsRegistry::unregisterStat(&d_cutTimer);
+  smtStatisticsRegistry()->unregisterStat(&d_conflictTimer);
+  smtStatisticsRegistry()->unregisterStat(&d_cutTimer);
 }
 
 bool DioSolver::queueConditions(TrailIndex t){

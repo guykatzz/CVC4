@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file translator.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief CVC4 translator
  **
@@ -15,18 +15,22 @@
  ** CVC4's input languages to one of its output languages.
  **/
 
-#include <iostream>
+#include <cerrno>
+#include <cstdlib>
+#include <cstring>
 #include <fstream>
 #include <getopt.h>
-#include <cstring>
-#include <cstdlib>
-#include <cerrno>
-#include "smt/smt_engine.h"
-#include "util/language.h"
-#include "expr/command.h"
+#include <iostream>
+
 #include "expr/expr.h"
-#include "parser/parser_builder.h"
+#include "expr/expr_iomanip.h"
+#include "options/language.h"
+#include "options/options.h"
+#include "options/set_language.h"
 #include "parser/parser.h"
+#include "parser/parser_builder.h"
+#include "smt/command.h"
+#include "smt/smt_engine.h"
 
 using namespace std;
 using namespace CVC4;
@@ -96,10 +100,10 @@ static void readFile(const char* filename, InputLanguage fromLang, OutputLanguag
     toLang = toOutputLanguage(fromLang);
   }
 
-  *out << Expr::setlanguage(toLang);
+  *out << language::SetLanguage(toLang);
 
   Options opts;
-  opts.set(options::inputLanguage, fromLang);
+  opts.setInputLanguage(fromLang);
   ExprManager exprMgr(opts);
   ParserBuilder parserBuilder(&exprMgr, filename, opts);
   if(!strcmp(filename, "-")) {
@@ -209,7 +213,7 @@ int main(int argc, char* argv[]) {
       switch(c) {
       case 1:
         ++files;
-        *out << Expr::dag(dag_thresh);
+        *out << expr::ExprDag(dag_thresh);
         readFile(optarg, (!strcmp(optarg, "-") && fromLang == input::LANG_AUTO) ? input::LANG_CVC4 : fromLang, toLang, expand_definitions, combine_assertions, out);
         break;
       case INPUT_LANG:
@@ -274,7 +278,7 @@ int main(int argc, char* argv[]) {
     }
 
     if(files == 0) {
-      *out << Expr::dag(dag_thresh);
+      *out << expr::ExprDag(dag_thresh);
       readFile("-", fromLang == input::LANG_AUTO ? input::LANG_CVC4 : fromLang, toLang, expand_definitions, combine_assertions, out);
       exit(0);
     }

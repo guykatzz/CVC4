@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file ce_guided_single_inv_sol.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief utility for reconstructing solutions for single invocation synthesis conjectures
  **/
@@ -65,6 +65,10 @@ private:
 
   std::map< int, std::vector< int > > d_eqc;
   std::map< int, int > d_rep;
+  
+  //equivalent terms
+  std::map< Node, Node > d_eqt_rep;
+  std::map< Node, std::vector< Node > > d_eqt_eqc;
 
   //cache when reconstructing solutions
   std::vector< int > d_tmp_fail;
@@ -78,8 +82,13 @@ private:
   bool collectReconstructNodes( int pid, std::vector< Node >& ts, const DatatypeConstructor& dtc, std::vector< int >& ids, int& status );
   bool getPathToRoot( int id );
   void setReconstructed( int id, Node n );
+  //get equivalent terms to n with top symbol k
+  void getEquivalentTerms( Kind k, Node n, std::vector< Node >& equiv );
+  //register equivalent terms
+  void registerEquivalentTerms( Node n );
 public:
   Node reconstructSolution( Node sol, TypeNode stn, int& reconstructed );
+  void preregisterConjecture( Node q );
 public:
   CegConjectureSingleInvSol( QuantifiersEngine * qe );
 };

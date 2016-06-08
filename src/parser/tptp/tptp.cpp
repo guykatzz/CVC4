@@ -1,23 +1,24 @@
 /*********************                                                        */
 /*! \file tptp.cpp
  ** \verbatim
- ** Original author: Francois Bobot
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Francois Bobot, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Definitions of TPTP constants.
  **
  ** Definitions of TPTP constants.
  **/
 
+// Do not #include "parser/antlr_input.h" directly. Rely on the header.
+#include "parser/tptp/tptp.h"
+
 #include "expr/type.h"
 #include "parser/parser.h"
-#include "parser/tptp/tptp.h"
-#include "parser/antlr_input.h"
 
 // ANTLR defines these, which is really bad!
 #undef true

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file attribute_black.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters, Tim King
- ** Minor contributors (to current version): Christopher L. Conway
+ ** Top contributors (to current version):
+ **   Tim King, Dejan Jovanovic, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::Attribute.
  **
@@ -145,9 +145,10 @@ public:
   }
 
   class Foo {
-    int blah;
+    int d_bar;
   public:
-    Foo(int b) : blah(b) {}
+    Foo(int b) : d_bar(b) {}
+    int getBar() const { return d_bar; }
   };
 
   struct PtrAttributeId {};
@@ -175,6 +176,8 @@ public:
     TS_ASSERT(!node->getAttribute(cdattr, data2));
     node->setAttribute(cdattr, val);
     TS_ASSERT(node->getAttribute(cdattr, data3));
+    TS_ASSERT(data3 != NULL);
+    TS_ASSERT_EQUALS(63489, data3->getBar());
     TS_ASSERT_EQUALS(data3, val);
     delete node;
     delete val;

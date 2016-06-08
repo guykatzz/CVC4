@@ -1,31 +1,33 @@
 /*********************                                                        */
 /*! \file theory_model.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Andrew Reynolds, Clark Barrett
- ** Minor contributors (to current version): Kshitij Bansal, Liana Hadarean, Tim King
+ ** Top contributors (to current version):
+ **   Clark Barrett, Andrew Reynolds, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Implementation of model class
  **/
-
 #include "theory/theory_model.h"
+
+#include "options/smt_options.h"
+#include "options/uf_options.h"
+#include "options/quantifiers_options.h"
+#include "smt/smt_engine.h"
 #include "theory/quantifiers_engine.h"
 #include "theory/theory_engine.h"
 #include "theory/type_enumerator.h"
-#include "smt/options.h"
-#include "smt/smt_engine.h"
 #include "theory/uf/theory_uf_model.h"
-#include "theory/uf/options.h"
 
 using namespace std;
-using namespace CVC4;
 using namespace CVC4::kind;
 using namespace CVC4::context;
-using namespace CVC4::theory;
+
+namespace CVC4 {
+namespace theory {
 
 TheoryModel::TheoryModel(context::Context* c, std::string name, bool enableFuncModels) :
   d_substitutions(c, false), d_modelBuilt(c, false), d_enableFuncModels(enableFuncModels)
@@ -62,11 +64,12 @@ void TheoryModel::reset(){
   d_eeContext->push();
 }
 
-Node TheoryModel::getValue(TNode n) const {
+Node TheoryModel::getValue(TNode n, bool useDontCares) const {
   //apply substitutions
   Node nn = d_substitutions.apply(n);
   //get value in model
-  nn = getModelValue(nn);
+  nn = getModelValue(nn, false, useDontCares);
+  if (nn.isNull()) return nn;
   if(options::condenseFunctionValues() || nn.getKind() != kind::LAMBDA) {
     //normalize
     nn = Rewriter::rewrite(nn);
@@ -74,6 +77,10 @@ Node TheoryModel::getValue(TNode n) const {
   Debug("model-getvalue") << "[model-getvalue] getValue( " << n << " ): " << std::endl
                           << "[model-getvalue] returning " << nn << std::endl;
   return nn;
+}
+
+bool TheoryModel::isDontCare(Expr expr) const {
+  return getValue(Node::fromExpr(expr), true).isNull();
 }
 
 Expr TheoryModel::getValue( Expr expr ) const{
@@ -88,23 +95,27 @@ Cardinality TheoryModel::getCardinality( Type t ) const{
   //for now, we only handle cardinalities for uninterpreted sorts
   if( tn.isSort() ){
     if( d_rep_set.hasType( tn ) ){
+      Debug("model-getvalue-debug") << "Get cardinality sort, #rep : " << d_rep_set.getNumRepresentatives( tn ) << std::endl;
       return Cardinality( d_rep_set.getNumRepresentatives( tn ) );
     }else{
-      return Cardinality( CardinalityUnknown() );
+      Debug("model-getvalue-debug") << "Get cardinality sort, unconstrained, return 1." << std::endl;
+      return Cardinality( 1 );
     }
   }else{
+      Debug("model-getvalue-debug") << "Get cardinality other sort, unknown." << std::endl;
     return Cardinality( CardinalityUnknown() );
   }
 }
 
-Node TheoryModel::getModelValue(TNode n, bool hasBoundVars) const
+Node TheoryModel::getModelValue(TNode n, bool hasBoundVars, bool useDontCares) const
 {
   std::hash_map<Node, Node, NodeHashFunction>::iterator it = d_modelCache.find(n);
   if (it != d_modelCache.end()) {
     return (*it).second;
   }
   Node ret = n;
-  if(n.getKind() == kind::EXISTS || n.getKind() == kind::FORALL) {
+  if(n.getKind() == kind::EXISTS || n.getKind() == kind::FORALL || n.getKind() == kind::COMBINED_CARDINALITY_CONSTRAINT ||
+     ( n.getKind() == kind::CARDINALITY_CONSTRAINT && options::ufssMode()!=theory::uf::UF_SS_FULL ) ) {
     // We should have terms, thanks to TheoryQuantifiers::collectModelInfo().
     // However, if the Decision Engine stops us early, there might be a
     // quantifier that isn't assigned.  In conjunction with miniscoping, this
@@ -119,11 +130,12 @@ Node TheoryModel::getModelValue(TNode n, bool hasBoundVars) const
     // no good.  Instead, return the quantifier itself.  If we're in
     // checkModel(), and the quantifier actually matters, we'll get an
     // assert-fail since the quantifier isn't a constant.
-    if(!d_equalityEngine->hasTerm(Rewriter::rewrite(n))) {
+    Node nr = Rewriter::rewrite(n);
+    if(!d_equalityEngine->hasTerm(nr)) {
       d_modelCache[n] = ret;
       return ret;
     } else {
-      ret = Rewriter::rewrite(n);
+      ret = nr;
     }
   } else {
     if(n.getKind() == kind::LAMBDA) {
@@ -185,13 +197,16 @@ Node TheoryModel::getModelValue(TNode n, bool hasBoundVars) const
         Debug("model-getvalue-debug") << "  " << n << "[" << i << "] is " << ret << std::endl;
         children.push_back(ret);
       }
-      ret = Rewriter::rewrite(NodeManager::currentNM()->mkNode(n.getKind(), children));
+      ret = NodeManager::currentNM()->mkNode(n.getKind(), children);
+      Debug("model-getvalue-debug") << "ret (pre-rewrite): " << ret << std::endl;
+      ret = Rewriter::rewrite(ret);
+      Debug("model-getvalue-debug") << "ret (post-rewrite): " << ret << std::endl;
       if(ret.getKind() == kind::CARDINALITY_CONSTRAINT) {
+        Debug("model-getvalue-debug") << "get cardinality constraint " << ret[0].getType() << std::endl;
         ret = NodeManager::currentNM()->mkConst(getCardinality(ret[0].getType().toType()).getFiniteCardinality() <= ret[1].getConst<Rational>().getNumerator());
-      }
-      if(ret.getKind() == kind::COMBINED_CARDINALITY_CONSTRAINT ){
-        //FIXME
-        ret = NodeManager::currentNM()->mkConst(false);
+      }else if(ret.getKind() == kind::CARDINALITY_VALUE) {
+        Debug("model-getvalue-debug") << "get cardinality value " << ret[0].getType() << std::endl;
+        ret = NodeManager::currentNM()->mkConst(Rational(getCardinality(ret[0].getType().toType()).getFiniteCardinality()));
       }
       d_modelCache[n] = ret;
       return ret;
@@ -201,6 +216,9 @@ Node TheoryModel::getModelValue(TNode n, bool hasBoundVars) const
       if(n.getType().isRegExp()) {
         ret = Rewriter::rewrite(ret);
       } else {
+        if (options::omitDontCares() && useDontCares) {
+          return Node();
+        }
         // Unknown term - return first enumerated value for this type
         TypeEnumerator te(n.getType());
         ret = *te;
@@ -231,35 +249,6 @@ Node TheoryModel::getDomainValue( TypeNode tn, std::vector< Node >& exclude ){
     }
   }
   return Node::null();
-}
-
-//FIXME: need to ensure that theory enumerators exist for each sort
-Node TheoryModel::getNewDomainValue( TypeNode tn ){
-  if( tn.isSort() ){
-    return Node::null();
-  }else{
-    TypeEnumerator te(tn);
-    while( !te.isFinished() ){
-      Node r = *te;
-      if(Debug.isOn("getNewDomainValue")) {
-        Debug("getNewDomainValue") << "getNewDomainValue( " << tn << ")" << endl;
-        Debug("getNewDomainValue") << "+ TypeEnumerator gave: " << r << endl;
-        Debug("getNewDomainValue") << "+ d_type_reps are:";
-        for(vector<Node>::const_iterator i = d_rep_set.d_type_reps[tn].begin();
-            i != d_rep_set.d_type_reps[tn].end();
-            ++i) {
-          Debug("getNewDomainValue") << " " << *i;
-        }
-        Debug("getNewDomainValue") << endl;
-      }
-      if( std::find(d_rep_set.d_type_reps[tn].begin(), d_rep_set.d_type_reps[tn].end(), r) ==d_rep_set.d_type_reps[tn].end() ) {
-        Debug("getNewDomainValue") << "+ it's new, so returning " << r << endl;
-        return r;
-      }
-      ++te;
-    }
-    return Node::null();
-  }
 }
 
 /** add substitution */
@@ -478,6 +467,93 @@ void TheoryEngineModelBuilder::checkTerms(TNode n, TheoryModel* tm, NodeSet& cac
   cache.insert(n);
 }
 
+void TheoryEngineModelBuilder::assignConstantRep( TheoryModel* tm, std::map<Node, Node>& constantReps, Node eqc, Node const_rep, bool fullModel ) {
+  constantReps[eqc] = const_rep;
+  Trace("model-builder") << "    Assign: Setting constant rep of " << eqc << " to " << const_rep << endl;
+  if( !fullModel ){
+    tm->d_rep_set.d_values_to_terms[const_rep] = eqc;
+  }
+}
+
+bool TheoryEngineModelBuilder::isExcludedCdtValue( Node val, std::set<Node>* repSet, std::map< Node, Node >& assertedReps, Node eqc ) {
+  Trace("model-builder-debug") << "Is " << val << " and excluded codatatype value for " << eqc << "? " << std::endl;
+  for (set<Node>::iterator i = repSet->begin(); i != repSet->end(); ++i ) {
+    Assert(assertedReps.find(*i) != assertedReps.end());
+    Node rep = assertedReps[*i];
+    Trace("model-builder-debug") << "  Rep : " << rep << std::endl;
+    //check matching val to rep with eqc as a free variable
+    Node eqc_m;
+    if( isCdtValueMatch( val, rep, eqc, eqc_m ) ){
+      Trace("model-builder-debug") << "  ...matches with " << eqc << " -> " << eqc_m << std::endl;
+      if( eqc_m.getKind()==kind::UNINTERPRETED_CONSTANT ){
+        Trace("model-builder-debug") << "*** " << val << " is excluded datatype for " << eqc << std::endl;
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+bool TheoryEngineModelBuilder::isCdtValueMatch( Node v, Node r, Node eqc, Node& eqc_m ) {
+  if( r==v ){
+    return true;
+  }else if( r==eqc ){
+    if( eqc_m.isNull() ){
+      //only if an uninterpreted constant?
+      eqc_m = v;
+      return true;
+    }else{
+      return v==eqc_m;
+    }
+  }else if( v.getKind()==kind::APPLY_CONSTRUCTOR && r.getKind()==kind::APPLY_CONSTRUCTOR ){
+    if( v.getOperator()==r.getOperator() ){
+      for( unsigned i=0; i<v.getNumChildren(); i++ ){
+        if( !isCdtValueMatch( v[i], r[i], eqc, eqc_m ) ){
+          return false;
+        }
+      }
+      return true;
+    }
+  }
+  return false;
+}
+
+bool TheoryEngineModelBuilder::involvesUSort( TypeNode tn ) {
+  if( tn.isSort() ){
+    return true;
+  }else if( tn.isArray() ){
+    return involvesUSort( tn.getArrayIndexType() ) || involvesUSort( tn.getArrayConstituentType() );
+  }else if( tn.isSet() ){
+    return involvesUSort( tn.getSetElementType() );
+  }else if( tn.isDatatype() ){
+    const Datatype& dt = ((DatatypeType)(tn).toType()).getDatatype();
+    return dt.involvesUninterpretedType();
+  }else{
+    return false;
+  }
+}
+
+bool TheoryEngineModelBuilder::isExcludedUSortValue( std::map< TypeNode, unsigned >& eqc_usort_count, Node v, std::map< Node, bool >& visited ) {
+  Assert( v.isConst() );
+  if( visited.find( v )==visited.end() ){
+    visited[v] = true;
+    TypeNode tn = v.getType();
+    if( tn.isSort() ){
+      Trace("model-builder-debug") << "Is excluded usort value : " << v << " " << tn << std::endl;
+      unsigned card = eqc_usort_count[tn];
+      Trace("model-builder-debug") << "  Cardinality is " << card << std::endl;
+      unsigned index = v.getConst<UninterpretedConstant>().getIndex().toUnsignedInt();
+      Trace("model-builder-debug") << "  Index is " << index << std::endl;
+      return index>0 && index>=card;
+    }
+    for( unsigned i=0; i<v.getNumChildren(); i++ ){
+      if( isExcludedUSortValue( eqc_usort_count, v[i], visited ) ){
+        return true;
+      }
+    }
+  }
+  return false;
+}
 
 void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
 {
@@ -495,7 +571,13 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
   Trace("model-builder") << "TheoryEngineModelBuilder: Collect model info..." << std::endl;
   d_te->collectModelInfo(tm, fullModel);
 
+  // model-builder specific initialization
+  preProcessBuildModel(tm, fullModel);
+
+
   // Loop through all terms and make sure that assignable sub-terms are in the equality engine
+  // Also, record #eqc per type (for finite model finding)
+  std::map< TypeNode, unsigned > eqc_usort_count;
   eq::EqClassesIterator eqcs_i = eq::EqClassesIterator( tm->d_equalityEngine );
   {
     NodeSet cache;
@@ -503,6 +585,14 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
       eq::EqClassIterator eqc_i = eq::EqClassIterator((*eqcs_i),tm->d_equalityEngine);
       for ( ; !eqc_i.isFinished(); ++eqc_i) {
         checkTerms(*eqc_i, tm, cache);
+      }
+      TypeNode tn = (*eqcs_i).getType();
+      if( tn.isSort() ){
+        if( eqc_usort_count.find( tn )==eqc_usort_count.end() ){
+          eqc_usort_count[tn] = 1;
+        }else{
+          eqc_usort_count[tn]++;
+        }
       }
     }
   }
@@ -512,6 +602,15 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
   // Process all terms in the equality engine, store representatives for each EC
   std::map< Node, Node > assertedReps, constantReps;
   TypeSet typeConstSet, typeRepSet, typeNoRepSet;
+  TypeEnumeratorProperties tep;
+  if( options::finiteModelFind() ){
+    tep.d_fixed_usort_card = true;
+    for( std::map< TypeNode, unsigned >::iterator it = eqc_usort_count.begin(); it != eqc_usort_count.end(); ++it ){
+      Trace("model-builder") << "Fixed bound (#eqc) for " << it->first << " : " << it->second << std::endl;
+      tep.d_fixed_card[it->first] = Integer(it->second);
+    }
+    typeConstSet.setTypeEnumeratorProperties( &tep );
+  }
   std::set< TypeNode > allTypes;
   eqcs_i = eq::EqClassesIterator(tm->d_equalityEngine);
   for ( ; !eqcs_i.isFinished(); ++eqcs_i) {
@@ -532,7 +631,9 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
       Trace("model-builder") << "  Processing Term: " << n << endl;
       // Record as rep if this node was specified as a representative
       if (tm->d_reps.find(n) != tm->d_reps.end()){
-        Assert(rep.isNull());
+        //AJR: I believe this assertion is too strict, 
+        // e.g. datatypes may assert representative for two constructor terms that are not in the care graph and are merged during collectModelInfo.
+        //Assert(rep.isNull());
         rep = tm->d_reps[n];
         Assert(!rep.isNull() );
         Trace("model-builder") << "  Rep( " << eqc << " ) = " << rep << std::endl;
@@ -551,7 +652,7 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
     if (!const_rep.isNull()) {
       // Theories should not specify a rep if there is already a constant in the EC
       Assert(rep.isNull() || rep == const_rep);
-      constantReps[eqc] = const_rep;
+      assignConstantRep( tm, constantReps, eqc, const_rep, fullModel );
       typeConstSet.add(eqct.getBaseType(), const_rep);
     }
     else if (!rep.isNull()) {
@@ -615,7 +716,7 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
                 Node normalized = normalize(tm, n, constantReps, true);
                 if (normalized.isConst()) {
                   typeConstSet.add(tb, normalized);
-                  constantReps[*i2] = normalized;
+                  assignConstantRep( tm, constantReps, *i2, normalized, fullModel );
                   Trace("model-builder") << "    Eval: Setting constant rep of " << (*i2) << " to " << normalized << endl;
                   changed = true;
                   evaluated = true;
@@ -648,7 +749,7 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
             if (normalized.isConst()) {
               changed = true;
               typeConstSet.add(tb, normalized);
-              constantReps[*i] = normalized;
+              assignConstantRep( tm, constantReps, *i, normalized, fullModel );
               assertedReps.erase(*i);
               i2 = i;
               ++i;
@@ -685,9 +786,19 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
         continue;
       }
       TypeNode t = TypeSet::getType(it);
-      if(t.isTuple() || t.isRecord()) {
-        t = NodeManager::currentNM()->getDatatypeForTupleRecord(t);
+      
+      //get properties of this type
+      bool isCorecursive = false;
+      bool isUSortFiniteRestricted = false;
+      if( t.isDatatype() ){
+        const Datatype& dt = ((DatatypeType)(t).toType()).getDatatype();
+        isCorecursive = dt.isCodatatype() && ( !dt.isFinite() || dt.isRecursiveSingleton() );
       }
+      if( options::finiteModelFind() ){
+        isUSortFiniteRestricted = !t.isSort() && involvesUSort( t );
+      }
+      
+      set<Node>* repSet = typeRepSet.getSet(t);
       TypeNode tb = t.getBaseType();
       if (!assignOne) {
         set<Node>* repSet = typeRepSet.getSet(tb);
@@ -715,23 +826,52 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
             evaluable = true;
           }
         }
+        Trace("model-builder-debug") << "    eqc " << *i2 << " is assignable=" << assignable << ", evaluable=" << evaluable << std::endl;
         if (assignable) {
           Assert(!evaluable || assignOne);
           Assert(!t.isBoolean() || (*i2).getKind() == kind::APPLY_UF);
           Node n;
           if (t.getCardinality().isInfinite()) {
-            n = typeConstSet.nextTypeEnum(t, true);
+          // if (!t.isInterpretedFinite()) {
+            bool success;
+            do{
+              Trace("model-builder-debug") << "Enumerate term of type " << t << std::endl;
+              n = typeConstSet.nextTypeEnum(t, true);
+              //--- AJR: this code checks whether n is a legal value
+              Assert( !n.isNull() );
+              success = true;
+              Trace("model-builder-debug") << "Check if excluded : " << n << std::endl;
+              if( isUSortFiniteRestricted ){
+#ifdef CVC4_ASSERTIONS
+                //must not involve uninterpreted constants beyond cardinality bound (which assumed to coincide with #eqc)
+                //this is just an assertion now, since TypeEnumeratorProperties should ensure that only legal values are enumerated wrt this constraint.
+                std::map< Node, bool > visited;
+                success = !isExcludedUSortValue( eqc_usort_count, n, visited );
+                if( !success ){
+                  Trace("model-builder") << "Excluded value for " << t << " : " << n << " due to out of range uninterpreted constant." << std::endl;
+                }
+                Assert( success );
+#endif
+              }
+              if( success && isCorecursive ){
+                if (repSet != NULL && !repSet->empty()) {
+                  // in the case of codatatypes, check if it is in the set of values that we cannot assign
+                  // this will check whether n \not\in V^x_I from page 9 of Reynolds/Blanchette CADE 2015
+                  success = !isExcludedCdtValue( n, repSet, assertedReps, *i2 );
+                  if( !success ){
+                    Trace("model-builder") << "Excluded value : " << n << " due to alpha-equivalent codatatype expression." << std::endl;
+                  }
+                }
+              }
+              //---
+            }while( !success );
           }
           else {
             TypeEnumerator te(t);
             n = *te;
           }
           Assert(!n.isNull());
-          constantReps[*i2] = n;
-          Trace("model-builder") << "    Assign: Setting constant rep of " << (*i2) << " to " << n << endl;
-          if( !fullModel ){
-            tm->d_rep_set.d_values_to_terms[n] = (*i2);
-          }
+          assignConstantRep( tm, constantReps, *i2, n, fullModel );
           changed = true;
           noRepSet.erase(i2);
           if (assignOne) {
@@ -788,6 +928,9 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
         tm->d_reps[*i] = *i;
         tm->d_rep_set.add((*i).getType(), *i);
       }
+    }
+    for( std::map< TypeNode, std::vector< Node > >::iterator it = tm->d_rep_set.d_type_reps.begin(); it != tm->d_rep_set.d_type_reps.end(); ++it ){
+      tm->d_rep_set.d_type_rlv_rep[it->first] = (int)it->second.size();
     }
   }
 
@@ -879,6 +1022,9 @@ Node TheoryEngineModelBuilder::normalize(TheoryModel* m, TNode r, std::map< Node
   return retNode;
 }
 
+void TheoryEngineModelBuilder::preProcessBuildModel(TheoryModel* m, bool fullModel) {
+  
+}
 
 void TheoryEngineModelBuilder::processBuildModel(TheoryModel* m, bool fullModel)
 {
@@ -921,3 +1067,6 @@ void TheoryEngineModelBuilder::processBuildModel(TheoryModel* m, bool fullModel)
     }
   }
 }
+
+} /* namespace CVC4::theory */
+} /* namespace CVC4 */

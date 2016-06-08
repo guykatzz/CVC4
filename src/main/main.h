@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file main.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Header for main CVC4 driver
  **
@@ -17,14 +17,14 @@
 #include <exception>
 #include <string>
 
-#include "options/options.h"
-#include "expr/expr_manager.h"
-#include "smt/smt_engine.h"
-#include "util/exception.h"
-#include "util/statistics.h"
-#include "util/tls.h"
-#include "util/statistics_registry.h"
+#include "base/exception.h"
+#include "base/tls.h"
 #include "cvc4autoconfig.h"
+#include "expr/expr_manager.h"
+#include "options/options.h"
+#include "smt/smt_engine.h"
+#include "util/statistics.h"
+#include "util/statistics_registry.h"
 
 #ifndef __CVC4__MAIN__MAIN_H
 #define __CVC4__MAIN__MAIN_H
@@ -58,6 +58,10 @@ extern CVC4_THREADLOCAL(Options*) pOptions;
 
 /** Initialize the driver.  Sets signal handlers for SIGINT and SIGSEGV. */
 void cvc4_init() throw(Exception);
+
+/** Shutdown the driver. Frees memory for the signal handlers. */
+void cvc4_shutdown() throw();
+
 
 }/* CVC4::main namespace */
 }/* CVC4 namespace */

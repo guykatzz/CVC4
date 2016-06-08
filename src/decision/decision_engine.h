@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file decision_engine.h
  ** \verbatim
- ** Original author: Kshitij Bansal
- ** Major contributors: none
- ** Minor contributors (to current version): Clark Barrett, Dejan Jovanovic, Morgan Deters, Tim King
+ ** Top contributors (to current version):
+ **   Kshitij Bansal, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Decision engine
  **
@@ -21,15 +21,13 @@
 
 #include <vector>
 
+#include "base/output.h"
 #include "decision/decision_strategy.h"
-
 #include "expr/node.h"
 #include "prop/cnf_stream.h"
 #include "prop/prop_engine.h"
 #include "prop/sat_solver_types.h"
-#include "theory/decision_attributes.h"
-#include "util/ite_removal.h"
-#include "util/output.h"
+#include "smt/ite_removal.h"
 #include "smt/smt_engine_scope.h"
 
 using namespace std;

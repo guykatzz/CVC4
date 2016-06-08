@@ -1,29 +1,29 @@
 /*********************                                                        */
 /*! \file tptp_printer.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The pretty-printer interface for the TPTP output language
  **
  ** The pretty-printer interface for the TPTP output language.
  **/
-
 #include "printer/tptp/tptp_printer.h"
-#include "expr/expr.h" // for ExprSetDepth etc..
-#include "util/language.h" // for LANG_AST
-#include "expr/node_manager.h" // for VarNameAttr
-#include "expr/command.h"
 
 #include <iostream>
-#include <vector>
 #include <string>
 #include <typeinfo>
+#include <vector>
+
+#include "expr/expr.h" // for ExprSetDepth etc..
+#include "expr/node_manager.h" // for VarNameAttr
+#include "options/language.h" // for LANG_AST
+#include "smt/command.h"
 
 using namespace std;
 
@@ -45,9 +45,6 @@ void TptpPrinter::toStream(std::ostream& out, const CommandStatus* s) const thro
   s->toStream(out, language::output::LANG_SMTLIB_V2_5);
 }/* TptpPrinter::toStream() */
 
-void TptpPrinter::toStream(std::ostream& out, const SExpr& sexpr) const throw() {
-  Printer::getPrinter(language::output::LANG_SMTLIB_V2_5)->toStream(out, sexpr);
-}/* TptpPrinter::toStream() */
 
 void TptpPrinter::toStream(std::ostream& out, const Model& m) const throw() {
   out << "% SZS output start FiniteModel for " << m.getInputName() << endl;
@@ -62,21 +59,6 @@ void TptpPrinter::toStream(std::ostream& out, const Model& m, const Command* c) 
   Unreachable();
 }
 
-void TptpPrinter::toStream(std::ostream& out, const Result& r) const throw() {
-  out << "% SZS status ";
-  if(r.isSat() == Result::SAT) {
-    out << "Satisfiable";
-  } else if(r.isSat() == Result::UNSAT) {
-    out << "Unsatisfiable";
-  } else if(r.isValid() == Result::VALID) {
-    out << "Theorem";
-  } else if(r.isValid() == Result::INVALID) {
-    out << "CounterSatisfiable";
-  } else {
-    out << "GaveUp";
-  }
-  out << " for " << r.getInputName();
-}
 
 }/* CVC4::printer::tptp namespace */
 }/* CVC4::printer namespace */

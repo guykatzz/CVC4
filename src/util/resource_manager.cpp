@@ -1,27 +1,28 @@
 /*********************                                                        */
-/*! \file resource_manager.h
-** \verbatim
-** Original author: Liana Hadarean
-** Major contributors: none
-** Minor contributors (to current version): none
-** This file is part of the CVC4 project.
-** Copyright (c) 2009-2014  New York University and The University of Iowa
-** See the file COPYING in the top-level source directory for licensing
-** information.\endverbatim
-**
-** \brief Manages and updates various resource and time limits.
-**
-** Manages and updates various resource and time limits.
+/*! \file resource_manager.cpp
+ ** \verbatim
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King, Morgan Deters
+ ** This file is part of the CVC4 project.
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
+ **
+ ** [[ Add lengthier description here ]]
+
+ ** \todo document this file
+
 **/
-
 #include "util/resource_manager.h"
-#include "util/output.h"
-#include "smt/smt_engine_scope.h"
-#include "smt/options.h"
-#include "theory/rewriter.h"
 
-using namespace CVC4;
+#include "base/cvc4_assert.h"
+#include "base/output.h"
+#include "options/smt_options.h"
+
 using namespace std;
+
+namespace CVC4 {
 
 void Timer::set(uint64_t millis, bool wallTime) {
   d_ms = millis;
@@ -117,6 +118,8 @@ ResourceManager::ResourceManager()
   , d_on(false)
   , d_cpuTime(false)
   , d_spendResourceCalls(0)
+  , d_hardListeners()
+  , d_softListeners()
 {}
 
 
@@ -146,7 +149,7 @@ void ResourceManager::setTimeLimit(uint64_t millis, bool cumulative) {
 
 }
 
-uint64_t ResourceManager::getResourceUsage() const {
+const uint64_t& ResourceManager::getResourceUsage() const {
   return d_cumulativeResourceUsed;
 }
 
@@ -179,22 +182,19 @@ void ResourceManager::spendResource(unsigned ammount) throw (UnsafeInterruptExce
   d_thisCallResourceUsed += ammount;
   if(out()) {
     Trace("limit") << "ResourceManager::spendResource: interrupt!" << std::endl;
-	Trace("limit") << "                 on call " << d_spendResourceCalls << std::endl;
+    Trace("limit") << "          on call " << d_spendResourceCalls << std::endl;
     if (outOfTime()) {
-      Trace("limit") << "ResourceManager::spendResource: elapsed time" << d_cumulativeTimer.elapsed() << std::endl;
+      Trace("limit") << "ResourceManager::spendResource: elapsed time"
+                     << d_cumulativeTimer.elapsed() << std::endl;
     }
 
     if (d_isHardLimit) {
-      if (smt::smtEngineInScope()) {
-	theory::Rewriter::clearCaches();
-      }
+      d_hardListeners.notify();
       throw UnsafeInterruptException();
+    } else {
+      d_softListeners.notify();
     }
 
-    // interrupt it next time resources are checked
-    if (smt::smtEngineInScope()) {
-      smt::currentSmtEngine()->interrupt();
-    }
   }
 }
 
@@ -283,3 +283,17 @@ void ResourceManager::enable(bool on) {
   Trace("limit") << "ResourceManager::enable("<< on <<")\n";
   d_on = on;
 }
+
+ListenerCollection::Registration* ResourceManager::registerHardListener(
+    Listener* listener)
+{
+  return d_hardListeners.registerListener(listener);
+}
+
+ListenerCollection::Registration* ResourceManager::registerSoftListener(
+    Listener* listener)
+{
+  return d_softListeners.registerListener(listener);
+}
+
+} /* namespace CVC4 */

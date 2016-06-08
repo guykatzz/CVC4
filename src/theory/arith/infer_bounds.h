@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file infer_bounds.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -19,13 +19,15 @@
 
 #pragma once
 
-#include "util/maybe.h"
-#include "util/integer.h"
-#include "util/rational.h"
+#include <ostream>
+
 #include "expr/node.h"
 #include "theory/arith/delta_rational.h"
 #include "theory/theory.h"
-#include <ostream>
+#include "util/integer.h"
+#include "util/maybe.h"
+#include "util/rational.h"
+
 
 namespace CVC4 {
 namespace theory {

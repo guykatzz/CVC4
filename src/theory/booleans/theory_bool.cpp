@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_bool.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic
- ** Minor contributors (to current version): Clark Barrett
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The theory of booleans.
  **
@@ -18,7 +18,7 @@
 #include "theory/booleans/theory_bool.h"
 #include "theory/booleans/circuit_propagator.h"
 #include "theory/valuation.h"
-#include "util/boolean_simplification.h"
+#include "smt_util/boolean_simplification.h"
 #include "theory/substitutions.h"
 
 #include <vector>

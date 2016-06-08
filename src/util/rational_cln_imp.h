@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file rational_cln_imp.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Multiprecision rational constants; wraps a CLN multiprecision
  ** rational.
@@ -33,7 +33,7 @@
 #include <cln/dfloat.h>
 #include <cln/real.h>
 
-#include "util/exception.h"
+#include "base/exception.h"
 #include "util/integer.h"
 
 namespace CVC4 {
@@ -369,4 +369,3 @@ CVC4_PUBLIC std::ostream& operator<<(std::ostream& os, const Rational& n);
 }/* CVC4 namespace */
 
 #endif /* __CVC4__RATIONAL_H */
-

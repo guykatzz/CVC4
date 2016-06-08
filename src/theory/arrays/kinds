@@ -35,7 +35,7 @@ operator STORE 3 "array store; first parameter is an array term, second is the s
 constant STORE_ALL \
     ::CVC4::ArrayStoreAll \
     ::CVC4::ArrayStoreAllHashFunction \
-    "util/array_store_all.h" \
+    "expr/array_store_all.h" \
     "array store-all; payload is an instance of the CVC4::ArrayStoreAll class (this is not supported by arrays decision procedure yet, but it is used for returned array models)"
 
 # used internally by array theory
@@ -53,6 +53,11 @@ typerule STORE ::CVC4::theory::arrays::ArrayStoreTypeRule
 typerule STORE_ALL ::CVC4::theory::arrays::ArrayStoreTypeRule
 typerule ARR_TABLE_FUN ::CVC4::theory::arrays::ArrayTableFunTypeRule
 typerule ARRAY_LAMBDA ::CVC4::theory::arrays::ArrayLambdaTypeRule
+
+operator PARTIAL_SELECT_0 0:2 "partial array select, for internal use only"
+operator PARTIAL_SELECT_1 0:2 "partial array select, for internal use only"
+typerule PARTIAL_SELECT_0 ::CVC4::theory::arrays::ArrayPartialSelectTypeRule
+typerule PARTIAL_SELECT_1 ::CVC4::theory::arrays::ArrayPartialSelectTypeRule
 
 # store operations that are ordered (by index) over a store-all are constant
 construle STORE ::CVC4::theory::arrays::ArrayStoreTypeRule

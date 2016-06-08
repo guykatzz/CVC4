@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bv_subtheory_bitblast.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Liana Hadarean
- ** Minor contributors (to current version): Morgan Deters, Andrew Reynolds, Clark Barrett
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Liana Hadarean, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Algebraic solver.
  **
@@ -18,8 +18,8 @@
 
 #pragma once
 
-#include "theory/bv/bv_subtheory.h"
 #include "theory/bv/bitblaster_template.h"
+#include "theory/bv/bv_subtheory.h"
 
 namespace CVC4 {
 namespace theory {
@@ -37,7 +37,7 @@ class BitblastSolver : public SubtheorySolver {
   struct Statistics {
     IntStat d_numCallstoCheck;
     IntStat d_numBBLemmas;
-    Statistics();
+    Statistics(const std::string &instanceName);
     ~Statistics();
   };
   /** Bitblaster */
@@ -58,7 +58,7 @@ class BitblastSolver : public SubtheorySolver {
   BVQuickCheck* d_quickCheck;
   QuickXPlain* d_quickXplain;
   //  Node getModelValueRec(TNode node);
-  void setConflict(TNode conflict); 
+  void setConflict(TNode conflict);
 public:
   BitblastSolver(context::Context* c, TheoryBV* bv);
   ~BitblastSolver();
@@ -71,10 +71,11 @@ public:
   Node getModelValue(TNode node);
   bool isComplete() { return true; }
   void bitblastQueue();
-  void setAbstraction(AbstractionModule* module); 
-  uint64_t computeAtomWeight(TNode atom); 
+  void setAbstraction(AbstractionModule* module);
+  uint64_t computeAtomWeight(TNode atom);
+  void setProofLog( BitVectorProof * bvp );
 };
 
-}
-}
-}
+} /* namespace CVC4::theory::bv */
+} /* namespace CVC4::theory */
+} /* namespace CVC4 */

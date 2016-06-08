@@ -1,21 +1,22 @@
 /*********************                                                        */
 /*! \file term_registration_visitor.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Andrew Reynolds
- ** Minor contributors (to current version): Tim King, Clark Barrett, Morgan Deters
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Andrew Reynolds, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** [[ Add lengthier description here ]]
  ** \todo document this file
  **/
 
 #include "theory/term_registration_visitor.h"
+
+#include "options/quantifiers_options.h"
 #include "theory/theory_engine.h"
-#include "theory/quantifiers/options.h"
 
 using namespace std;
 using namespace CVC4;
@@ -63,14 +64,8 @@ bool PreRegisterVisitor::alreadyVisited(TNode current, TNode parent) {
       TypeNode type = current.getType();
       typeTheoryId = Theory::theoryOf(type);
       if (typeTheoryId != currentTheoryId) {
-        if (options::finiteModelFind() && type.isSort()) {
-          // We're looking for finite models
+        if (type.isInterpretedFinite()) {
           useType = true;
-        } else {
-          Cardinality card = type.getCardinality();
-          if (card.isFinite()) {
-            useType = true;
-          }
         }
       }
     }
@@ -129,14 +124,8 @@ void PreRegisterVisitor::visit(TNode current, TNode parent) {
       TypeNode type = current.getType();
       typeTheoryId = Theory::theoryOf(type);
       if (typeTheoryId != currentTheoryId) {
-        if (options::finiteModelFind() && type.isSort()) {
-          // We're looking for finite models
+        if (type.isInterpretedFinite()) {
           useType = true;
-        } else {
-          Cardinality card = type.getCardinality();
-          if (card.isFinite()) {
-            useType = true;
-          }
         }
       }
     }
@@ -221,14 +210,8 @@ bool SharedTermsVisitor::alreadyVisited(TNode current, TNode parent) const {
       TypeNode type = current.getType();
       typeTheoryId = Theory::theoryOf(type);
       if (typeTheoryId != currentTheoryId) {
-        if (options::finiteModelFind() && type.isSort()) {
-          // We're looking for finite models
+        if (type.isInterpretedFinite()) {
           useType = true;
-        } else {
-          Cardinality card = type.getCardinality();
-          if (card.isFinite()) {
-            useType = true;
-          }
         }
       }
     }
@@ -243,14 +226,8 @@ bool SharedTermsVisitor::alreadyVisited(TNode current, TNode parent) const {
       TypeNode type = current.getType();
       typeTheoryId = Theory::theoryOf(type);
       if (typeTheoryId != currentTheoryId) {
-        if (options::finiteModelFind() && type.isSort()) {
-          // We're looking for finite models
+        if (type.isInterpretedFinite()) {
           useType = true;
-        } else {
-          Cardinality card = type.getCardinality();
-          if (card.isFinite()) {
-            useType = true;
-          }
         }
       }
     }
@@ -296,14 +273,8 @@ void SharedTermsVisitor::visit(TNode current, TNode parent) {
       TypeNode type = current.getType();
       typeTheoryId = Theory::theoryOf(type);
       if (typeTheoryId != currentTheoryId) {
-        if (options::finiteModelFind() && type.isSort()) {
-          // We're looking for finite models
+        if (type.isInterpretedFinite()) {
           useType = true;
-        } else {
-          Cardinality card = type.getCardinality();
-          if (card.isFinite()) {
-            useType = true;
-          }
         }
       }
     }

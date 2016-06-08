@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file smt_engine.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Martin Brain <>, Tim King, Clark Barrett, Christopher L. Conway, Andrew Reynolds, Kshitij Bansal, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief SmtEngine: the main public entry point of libcvc4.
  **
@@ -22,22 +22,24 @@
 #include <string>
 #include <vector>
 
-#include "context/cdlist_forward.h"
+#include "base/modal_exception.h"
 #include "context/cdhashmap_forward.h"
 #include "context/cdhashset_forward.h"
+#include "context/cdlist_forward.h"
 #include "expr/expr.h"
 #include "expr/expr_manager.h"
-#include "util/proof.h"
-#include "util/unsat_core.h"
-#include "smt/modal_exception.h"
-#include "smt/logic_exception.h"
+#include "expr/expr_stream.h"
 #include "options/options.h"
+#include "proof/unsat_core.h"
+#include "smt/logic_exception.h"
+#include "smt_util/lemma_channels.h"
+#include "theory/logic_info.h"
+#include "util/hash.h"
+#include "util/proof.h"
 #include "util/result.h"
 #include "util/sexpr.h"
-#include "util/hash.h"
-#include "util/unsafe_interrupt_exception.h"
 #include "util/statistics.h"
-#include "theory/logic_info.h"
+#include "util/unsafe_interrupt_exception.h"
 
 // In terms of abstraction, this is below (and provides services to)
 // ValidityChecker and above (and requires the services of)
@@ -93,7 +95,6 @@ namespace smt {
   class SmtScope;
   class BooleanTermConverter;
 
-  void beforeSearch(std::string, bool, SmtEngine*) throw(ModalException);
   ProofManager* currentProofManager();
 
   struct CommandCleanup;
@@ -128,6 +129,10 @@ class CVC4_PUBLIC SmtEngine {
   typedef context::CDList<Expr> AssertionList;
   /** The type of our internal assignment set */
   typedef context::CDHashSet<Node, NodeHashFunction> AssignmentSet;
+  /** The types for the recursive function definitions */
+  typedef context::CDHashMap< Node, TypeNode, NodeHashFunction > TypeNodeMap;
+  typedef context::CDList<Node> NodeList;
+  typedef context::CDHashMap<Node, NodeList*, NodeHashFunction> NodeListMap;
 
   /** Expr manager context */
   context::Context* d_context;
@@ -151,6 +156,9 @@ class CVC4_PUBLIC SmtEngine {
   ProofManager* d_proofManager;
   /** An index of our defined functions */
   DefinedFunctionMap* d_definedFunctions;
+  /** recursive function definition abstractions for --fmf-fun */
+  TypeNodeMap* d_fmfRecFunctionsAbs;
+  NodeListMap* d_fmfRecFunctionsConcrete;
 
   /**
    * The assertion list (before any conversion) for supporting
@@ -189,9 +197,8 @@ class CVC4_PUBLIC SmtEngine {
    *A vector of command definitions to be imported in the new
    *SmtEngine when checking unsat-cores.
    */
-#ifdef CVC4_PROOF  
   std::vector<Command*> d_defineCommands;
-#endif   
+
   /**
    * The logic we're in.
    */
@@ -237,10 +244,10 @@ class CVC4_PUBLIC SmtEngine {
   bool d_needPostsolve;
 
   /*
-   * Whether to call theory preprocessing during simplification - on by default* but gets turned off if arithRewriteEq is on
+   * Whether to call theory preprocessing during simplification - on
+   * by default* but gets turned off if arithRewriteEq is on
    */
   bool d_earlyTheoryPP;
-
 
   /**
    * Most recent result of last checkSat/query or (set-info :status).
@@ -256,6 +263,9 @@ class CVC4_PUBLIC SmtEngine {
    * Verbosity of various commands.
    */
   std::map<std::string, Integer> d_commandVerbosity;
+
+  /** ReplayStream for the solver. */
+  ExprStream* d_replayStream;
 
   /**
    * A private utility class to SmtEngine.
@@ -348,7 +358,6 @@ class CVC4_PUBLIC SmtEngine {
   friend class ::CVC4::smt::SmtScope;
   friend class ::CVC4::smt::BooleanTermConverter;
   friend ::CVC4::StatisticsRegistry* ::CVC4::stats::getStatisticsRegistry(SmtEngine*);
-  friend void ::CVC4::smt::beforeSearch(std::string, bool, SmtEngine*) throw(ModalException);
   friend ProofManager* ::CVC4::smt::currentProofManager();
   friend class ::CVC4::LogicRequest;
   // to access d_modelCommands
@@ -372,6 +381,9 @@ class CVC4_PUBLIC SmtEngine {
 
   smt::SmtEngineStatistics* d_stats;
 
+  /** Container for the lemma input and output channels for this SmtEngine.*/
+  LemmaChannels* d_channels;
+
   /**
    * Add to Model command.  This is used for recording a command
    * that should be reported during a get-model call.
@@ -389,6 +401,8 @@ class CVC4_PUBLIC SmtEngine {
   SmtEngine(const SmtEngine&) CVC4_UNDEFINED;
   SmtEngine& operator=(const SmtEngine&) CVC4_UNDEFINED;
 
+  //check satisfiability (for query and check-sat)
+  Result checkSatisfiability(const Expr& e, bool inUnsatCore, bool isQuery);
 public:
 
   /**
@@ -455,6 +469,9 @@ public:
                       const std::vector<Expr>& formals,
                       Expr formula);
 
+  /** is defined function */
+  bool isDefinedFunction(Expr func);
+
   /**
    * Add a formula to the current context: preprocess, do per-theory
    * setup, use processAssertionList(), asserting to T-solver for
@@ -477,6 +494,12 @@ public:
    * check().  Returns sat, unsat, or unknown result.
    */
   Result checkSat(const Expr& e = Expr(), bool inUnsatCore = true) throw(TypeCheckingException, ModalException, LogicException);
+
+  /**
+   * Assert a synthesis conjecture to the current context and call
+   * check().  Returns sat, unsat, or unknown result.
+   */
+  Result checkSynth(const Expr& e) throw(TypeCheckingException, ModalException, LogicException);
 
   /**
    * Simplify a formula without doing "much" work.  Does not involve
@@ -536,7 +559,12 @@ public:
    * Print solution for synthesis conjectures found by ce_guided_instantiation module
    */
   void printSynthSolution( std::ostream& out );
-  
+
+  /**
+   * Do quantifier elimination, doFull false means just output one disjunct, strict is whether to output warnings.
+   */
+  Expr doQuantifierElimination(const Expr& e, bool doFull, bool strict=true) throw(TypeCheckingException, ModalException, LogicException);
+
   /**
    * Get an unsatisfiable core (only if immediately preceded by an
    * UNSAT or VALID query).  Only permitted if CVC4 was built with
@@ -707,7 +735,21 @@ public:
    * Set print function in model
    */
   void setPrintFuncInModel(Expr f, bool p);
-  
+
+
+  /** Throws a ModalException if the SmtEngine has been fully initialized. */
+  void beforeSearch() throw(ModalException);
+
+  LemmaChannels* channels() { return d_channels; }
+
+
+  /**
+   * Expermintal feature: Sets the sequence of decisions.
+   * This currently requires very fine grained knowledge about literal
+   * translation.
+   */
+  void setReplayStream(ExprStream* exprStream);
+
 };/* class SmtEngine */
 
 }/* CVC4 namespace */

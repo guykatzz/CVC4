@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file symbol_table_black.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::SymbolTable
  **
@@ -19,13 +19,13 @@
 #include <sstream>
 #include <string>
 
+#include "base/cvc4_assert.h"
+#include "base/exception.h"
 #include "context/context.h"
-#include "expr/symbol_table.h"
-#include "expr/expr_manager.h"
 #include "expr/expr.h"
+#include "expr/expr_manager.h"
+#include "expr/symbol_table.h"
 #include "expr/type.h"
-#include "util/cvc4_assert.h"
-#include "util/exception.h"
 
 using namespace CVC4;
 using namespace CVC4::kind;

@@ -128,7 +128,7 @@ function alternate {
 "
 
   eval "alternate_for_$1=\"\${alternate_for_$1}
-      if(options::theoryAlternates()[\\\"$2\\\"]) {
+      if(engine->useTheoryAlternative(\\\"$2\\\")) {
         engine->addTheory< $3 >($1);
         return;
       }\""
@@ -234,14 +234,14 @@ function enumerator {
 #line $lineno \"$kf\"
     case $1:
 #line $lineno \"$kf\"
-      return new $2(type);
+      return new $2(type, tep);
 "
   elif expr "$type_kinds" : '.* '"$1"' ' &>/dev/null; then
     mk_type_enumerator_cases="${mk_type_enumerator_cases}
 #line $lineno \"$kf\"
   case kind::$1:
 #line $lineno \"$kf\"
-    return new $2(type);
+    return new $2(type, tep);
 "
   else
     echo "$kf:$lineno: error: don't know anything about $1; enumerator must appear after definition" >&2

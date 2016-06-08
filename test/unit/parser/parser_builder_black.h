@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file parser_builder_black.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::parser::ParserBuilder.
  **
@@ -15,18 +15,21 @@
  **/
 
 #include <cxxtest/TestSuite.h>
+
 #include <ext/stdio_filebuf.h>
-#include <fstream>
-#include <iostream>
 #include <stdio.h>
 #include <string.h>
 #include <sys/stat.h>
 #include <unistd.h>
 
-#include "expr/command.h"
+#include <fstream>
+#include <iostream>
+
+#include "options/language.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
-#include "util/language.h"
+#include "smt/command.h"
+
 
 typedef __gnu_cxx::stdio_filebuf<char> filebuf_gnu;
 

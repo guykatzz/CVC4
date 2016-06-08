@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file node_value.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Clark Barrett
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief An expression node.
  **
@@ -17,15 +17,17 @@
  ** cvc4::Node rather than by pointer; cvc4::Node maintains the
  ** reference count on NodeValue instances and
  **/
-
 #include "expr/node_value.h"
-#include "expr/node.h"
+
+#include <sstream>
+
 #include "expr/kind.h"
 #include "expr/metakind.h"
-#include "util/language.h"
+#include "expr/node.h"
+#include "options/base_options.h"
+#include "options/language.h"
 #include "options/options.h"
 #include "printer/printer.h"
-#include <sstream>
 
 using namespace std;
 

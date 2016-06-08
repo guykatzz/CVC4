@@ -1,13 +1,13 @@
 /*********************                                                        */
-/*! \file theory_datatypes.h
+/*! \file datatypes_sygus.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Sygus utilities for theory of datatypes
  **
@@ -19,10 +19,11 @@
 #ifndef __CVC4__THEORY__DATATYPES__DATATYPES_SYGUS_H
 #define __CVC4__THEORY__DATATYPES__DATATYPES_SYGUS_H
 
-#include "expr/node.h"
-#include "util/datatype.h"
 #include <iostream>
 #include <map>
+
+#include "expr/node.h"
+#include "expr/datatype.h"
 #include "context/context.h"
 #include "context/cdchunk_list.h"
 #include "context/cdhashmap.h"
@@ -30,11 +31,10 @@
 
 namespace CVC4 {
 namespace theory {
-  
 namespace quantifiers {
   class TermDbSygus;
-}
-  
+} /* namespace quantifiers */
+
 namespace datatypes {
 
 class SygusSplit
@@ -91,7 +91,7 @@ private:
                                      std::vector< Node >& testers, std::map< Node, std::vector< Node > >& testers_u );
     bool processProgramDepth( int depth );
     bool processSubprograms( Node n, int depth, int odepth );
-    bool assignTester( Node tst, int depth );
+    bool assignTester( int tindex, Node n, int depth );
   public:
     ProgSearch( SygusSymBreak * p, Node a, context::Context* c ) :
       d_parent( p ), d_anchor( a ), d_testers( c ), d_watched_terms( c ), d_watched_count( c ), d_prog_depth( c, 0 ) {
@@ -103,7 +103,7 @@ private:
     IntIntMap d_watched_count;
     TypeNode d_anchor_type;
     context::CDO<int> d_prog_depth;
-    void addTester( Node tst );
+    void addTester( int tindex, Node n, Node exp );
   };
   std::map< Node, ProgSearch * > d_prog_search;
   std::map< TypeNode, std::map< Node, Node > > d_normalized_to_orig;
@@ -130,7 +130,7 @@ private:
 public:
   SygusSymBreak( quantifiers::TermDbSygus * tds, context::Context* c );
   /** add tester */
-  void addTester( Node tst );
+  void addTester( int tindex, Node n, Node exp );
   /** lemmas we have generated */
   std::vector< Node > d_lemmas;
 };

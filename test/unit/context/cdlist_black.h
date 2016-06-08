@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cdlist_black.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::context::CDList<>.
  **
@@ -16,16 +16,14 @@
 
 #include <cxxtest/TestSuite.h>
 
-#include <vector>
 #include <iostream>
-
 #include <limits.h>
+#include <vector>
 
-#include "memory.h"
-
-#include "util/exception.h"
+#include "base/exception.h"
 #include "context/context.h"
 #include "context/cdlist.h"
+#include "memory.h"
 
 using namespace std;
 using namespace CVC4::context;

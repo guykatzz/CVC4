@@ -1,29 +1,30 @@
 /*********************                                                        */
 /*! \file model_builder.cpp
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: none
- ** Minor contributors (to current version): Kshitij Bansal, Morgan Deters
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Implementation of model builder class
  **/
 
+#include "theory/quantifiers/model_builder.h"
+
+#include "options/quantifiers_options.h"
+#include "theory/quantifiers/first_order_model.h"
 #include "theory/quantifiers/model_engine.h"
+#include "theory/quantifiers/quantifiers_attributes.h"
+#include "theory/quantifiers/term_database.h"
+#include "theory/quantifiers/trigger.h"
 #include "theory/theory_engine.h"
 #include "theory/uf/equality_engine.h"
 #include "theory/uf/theory_uf.h"
 #include "theory/uf/theory_uf_model.h"
 #include "theory/uf/theory_uf_strong_solver.h"
-#include "theory/quantifiers/first_order_model.h"
-#include "theory/quantifiers/term_database.h"
-#include "theory/quantifiers/model_builder.h"
-#include "theory/quantifiers/quantifiers_attributes.h"
-#include "theory/quantifiers/trigger.h"
-#include "theory/quantifiers/options.h"
 
 using namespace std;
 using namespace CVC4;
@@ -49,14 +50,14 @@ bool QModelBuilder::optUseModel() {
 
 void QModelBuilder::debugModel( FirstOrderModel* fm ){
   //debug the model: cycle through all instantiations for all quantifiers, report ones that are not true
-  if( Trace.isOn("quant-model-warn") ){
-    Trace("quant-model-warn") << "Testing quantifier instantiations..." << std::endl;
+  if( Trace.isOn("quant-check-model") ){
+    Trace("quant-check-model") << "Testing quantifier instantiations..." << std::endl;
     int tests = 0;
     int bad = 0;
-    for( int i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
+    for( unsigned i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
       Node f = fm->getAssertedQuantifier( i );
       std::vector< Node > vars;
-      for( int j=0; j<(int)f[0].getNumChildren(); j++ ){
+      for( unsigned j=0; j<f[0].getNumChildren(); j++ ){
         vars.push_back( f[0][j] );
       }
       RepSetIterator riter( d_qe, &(fm->d_rep_set) );
@@ -64,26 +65,28 @@ void QModelBuilder::debugModel( FirstOrderModel* fm ){
         while( !riter.isFinished() ){
           tests++;
           std::vector< Node > terms;
-          for( int i=0; i<riter.getNumTerms(); i++ ){
-            terms.push_back( riter.getTerm( i ) );
+          for( int k=0; k<riter.getNumTerms(); k++ ){
+            terms.push_back( riter.getCurrentTerm( k ) );
           }
           Node n = d_qe->getInstantiation( f, vars, terms );
           Node val = fm->getValue( n );
           if( val!=fm->d_true ){
-            Trace("quant-model-warn") << "*******  Instantiation " << n << " for " << std::endl;
-            Trace("quant-model-warn") << "         " << f << std::endl;
-            Trace("quant-model-warn") << "         Evaluates to " << val << std::endl;
+            Trace("quant-check-model") << "*******  Instantiation " << n << " for " << std::endl;
+            Trace("quant-check-model") << "         " << f << std::endl;
+            Trace("quant-check-model") << "         Evaluates to " << val << std::endl;
             bad++;
           }
           riter.increment();
         }
-        Trace("quant-model-warn") << "Tested " << tests << " instantiations";
+        Trace("quant-check-model") << "Tested " << tests << " instantiations";
         if( bad>0 ){
-          Trace("quant-model-warn") << ", " << bad << " failed" << std::endl;
+          Trace("quant-check-model") << ", " << bad << " failed" << std::endl;
         }
-        Trace("quant-model-warn") << "." << std::endl;
+        Trace("quant-check-model") << "." << std::endl;
       }else{
-        Trace("quant-model-warn") << "Warning: Could not test quantifier " << f << std::endl;
+        if( riter.isIncomplete() ){
+          Trace("quant-check-model") << "Warning: Could not test quantifier " << f << std::endl;
+        }
       }
     }
   }
@@ -113,7 +116,7 @@ bool TermArgBasisTrie::addTerm2( FirstOrderModel* fm, Node n, int argIndex ){
 
 
 QModelBuilderIG::QModelBuilderIG( context::Context* c, QuantifiersEngine* qe ) :
-QModelBuilder( c, qe ) {
+QModelBuilder( c, qe ), d_basisNoMatch( c ) {
 
 }
 
@@ -148,17 +151,21 @@ void QModelBuilderIG::processBuildModel( TheoryModel* m, bool fullModel ) {
     if( optUseModel() ){
       Trace("model-engine-debug") << "Initializing " << fm->getNumAssertedQuantifiers() << " quantifiers..." << std::endl;
       //check if any quantifiers are un-initialized
-      for( int i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
+      for( unsigned i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
         Node f = fm->getAssertedQuantifier( i );
         if( isQuantifierActive( f ) ){
           int lems = initializeQuantifier( f, f );
           d_statistics.d_init_inst_gen_lemmas += lems;
           d_addedLemmas += lems;
+          if( d_qe->inConflict() ){
+            break;
+          }
         }
       }
       if( d_addedLemmas>0 ){
         Trace("model-engine") << "Initialize, Added Lemmas = " << d_addedLemmas << std::endl;
       }else{
+        Assert( !d_qe->inConflict() );
         //initialize model
         fm->initialize();
         //analyze the functions
@@ -168,7 +175,7 @@ void QModelBuilderIG::processBuildModel( TheoryModel* m, bool fullModel ) {
         Trace("model-engine-debug") << "Analyzing quantifiers..." << std::endl;
         d_quant_sat.clear();
         d_uf_prefs.clear();
-        for( int i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
+        for( unsigned i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
           Node f = fm->getAssertedQuantifier( i );
           if( isQuantifierActive( f ) ){
             analyzeQuantifier( fm, f );
@@ -176,7 +183,7 @@ void QModelBuilderIG::processBuildModel( TheoryModel* m, bool fullModel ) {
         }
 
         //if applicable, find exceptions to model via inst-gen
-        if( optInstGen() ){
+        if( options::fmfInstGen() ){
           d_didInstGen = true;
           d_instGenMatches = 0;
           d_numQuantSat = 0;
@@ -185,7 +192,7 @@ void QModelBuilderIG::processBuildModel( TheoryModel* m, bool fullModel ) {
           d_numQuantNoSelForm = 0;
           //now, see if we know that any exceptions via InstGen exist
           Trace("model-engine-debug") << "Perform InstGen techniques for quantifiers..." << std::endl;
-          for( int i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
+          for( unsigned i=0; i<fm->getNumAssertedQuantifiers(); i++ ){
             Node f = fm->getAssertedQuantifier( i );
             if( isQuantifierActive( f ) ){
               int lems = doInstGen( fm, f );
@@ -201,7 +208,7 @@ void QModelBuilderIG::processBuildModel( TheoryModel* m, bool fullModel ) {
               }else{
                 d_numQuantNoSelForm++;
               }
-              if( optOneQuantPerRoundInstGen() && lems>0 ){
+              if( d_qe->inConflict() || ( options::fmfInstGenOneQuantPerRound() && lems>0 ) ){
                 break;
               }
             }else if( d_quant_sat.find( f )!=d_quant_sat.end() ){
@@ -275,7 +282,7 @@ int QModelBuilderIG::initializeQuantifier( Node f, Node fp ){
     //try to add it
     Trace("inst-fmf-init") << "Init: try to add match " << d_quant_basis_match[f] << std::endl;
     //add model basis instantiation
-    if( d_qe->addInstantiation( fp, d_quant_basis_match[f], false ) ){
+    if( d_qe->addInstantiation( fp, d_quant_basis_match[f] ) ){
       d_quant_basis_match_added[f] = true;
       return 1;
     }else{
@@ -297,7 +304,7 @@ void QModelBuilderIG::analyzeModel( FirstOrderModel* fm ){
     for( size_t i=0; i<fmig->d_uf_terms[op].size(); i++ ){
       Node n = fmig->d_uf_terms[op][i];
       //for calculating if op is constant
-      if( !n.getAttribute(NoMatchAttribute()) ){
+      if( d_qe->getTermDatabase()->isTermActive( n ) ){
         Node v = fmig->getRepresentative( n );
         if( i==0 ){
           d_uf_prefs[op].d_const_val = v;
@@ -307,12 +314,11 @@ void QModelBuilderIG::analyzeModel( FirstOrderModel* fm ){
         }
       }
       //for calculating terms that we don't need to consider
-      if( !n.getAttribute(NoMatchAttribute()) || n.getAttribute(ModelBasisArgAttribute())!=0 ){
-        if( !n.getAttribute(BasisNoMatchAttribute()) ){
+      if( d_qe->getTermDatabase()->isTermActive( n ) || n.getAttribute(ModelBasisArgAttribute())!=0 ){
+        if( d_basisNoMatch.find( n )==d_basisNoMatch.end() ){
           //need to consider if it is not congruent modulo model basis
           if( !tabt.addTerm( fmig, n ) ){
-             BasisNoMatchAttribute bnma;
-             n.setAttribute(bnma,true);
+            d_basisNoMatch[n] = true;
           }
         }
       }
@@ -341,14 +347,6 @@ bool QModelBuilderIG::hasConstantDefinition( Node n ){
   return false;
 }
 
-bool QModelBuilderIG::optInstGen(){
-  return options::fmfInstGen();
-}
-
-bool QModelBuilderIG::optOneQuantPerRoundInstGen(){
-  return options::fmfInstGenOneQuantPerRound();
-}
-
 QModelBuilderIG::Statistics::Statistics():
   d_num_quants_init("QModelBuilderIG::Number_Quantifiers", 0),
   d_num_partial_quants_init("QModelBuilderIG::Number_Partial_Quantifiers", 0),
@@ -359,25 +357,25 @@ QModelBuilderIG::Statistics::Statistics():
   d_eval_lits("QModelBuilderIG::Eval_Lits", 0 ),
   d_eval_lits_unknown("QModelBuilderIG::Eval_Lits_Unknown", 0 )
 {
-  StatisticsRegistry::registerStat(&d_num_quants_init);
-  StatisticsRegistry::registerStat(&d_num_partial_quants_init);
-  StatisticsRegistry::registerStat(&d_init_inst_gen_lemmas);
-  StatisticsRegistry::registerStat(&d_inst_gen_lemmas);
-  StatisticsRegistry::registerStat(&d_eval_formulas);
-  StatisticsRegistry::registerStat(&d_eval_uf_terms);
-  StatisticsRegistry::registerStat(&d_eval_lits);
-  StatisticsRegistry::registerStat(&d_eval_lits_unknown);
+  smtStatisticsRegistry()->registerStat(&d_num_quants_init);
+  smtStatisticsRegistry()->registerStat(&d_num_partial_quants_init);
+  smtStatisticsRegistry()->registerStat(&d_init_inst_gen_lemmas);
+  smtStatisticsRegistry()->registerStat(&d_inst_gen_lemmas);
+  smtStatisticsRegistry()->registerStat(&d_eval_formulas);
+  smtStatisticsRegistry()->registerStat(&d_eval_uf_terms);
+  smtStatisticsRegistry()->registerStat(&d_eval_lits);
+  smtStatisticsRegistry()->registerStat(&d_eval_lits_unknown);
 }
 
 QModelBuilderIG::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_num_quants_init);
-  StatisticsRegistry::unregisterStat(&d_num_partial_quants_init);
-  StatisticsRegistry::unregisterStat(&d_init_inst_gen_lemmas);
-  StatisticsRegistry::unregisterStat(&d_inst_gen_lemmas);
-  StatisticsRegistry::unregisterStat(&d_eval_formulas);
-  StatisticsRegistry::unregisterStat(&d_eval_uf_terms);
-  StatisticsRegistry::unregisterStat(&d_eval_lits);
-  StatisticsRegistry::unregisterStat(&d_eval_lits_unknown);
+  smtStatisticsRegistry()->unregisterStat(&d_num_quants_init);
+  smtStatisticsRegistry()->unregisterStat(&d_num_partial_quants_init);
+  smtStatisticsRegistry()->unregisterStat(&d_init_inst_gen_lemmas);
+  smtStatisticsRegistry()->unregisterStat(&d_inst_gen_lemmas);
+  smtStatisticsRegistry()->unregisterStat(&d_eval_formulas);
+  smtStatisticsRegistry()->unregisterStat(&d_eval_uf_terms);
+  smtStatisticsRegistry()->unregisterStat(&d_eval_lits);
+  smtStatisticsRegistry()->unregisterStat(&d_eval_lits_unknown);
 }
 
 bool QModelBuilderIG::isQuantifierActive( Node f ){
@@ -385,8 +383,8 @@ bool QModelBuilderIG::isQuantifierActive( Node f ){
 }
 
 bool QModelBuilderIG::isTermActive( Node n ){
-  return !n.getAttribute(NoMatchAttribute()) || //it is not congruent to another active term
-         ( n.getAttribute(ModelBasisArgAttribute())!=0 && !n.getAttribute(BasisNoMatchAttribute()) ); //or it has model basis arguments
+  return d_qe->getTermDatabase()->isTermActive( n ) || //it is not congruent to another active term
+         ( n.getAttribute(ModelBasisArgAttribute())!=0 && d_basisNoMatch.find( n )==d_basisNoMatch.end() ); //or it has model basis arguments
                                                                                                       //and is not congruent modulo model basis
                                                                                                       //to another active term
 }
@@ -403,15 +401,19 @@ bool QModelBuilderIG::doExhaustiveInstantiation( FirstOrderModel * fm, Node f, i
       Debug("inst-fmf-ei") << "Begin instantiation..." << std::endl;
       while( !riter.isFinished() && ( d_addedLemmas==0 || !options::fmfOneInstPerRound() ) ){
         d_triedLemmas++;
-        for( int i=0; i<(int)riter.d_index.size(); i++ ){
-          Trace("try") << i << " : " << riter.d_index[i] << " : " << riter.getTerm( i ) << std::endl;
+        if( Debug.isOn("inst-fmf-ei-debug") ){
+          for( int i=0; i<(int)riter.d_index.size(); i++ ){
+            Debug("inst-fmf-ei-debug") << i << " : " << riter.d_index[i] << " : " << riter.getCurrentTerm( i ) << std::endl;
+          }
         }
         int eval = 0;
         int depIndex;
         //see if instantiation is already true in current model
-        Debug("fmf-model-eval") << "Evaluating ";
-        riter.debugPrintSmall("fmf-model-eval");
-        Debug("fmf-model-eval") << "Done calculating terms." << std::endl;
+        if( Debug.isOn("fmf-model-eval") ){
+          Debug("fmf-model-eval") << "Evaluating ";
+          riter.debugPrintSmall("fmf-model-eval");
+          Debug("fmf-model-eval") << "Done calculating terms." << std::endl;
+        }
         //if evaluate(...)==1, then the instantiation is already true in the model
         //  depIndex is the index of the least significant variable that this evaluation relies upon
         depIndex = riter.getNumTerms()-1;
@@ -429,12 +431,15 @@ bool QModelBuilderIG::doExhaustiveInstantiation( FirstOrderModel * fm, Node f, i
           //instantiation was not shown to be true, construct the match
           InstMatch m( f );
           for( int i=0; i<riter.getNumTerms(); i++ ){
-            m.set( d_qe, riter.d_index_order[i], riter.getTerm( i ) );
+            m.set( d_qe, i, riter.getCurrentTerm( i ) );
           }
           Debug("fmf-model-eval") << "* Add instantiation " << m << std::endl;
           //add as instantiation
-          if( d_qe->addInstantiation( f, m ) ){
+          if( d_qe->addInstantiation( f, m, true ) ){
             d_addedLemmas++;
+            if( d_qe->inConflict() ){
+              break;
+            }
             //if the instantiation is show to be false, and we wish to skip multiple instantiations at once
             if( eval==-1 ){
               riter.increment2( depIndex );
@@ -464,8 +469,8 @@ bool QModelBuilderIG::doExhaustiveInstantiation( FirstOrderModel * fm, Node f, i
         Trace("model-engine-warn") << std::endl;
       }
     }
-     //if the iterator is incomplete, we will return unknown instead of sat if no instantiations are added this round
-    d_incomplete_check = riter.d_incomplete;
+    //if the iterator is incomplete, we will return unknown instead of sat if no instantiations are added this round
+    d_incomplete_check = riter.isIncomplete();
     return true;
   }else{
     return false;
@@ -508,9 +513,11 @@ void QModelBuilderDefault::analyzeQuantifier( FirstOrderModel* fm, Node f ){
   //for each asserted quantifier f,
   // - determine selection literals
   // - check which function/predicates have good and bad definitions for satisfying f
+  if( d_phase_reqs.find( f )==d_phase_reqs.end() ){
+    d_phase_reqs[f].initialize( d_qe->getTermDatabase()->getInstConstantBody( f ), true );
+  }
   int selectLitScore = -1;
-  QuantPhaseReq* qpr = d_qe->getPhaseRequirements( f );
-  for( std::map< Node, bool >::iterator it = qpr->d_phase_reqs.begin(); it != qpr->d_phase_reqs.end(); ++it ){
+  for( std::map< Node, bool >::iterator it = d_phase_reqs[f].d_phase_reqs.begin(); it != d_phase_reqs[f].d_phase_reqs.end(); ++it ){
     //the literal n is phase-required for quantifier f
     Node n = it->first;
     Node gn = d_qe->getTermDatabase()->getModelBasis( f, n );
@@ -665,7 +672,7 @@ int QModelBuilderDefault::doInstGen( FirstOrderModel* fm, Node f ){
       //if applicable, try to add exceptions here
       if( !tr_terms.empty() ){
         //make a trigger for these terms, add instantiations
-        inst::Trigger* tr = inst::Trigger::mkTrigger( d_qe, f, tr_terms, 0, true, inst::Trigger::TR_MAKE_NEW, options::smartTriggers() );
+        inst::Trigger* tr = inst::Trigger::mkTrigger( d_qe, f, tr_terms, true, inst::Trigger::TR_MAKE_NEW );
         //Notice() << "Trigger = " << (*tr) << std::endl;
         tr->resetInstantiationRound();
         tr->reset( Node::null() );
@@ -751,5 +758,3 @@ void QModelBuilderDefault::constructModelUf( FirstOrderModel* fm, Node op ){
     Debug("fmf-model-cons") << "  Finished constructing model for " << op << "." << std::endl;
   }
 }
-
-

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cvc3_compat.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Francois Bobot
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Francois Bobot
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief CVC3 compatibility layer for CVC4
  **
@@ -48,23 +48,19 @@
 #define _cvc3__include__queryresult_h_
 #define _cvc3__include__formula_value_h_
 
-#include "expr/expr_manager.h"
-#include "expr/expr.h"
-#include "expr/type.h"
-
-#include "smt/smt_engine.h"
-
-#include "util/rational.h"
-#include "util/integer.h"
-
-#include "util/exception.h"
-#include "util/hash.h"
-
-#include "parser/parser.h"
-
 #include <stdlib.h>
 #include <map>
 #include <utility>
+
+#include "base/exception.h"
+#include "expr/expr.h"
+#include "expr/expr_manager.h"
+#include "expr/type.h"
+#include "parser/parser.h"
+#include "smt/smt_engine.h"
+#include "util/hash.h"
+#include "util/integer.h"
+#include "util/rational.h"
 
 //class CInterface;
 

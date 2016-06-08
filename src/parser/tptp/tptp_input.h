@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file tptp_input.h
  ** \verbatim
- ** Original author: Francois Bobot
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Francois Bobot, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add file-specific comments here ]].
  **
@@ -20,8 +20,8 @@
 #define __CVC4__PARSER__TPTP_INPUT_H
 
 #include "parser/antlr_input.h"
-#include "parser/tptp/generated/TptpLexer.h"
-#include "parser/tptp/generated/TptpParser.h"
+#include "parser/tptp/TptpLexer.h"
+#include "parser/tptp/TptpParser.h"
 
 // extern void TptpParserSetAntlrParser(CVC4::parser::AntlrParser* newAntlrParser);
 

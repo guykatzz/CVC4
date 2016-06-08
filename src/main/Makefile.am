@@ -30,12 +30,9 @@ pcvc4_LDADD = \
 	libmain.a \
 	@builddir@/../parser/libcvc4parser.la \
 	@builddir@/../libcvc4.la \
-	@builddir@/../util/libstatistics.la \
-	$(READLINE_LIBS)
-if CVC4_NEEDS_REPLACEMENT_FUNCTIONS
-pcvc4_LDADD += \
+	$(READLINE_LIBS) \
 	@builddir@/../lib/libreplacements.la
-endif
+
 pcvc4_CPPFLAGS = $(AM_CPPFLAGS) $(BOOST_CPPFLAGS) -DPORTFOLIO_BUILD
 pcvc4_LDADD += $(BOOST_THREAD_LIBS)
 pcvc4_LDADD += $(BOOST_THREAD_LDFLAGS)
@@ -55,12 +52,8 @@ cvc4_LDADD = \
 	libmain.a \
 	@builddir@/../parser/libcvc4parser.la \
 	@builddir@/../libcvc4.la \
-	@builddir@/../util/libstatistics.la \
-	$(READLINE_LIBS)
-if CVC4_NEEDS_REPLACEMENT_FUNCTIONS
-cvc4_LDADD += \
+	$(READLINE_LIBS) \
 	@builddir@/../lib/libreplacements.la
-endif
 
 BUILT_SOURCES = \
 	$(TOKENS_FILES)
@@ -80,8 +73,6 @@ smt2_tokens.h: @srcdir@/../parser/smt2/Smt2.g
 tptp_tokens.h: @srcdir@/../parser/tptp/Tptp.g
 	$(AM_V_GEN)grep "'[a-zA-Z][a-zA-Z0-9_-][a-zA-Z0-9_-]*'" $^ | sed 's/.*'\''\([a-zA-Z0-9_-]*\)'\''.*/"\1",/' | sort -u >$@
 
-EXTRA_DIST = \
-	options_handlers.h
 
 clean-local:
 	rm -f $(BUILT_SOURCES)

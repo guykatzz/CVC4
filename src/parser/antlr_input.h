@@ -1,33 +1,29 @@
 /*********************                                                        */
 /*! \file antlr_input.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Tim King, Francois Bobot, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Base for ANTLR parser classes.
  **
  ** Base for ANTLR parser classes.
  **/
 
-#include <antlr3.h>
-
-// ANTLR3 headers define these in our space :(
-// undef them so that we don't get multiple-definition warnings
-#undef PACKAGE_BUGREPORT
-#undef PACKAGE_NAME
-#undef PACKAGE_STRING
-#undef PACKAGE_TARNAME
-#undef PACKAGE_VERSION
-
-#include "cvc4parser_private.h"
-
 #ifndef __CVC4__PARSER__ANTLR_INPUT_H
 #define __CVC4__PARSER__ANTLR_INPUT_H
+
+// These headers must be included first. See the documentation
+// in parser/antlr_undefines.h for an explanation.
+// Also while unusual this must also be within the #ifdef guard.
+#include <antlr3.h>
+#include "parser/antlr_undefines.h"
+
+#include "cvc4parser_private.h"
 
 #include <iostream>
 #include <sstream>
@@ -36,14 +32,14 @@
 #include <vector>
 #include <cassert>
 
+#include "base/output.h"
 #include "parser/bounded_token_buffer.h"
-#include "parser/parser_exception.h"
 #include "parser/input.h"
-
+#include "parser/parser_exception.h"
 #include "util/bitvector.h"
 #include "util/integer.h"
 #include "util/rational.h"
-#include "util/output.h"
+
 
 namespace CVC4 {
 
@@ -55,17 +51,28 @@ namespace parser {
 
 /** Wrapper around an ANTLR3 input stream. */
 class AntlrInputStream : public InputStream {
+private:
   pANTLR3_INPUT_STREAM d_input;
+
+  /**
+   * If the AntlrInputStream corresponds to reading from a string,
+   * this is the string literal. The memory is owned by the Antlr3Input. It is
+   * assumed to be copied from malloc, and can be free'd at destruction time.
+   * It is otherwise NULL.
+   */
+  pANTLR3_UINT8 d_inputString;
 
   AntlrInputStream(std::string name,
                    pANTLR3_INPUT_STREAM input,
-                   bool fileIsTemporary = false);
+                   bool fileIsTemporary,
+                   pANTLR3_UINT8 inputString);
 
   /* This is private and unimplemented, because you should never use it. */
-  AntlrInputStream(const AntlrInputStream& inputStream) CVC4_UNUSED;
+  AntlrInputStream(const AntlrInputStream& inputStream) CVC4_UNDEFINED;
 
   /* This is private and unimplemented, because you should never use it. */
-  AntlrInputStream& operator=(const AntlrInputStream& inputStream) CVC4_UNUSED;
+  AntlrInputStream& operator=(const AntlrInputStream& inputStream)
+    CVC4_UNDEFINED;
 
 public:
 
@@ -79,22 +86,24 @@ public:
    * @param useMmap <code>true</code> if the input should use memory-mapped I/O; otherwise, the
    * input will use the standard ANTLR3 I/O implementation.
    */
-  static AntlrInputStream* newFileInputStream(const std::string& name, 
+  static AntlrInputStream* newFileInputStream(const std::string& name,
                                               bool useMmap = false)
     throw (InputStreamException);
 
   /** Create an input from an istream. */
-  static AntlrInputStream* newStreamInputStream(std::istream& input, 
+  static AntlrInputStream* newStreamInputStream(std::istream& input,
                                                 const std::string& name,
                                                 bool lineBuffered = false)
     throw (InputStreamException);
 
   /** Create a string input.
+   * NOTE: the new AntlrInputStream will take ownership of input over
+   * and free it at destruction time.
    *
    * @param input the string to read
    * @param name the "filename" to use when reporting errors
    */
-  static AntlrInputStream* newStringInputStream(const std::string& input, 
+  static AntlrInputStream* newStringInputStream(const std::string& input,
                                                 const std::string& name)
     throw (InputStreamException);
 };/* class AntlrInputStream */
@@ -156,8 +165,9 @@ public:
   /** Destructor. Frees the token stream and closes the input. */
   virtual ~AntlrInput();
 
-  /** Create an input for the given AntlrInputStream. NOTE: the new Input
-   * will take ownership of the input stream and delete it at destruction time.
+  /** Create an input for the given AntlrInputStream.
+   * NOTE: the new Input will take ownership of the input stream and delete it
+   * at destruction time.
    *
    * @param lang the input language
    * @param inputStream the input stream

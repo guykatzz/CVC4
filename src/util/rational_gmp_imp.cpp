@@ -1,36 +1,44 @@
 /*********************                                                        */
 /*! \file rational_gmp_imp.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters, Christopher L. Conway
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King, Christopher L. Conway, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A multi-precision rational constant.
  **
  ** A multi-precision rational constant.
  **/
+#include "util/rational.h"
+
+#include <cmath>
+#include <sstream>
+#include <string>
 
 #include "cvc4autoconfig.h"
-#include "util/rational.h"
-#include <string>
-#include <sstream>
-#include <cmath>
 
-#ifndef CVC4_GMP_IMP
+#ifndef CVC4_GMP_IMP // Make sure this comes after cvc4autoconfig.h
 #  error "This source should only ever be built if CVC4_GMP_IMP is on !"
 #endif /* CVC4_GMP_IMP */
 
-using namespace std;
-using namespace CVC4;
+#include "base/cvc4_assert.h"
+
+namespace CVC4 {
+
+std::ostream& operator<<(std::ostream& os, const Rational& q){
+  return os << q.toString();
+}
+
 
 /* Computes a rational given a decimal string. The rational
  * version of <code>xxx.yyy</code> is <code>xxxyyy/(10^3)</code>.
  */
 Rational Rational::fromDecimal(const std::string& dec) {
+  using std::string;
   // Find the decimal point, if there is one
   string::size_type i( dec.find(".") );
   if( i != string::npos ) {
@@ -48,9 +56,6 @@ Rational Rational::fromDecimal(const std::string& dec) {
   }
 }
 
-std::ostream& CVC4::operator<<(std::ostream& os, const Rational& q){
-  return os << q.toString();
-}
 
 
 /** Equivalent to calling (this->abs()).cmp(b.abs()) */
@@ -83,7 +88,8 @@ int Rational::absCmp(const Rational& q) const{
 
 /** Return an exact rational for a double d. */
 Rational Rational::fromDouble(double d) throw(RationalFromDoubleException){
-  if(std::isfinite(d)){
+  using namespace std;
+  if(isfinite(d)){
     Rational q;
     mpq_set_d(q.d_value.get_mpq_t(), d);
     return q;
@@ -101,3 +107,5 @@ RationalFromDoubleException::RationalFromDoubleException(double d) throw()
   ss << ")";
   setMessage(ss.str());
 }
+
+} /* namespace CVC4 */

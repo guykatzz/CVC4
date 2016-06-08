@@ -1,31 +1,32 @@
 /*********************                                                        */
 /*! \file tptp.h
  ** \verbatim
- ** Original author: Francois Bobot
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Francois Bobot, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Definitions of TPTP constants.
  **
  ** Definitions of TPTP constants.
  **/
 
+#include "parser/antlr_input.h" // Needs to go first.
+
 #include "cvc4parser_private.h"
 
 #ifndef __CVC4__PARSER__TPTP_H
 #define __CVC4__PARSER__TPTP_H
 
-#include "parser/parser.h"
-#include "expr/command.h"
-#include "util/hash.h"
-#include <ext/hash_set>
 #include <cassert>
-#include "parser/options.h"
-#include "parser/antlr_input.h"
+#include <ext/hash_set>
+
+#include "parser/parser.h"
+#include "smt/command.h"
+#include "util/hash.h"
 
 namespace CVC4 {
 

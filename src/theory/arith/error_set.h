@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file error_set.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -20,35 +20,17 @@
 
 #pragma once
 
+#include <vector>
+
+#include "options/arith_heuristic_pivot_rule.h"
 #include "theory/arith/arithvar.h"
 #include "theory/arith/bound_counts.h"
+#include "theory/arith/callbacks.h"
 #include "theory/arith/delta_rational.h"
 #include "theory/arith/partial_model.h"
-#include "theory/arith/arith_heuristic_pivot_rule.h"
 #include "theory/arith/tableau_sizes.h"
-#include "theory/arith/callbacks.h"
-
-#include "util/statistics_registry.h"
 #include "util/bin_heap.h"
-
-// #if CVC4_GCC_HAS_PB_DS_BUG
-//    // Unfortunate bug in some older GCCs (e.g., v4.2):
-//    //   http://gcc.gnu.org/bugzilla/show_bug.cgi?id=36612
-//    // Requires some header-hacking to work around
-// #  define __throw_container_error inline __throw_container_error
-// #  define __throw_insert_error inline __throw_insert_error
-// #  define __throw_join_error inline __throw_join_error
-// #  define __throw_resize_error inline __throw_resize_error
-// #  include <ext/pb_ds/exception.hpp>
-// #  undef __throw_container_error
-// #  undef __throw_insert_error
-// #  undef __throw_join_error
-// #  undef __throw_resize_error
-// #endif /* CVC4_GCC_HAS_PB_DS_BUG */
-
-// #include <ext/pb_ds/priority_queue.hpp>
-
-#include <vector>
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace theory {

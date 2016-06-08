@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cardinality.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Representation of cardinality
  **
@@ -15,6 +15,9 @@
  **/
 
 #include "util/cardinality.h"
+
+#include "base/cvc4_assert.h"
+
 
 namespace CVC4 {
 
@@ -26,6 +29,45 @@ const Integer Cardinality::s_largeFiniteCard(Integer("18446744073709551617")); /
 const Cardinality Cardinality::INTEGERS(CardinalityBeth(0));
 const Cardinality Cardinality::REALS(CardinalityBeth(1));
 const Cardinality Cardinality::UNKNOWN_CARD((CardinalityUnknown()));
+
+CardinalityBeth::CardinalityBeth(const Integer& beth)
+    : d_index(beth)
+{
+  PrettyCheckArgument(beth >= 0, beth,
+                      "Beth index must be a nonnegative integer, not %s.",
+                      beth.toString().c_str());
+}
+
+Cardinality::Cardinality(long card)
+    : d_card(card)
+{
+  PrettyCheckArgument(card >= 0, card,
+                      "Cardinality must be a nonnegative integer, not %ld.",
+                      card);
+  d_card += 1;
+}
+
+Cardinality::Cardinality(const Integer& card)
+    : d_card(card)
+{
+  PrettyCheckArgument(card >= 0, card,
+                      "Cardinality must be a nonnegative integer, not %s.",
+                      card.toString().c_str());
+  d_card += 1;
+}
+
+
+Integer Cardinality::getFiniteCardinality() const throw(IllegalArgumentException) {
+  PrettyCheckArgument(isFinite(), *this, "This cardinality is not finite.");
+  PrettyCheckArgument(!isLargeFinite(), *this, "This cardinality is finite, but too large to represent.");
+  return d_card - 1;
+}
+
+Integer Cardinality::getBethNumber() const throw(IllegalArgumentException) {
+  PrettyCheckArgument(!isFinite() && !isUnknown(), *this,
+                      "This cardinality is not infinite (or is unknown).");
+  return -d_card - 1;
+}
 
 Cardinality& Cardinality::operator+=(const Cardinality& c) throw() {
   if(isUnknown()) {

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file tptp_printer.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The pretty-printer interface for the TPTP output language
  **
@@ -34,9 +34,7 @@ public:
   void toStream(std::ostream& out, TNode n, int toDepth, bool types, size_t dag) const throw();
   void toStream(std::ostream& out, const Command* c, int toDepth, bool types, size_t dag) const throw();
   void toStream(std::ostream& out, const CommandStatus* s) const throw();
-  void toStream(std::ostream& out, const SExpr& sexpr) const throw();
   void toStream(std::ostream& out, const Model& m) const throw();
-  void toStream(std::ostream& out, const Result& r) const throw();
 };/* class TptpPrinter */
 
 }/* CVC4::printer::tptp namespace */

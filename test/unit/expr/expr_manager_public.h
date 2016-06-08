@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file expr_manager_public.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King, Morgan Deters
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Public black-box testing of CVC4::ExprManager.
  **
@@ -21,7 +21,7 @@
 
 #include "expr/expr_manager.h"
 #include "expr/expr.h"
-#include "util/exception.h"
+#include "base/exception.h"
 
 using namespace CVC4;
 using namespace CVC4::kind;
@@ -123,7 +123,7 @@ public:
 
   void testMkAssociativeBadKind() {
     std::vector<Expr> vars = mkVars(d_exprManager->integerType(), 10);
-    TS_ASSERT_THROWS( d_exprManager->mkAssociative(TUPLE,vars), IllegalArgumentException);
+    TS_ASSERT_THROWS( d_exprManager->mkAssociative(LEQ,vars), IllegalArgumentException);
   }
 
 };

@@ -113,7 +113,7 @@ AC_ARG_WITH([build],
 if test -z "${with_build+set}"; then
   with_build=production
 fi
-if test -z "${enable_optimized+set}" -a -z "${enable_debug_symbols+set}" -a -z "${enable_assertions+set}" -a -z "${enable_tracing+set}" -a -z "${enable_dumping+set}" -a -z "${enable_muzzle+set}" -a -z "${enable_coverage+set}" -a -z "${enable_profiling+set}" -a -z "${enable_statistics+set}" -a -z "${enable_replay+set}" -a -z "${with_gmp+set}" -a -z "${with_cln+set}" -a -z "${with_glpk+set}" -a -z "${with_abc+set}"; then
+if test -z "${enable_optimized+set}" -a -z "${enable_debug_symbols+set}" -a -z "${enable_assertions+set}" -a -z "${enable_tracing+set}" -a -z "${enable_dumping+set}" -a -z "${enable_muzzle+set}" -a -z "${enable_coverage+set}" -a -z "${enable_profiling+set}" -a -z "${enable_statistics+set}" -a -z "${enable_replay+set}" -a -z "${with_gmp+set}" -a -z "${with_cln+set}" -a -z "${with_glpk+set}" -a -z "${with_abc+set}" -a -z "${with_cryptominisat+set}"; then
   custom_build_profile=no
 else
   custom_build_profile=yes
@@ -217,6 +217,12 @@ if test -n "${with_abc+set}"; then
     btargs="$btargs abc"
   fi
 fi
+if test -n "${with_cryptominisat+set}"; then
+  if test "$with_cryptominisat" = yes; then
+    btargs="$btargs cryptominisat"
+  fi
+fi
+
 AC_MSG_RESULT([$with_build])
 
 AM_INIT_AUTOMAKE([1.11 no-define tar-pax parallel-tests color-tests subdir-objects])
@@ -394,8 +400,10 @@ elif test "$CVC4_CONFIGURE_AT_TOP_LEVEL" = yes; then
   $as_echo "cd builds/$target/$build_type"
   cd "builds/$target/$build_type"
   CVC4_CONFIGURE_IN_BUILDS=yes; export CVC4_CONFIGURE_IN_BUILDS
+  # Runs the single recursive configure invocation using a relative path.
+  # See https://lists.gnu.org/archive/html/autoconf/2011-04/msg00060.html
   echo "$SHELL ../../../configure ${config_cmdline[[@]]}"
-  "$SHELL" "`pwd`/../../../configure" "${config_cmdline[[@]]}"
+  "$SHELL" "../../../configure" "${config_cmdline[[@]]}"
   exitval=$?
   cd ../../..
   if test $exitval -eq 0; then
@@ -443,7 +451,7 @@ case "$with_build" in
     if test -z "${enable_statistics+set}"   ; then enable_statistics=yes            ; fi
     if test -z "${enable_replay+set}"       ; then enable_replay=no                 ; fi
     if test -z "${enable_assertions+set}"   ; then enable_assertions=no             ; fi
-    if test -z "${enable_proof+set}"        ; then enable_proof=no                  ; fi
+    if test -z "${enable_proof+set}"        ; then enable_proof=yes                 ; fi
     if test -z "${enable_tracing+set}"      ; then enable_tracing=no                ; fi
     if test -z "${enable_dumping+set}"      ; then enable_dumping=yes               ; fi
     if test -z "${enable_muzzle+set}"       ; then enable_muzzle=no                 ; fi
@@ -459,7 +467,7 @@ case "$with_build" in
     if test -z "${enable_statistics+set}"   ; then enable_statistics=yes            ; fi
     if test -z "${enable_replay+set}"       ; then enable_replay=yes                ; fi
     if test -z "${enable_assertions+set}"   ; then enable_assertions=yes            ; fi
-    if test -z "${enable_proof+set}"        ; then enable_proof=no                  ; fi
+    if test -z "${enable_proof+set}"        ; then enable_proof=yes                 ; fi
     if test -z "${enable_tracing+set}"      ; then enable_tracing=yes               ; fi
     if test -z "${enable_dumping+set}"      ; then enable_dumping=yes               ; fi
     if test -z "${enable_muzzle+set}"       ; then enable_muzzle=no                 ; fi
@@ -476,7 +484,7 @@ case "$with_build" in
     if test -z "${enable_statistics+set}"   ; then enable_statistics=yes            ; fi
     if test -z "${enable_replay+set}"       ; then enable_replay=yes                ; fi
     if test -z "${enable_assertions+set}"   ; then enable_assertions=yes            ; fi
-    if test -z "${enable_proof+set}"        ; then enable_proof=no                  ; fi
+    if test -z "${enable_proof+set}"        ; then enable_proof=yes                 ; fi
     if test -z "${enable_tracing+set}"      ; then enable_tracing=yes               ; fi
     if test -z "${enable_dumping+set}"      ; then enable_dumping=yes               ; fi
     if test -z "${enable_muzzle+set}"       ; then enable_muzzle=no                 ; fi
@@ -539,10 +547,10 @@ fi
 AC_MSG_CHECKING([whether to support proofs in libcvc4])
 
 AC_ARG_ENABLE([proof],
-  [AS_HELP_STRING([--enable-proof],
-     [support proof generation])])
+  [AS_HELP_STRING([--disable-proof],
+     [do not support proof generation])])
 if test -z "${enable_proof+set}"; then
-  enable_proof=no
+  enable_proof=yes
 fi
 AC_MSG_RESULT([$enable_proof])
 
@@ -772,6 +780,21 @@ fi
 AM_CONDITIONAL([CVC4_USE_ABC], [test $have_libabc -eq 1])
 AC_SUBST([ABC_LDFLAGS])
 AC_SUBST([ABC_LIBS])
+
+
+# Build with libcryptominisat
+AC_ARG_WITH([cryptominisat],
+  [AS_HELP_STRING([--with-cryptominisat],
+     [use the CRYPTOMINISAT sat solver])], [], [with_cryptominisat=])
+CVC4_CHECK_FOR_CRYPTOMINISAT
+if test $have_libcryptominisat -eq 1; then
+  CVC4CPPFLAGS="${CVC4CPPFLAGS:+$CVC4CPPFLAGS }-DCVC4_USE_CRYPTOMINISAT"
+  CVC4CPPFLAGS="${CVC4CPPFLAGS:+$CVC4CPPFLAGS }-I$CRYPTOMINISAT_HOME/install/include"
+fi
+AM_CONDITIONAL([CVC4_USE_CRYPTOMINISAT], [test $have_libcryptominisat -eq 1])
+AC_SUBST([CRYPTOMINISAT_LDFLAGS])
+AC_SUBST([CRYPTOMINISAT_LIBS])
+
 
 # Check to see if this version/architecture of GNU C++ explicitly
 # instantiates __gnu_cxx::hash<uint64_t> or not.  Some do, some don't.
@@ -1408,9 +1431,9 @@ if test -n "$CVC4_LANGUAGE_BINDINGS"; then
   fi
 fi
 
-CVC4_CONFIG_FILE_ONLY_IF_CHANGED([src/util/rational.h])
+CVC4_CONFIG_FILE_ONLY_IF_CHANGED([src/base/tls.h])
 CVC4_CONFIG_FILE_ONLY_IF_CHANGED([src/util/integer.h])
-CVC4_CONFIG_FILE_ONLY_IF_CHANGED([src/util/tls.h])
+CVC4_CONFIG_FILE_ONLY_IF_CHANGED([src/util/rational.h])
 
 CVC4_CONFIG_FILE_ONLY_IF_CHANGED([doc/cvc4.1_template])
 CVC4_CONFIG_FILE_ONLY_IF_CHANGED([doc/cvc4.5])

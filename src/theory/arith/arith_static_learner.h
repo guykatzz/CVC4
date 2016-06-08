@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file arith_static_learner.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -20,13 +20,12 @@
 #ifndef __CVC4__THEORY__ARITH__ARITH_STATIC_LEARNER_H
 #define __CVC4__THEORY__ARITH__ARITH_STATIC_LEARNER_H
 
-
-#include "util/statistics_registry.h"
-#include "theory/arith/arith_utilities.h"
-
-#include "context/context.h"
-#include "context/cdtrail_hashmap.h"
 #include <set>
+
+#include "context/cdtrail_hashmap.h"
+#include "context/context.h"
+#include "theory/arith/arith_utilities.h"
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace theory {

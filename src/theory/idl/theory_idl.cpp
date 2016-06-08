@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_idl.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -16,23 +16,26 @@
  **/
 
 #include "theory/idl/theory_idl.h"
-#include "theory/idl/options.h"
-#include "theory/rewriter.h"
 
 #include <set>
 #include <queue>
 
+#include "options/idl_options.h"
+#include "theory/rewriter.h"
+
+
 using namespace std;
 
-using namespace CVC4;
-using namespace theory;
-using namespace idl;
+namespace CVC4 {
+namespace theory {
+namespace idl {
 
-TheoryIdl::TheoryIdl(context::Context* c, context::UserContext* u, OutputChannel& out,
-                     Valuation valuation, const LogicInfo& logicInfo)
-: Theory(THEORY_ARITH, c, u, out, valuation, logicInfo)
-, d_model(c)
-, d_assertionsDB(c)
+TheoryIdl::TheoryIdl(context::Context* c, context::UserContext* u,
+                     OutputChannel& out, Valuation valuation,
+                     const LogicInfo& logicInfo)
+    : Theory(THEORY_ARITH, c, u, out, valuation, logicInfo)
+    , d_model(c)
+    , d_assertionsDB(c)
 {}
 
 Node TheoryIdl::ppRewrite(TNode atom) {
@@ -146,3 +149,7 @@ bool TheoryIdl::processAssertion(const IDLAssertion& assertion) {
   // Everything fine, no conflict
   return true;
 }
+
+} /* namepsace CVC4::theory::idl */
+} /* namepsace CVC4::theory */
+} /* namepsace CVC4 */

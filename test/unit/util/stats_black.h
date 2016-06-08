@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file stats_black.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Kshitij Bansal
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Kshitij Bansal
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::Stat and associated classes
  **
@@ -19,10 +19,23 @@
 #include <string>
 #include <ctime>
 
+#include "lib/clock_gettime.h"
 #include "util/statistics_registry.h"
 
 using namespace CVC4;
 using namespace std;
+
+/**
+ * This is a duplicate of operator== in statistics_registry.h.
+ * This is duplicated here to try to avoid polluting top namepsace.
+ *
+ * If operator== is in the CVC4 namespace, there are some circumstances
+ * where clang does not find this operator.
+ */
+bool operator==(const timespec& a, const timespec& b) {
+  // assumes a.tv_nsec and b.tv_nsec are in range
+  return a.tv_sec == b.tv_sec && a.tv_nsec == b.tv_nsec;
+}
 
 class StatsBlack : public CxxTest::TestSuite {
 public:

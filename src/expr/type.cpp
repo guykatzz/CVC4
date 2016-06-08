@@ -1,28 +1,28 @@
 /*********************                                                        */
 /*! \file type.cpp
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Dejan Jovanovic, Morgan Deters
- ** Minor contributors (to current version): Kshitij Bansal, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Implementation of expression types
  **
  ** Implementation of expression types.
  **/
+#include "expr/type.h"
 
 #include <iostream>
 #include <string>
 #include <vector>
 
+#include "base/exception.h"
 #include "expr/node_manager.h"
 #include "expr/node_manager_attributes.h"
-#include "expr/type.h"
 #include "expr/type_node.h"
-#include "util/exception.h"
 
 using namespace std;
 
@@ -92,8 +92,8 @@ Type Type::getBaseType() const {
 }
 
 Type& Type::operator=(const Type& t) {
-  CheckArgument(d_typeNode != NULL, this, "Unexpected NULL typenode pointer!");
-  CheckArgument(t.d_typeNode != NULL, t, "Unexpected NULL typenode pointer!");
+  PrettyCheckArgument(d_typeNode != NULL, this, "Unexpected NULL typenode pointer!");
+  PrettyCheckArgument(t.d_typeNode != NULL, t, "Unexpected NULL typenode pointer!");
 
   if(this != &t) {
     if(d_nodeManager == t.d_nodeManager) {
@@ -221,6 +221,12 @@ bool Type::isReal() const {
 bool Type::isString() const {
   NodeManagerScope nms(d_nodeManager);
   return d_typeNode->isString();
+}
+
+/** Is this the regexp type? */
+bool Type::isRegExp() const {
+  NodeManagerScope nms(d_nodeManager);
+  return d_typeNode->isRegExp();
 }
 
 /** Is this the rounding mode type? */
@@ -354,29 +360,8 @@ vector<Type> FunctionType::getArgTypes() const {
 
 Type FunctionType::getRangeType() const {
   NodeManagerScope nms(d_nodeManager);
-  CheckArgument(isNull() || isFunction(), this);
+  PrettyCheckArgument(isNull() || isFunction(), this);
   return makeType(d_typeNode->getRangeType());
-}
-
-size_t TupleType::getLength() const {
-  return d_typeNode->getTupleLength();
-}
-
-vector<Type> TupleType::getTypes() const {
-  NodeManagerScope nms(d_nodeManager);
-  vector<Type> types;
-  vector<TypeNode> typeNodes = d_typeNode->getTupleTypes();
-  vector<TypeNode>::iterator it = typeNodes.begin();
-  vector<TypeNode>::iterator it_end = typeNodes.end();
-  for(; it != it_end; ++ it) {
-    types.push_back(makeType(*it));
-  }
-  return types;
-}
-
-const Record& RecordType::getRecord() const {
-  NodeManagerScope nms(d_nodeManager);
-  return d_typeNode->getRecord();
 }
 
 vector<Type> SExprType::getTypes() const {
@@ -430,112 +415,107 @@ SortType SortConstructorType::instantiate(const std::vector<Type>& params) const
 
 BooleanType::BooleanType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isBoolean(), this);
+  PrettyCheckArgument(isNull() || isBoolean(), this);
 }
 
 IntegerType::IntegerType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isInteger(), this);
+  PrettyCheckArgument(isNull() || isInteger(), this);
 }
 
 RealType::RealType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isReal(), this);
+  PrettyCheckArgument(isNull() || isReal(), this);
 }
 
 StringType::StringType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isString(), this);
+  PrettyCheckArgument(isNull() || isString(), this);
+}
+
+RegExpType::RegExpType(const Type& t) throw(IllegalArgumentException) :
+  Type(t) {
+  PrettyCheckArgument(isNull() || isRegExp(), this);
 }
 
 RoundingModeType::RoundingModeType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isRoundingMode(), this);
+  PrettyCheckArgument(isNull() || isRoundingMode(), this);
 }
 
 BitVectorType::BitVectorType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isBitVector(), this);
+  PrettyCheckArgument(isNull() || isBitVector(), this);
 }
 
 FloatingPointType::FloatingPointType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isFloatingPoint(), this);
+  PrettyCheckArgument(isNull() || isFloatingPoint(), this);
 }
 
 DatatypeType::DatatypeType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isDatatype(), this);
+  PrettyCheckArgument(isNull() || isDatatype(), this);
 }
 
 ConstructorType::ConstructorType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isConstructor(), this);
+  PrettyCheckArgument(isNull() || isConstructor(), this);
 }
 
 SelectorType::SelectorType(const Type& t) throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isSelector(), this);
+  PrettyCheckArgument(isNull() || isSelector(), this);
 }
 
-TesterType::TesterType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isTester(), this);
+TesterType::TesterType(const Type& t) throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isTester(), this);
 }
 
-FunctionType::FunctionType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isFunction(), this);
+FunctionType::FunctionType(const Type& t) throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isFunction(), this);
 }
 
-TupleType::TupleType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isTuple(), this);
+SExprType::SExprType(const Type& t) throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isSExpr(), this);
 }
 
-RecordType::RecordType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isRecord(), this);
+ArrayType::ArrayType(const Type& t) throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isArray(), this);
 }
 
-SExprType::SExprType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isSExpr(), this);
+SetType::SetType(const Type& t) throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isSet(), this);
 }
 
-ArrayType::ArrayType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isArray(), this);
-}
-
-SetType::SetType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isSet(), this);
-}
-
-SortType::SortType(const Type& t) throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isSort(), this);
+SortType::SortType(const Type& t) throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isSort(), this);
 }
 
 SortConstructorType::SortConstructorType(const Type& t)
-  throw(IllegalArgumentException) :
-  Type(t) {
-  CheckArgument(isNull() || isSortConstructor(), this);
+  throw(IllegalArgumentException)
+    : Type(t) {
+  PrettyCheckArgument(isNull() || isSortConstructor(), this);
 }
 
 /* - not in release 1.0
 PredicateSubtype::PredicateSubtype(const Type& t)
   throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isPredicateSubtype(), this);
+  PrettyCheckArgument(isNull() || isPredicateSubtype(), this);
 }
 */
 
 SubrangeType::SubrangeType(const Type& t)
   throw(IllegalArgumentException) :
   Type(t) {
-  CheckArgument(isNull() || isSubrange(), this);
+  PrettyCheckArgument(isNull() || isSubrange(), this);
 }
 
 unsigned BitVectorType::getSize() const {
@@ -585,7 +565,7 @@ std::vector<Type> ConstructorType::getArgTypes() const {
 const Datatype& DatatypeType::getDatatype() const {
   NodeManagerScope nms(d_nodeManager);
   if( d_typeNode->isParametricDatatype() ) {
-    CheckArgument( (*d_typeNode)[0].getKind() == kind::DATATYPE_TYPE, this);
+    PrettyCheckArgument( (*d_typeNode)[0].getKind() == kind::DATATYPE_TYPE, this);
     const Datatype& dt = (*d_typeNode)[0].getConst<Datatype>();
     return dt;
   } else {
@@ -638,6 +618,29 @@ DatatypeType DatatypeType::instantiate(const std::vector<Type>& params) const {
     paramsNodes.push_back(*getTypeNode(*i));
   }
   return DatatypeType(makeType(d_nodeManager->mkTypeNode(kind::PARAMETRIC_DATATYPE, paramsNodes)));
+}
+
+/** Get the length of a tuple type */
+size_t DatatypeType::getTupleLength() const {
+  NodeManagerScope nms(d_nodeManager);
+  return d_typeNode->getTupleLength();
+}
+
+/** Get the constituent types of a tuple type */
+std::vector<Type> DatatypeType::getTupleTypes() const {
+  NodeManagerScope nms(d_nodeManager);
+  std::vector< TypeNode > vec = d_typeNode->getTupleTypes();
+  std::vector< Type > vect;
+  for( unsigned i=0; i<vec.size(); i++ ){
+    vect.push_back( vec[i].toType() );
+  }
+  return vect;
+}
+
+/** Get the description of the record type */
+const Record& DatatypeType::getRecord() const {
+  NodeManagerScope nms(d_nodeManager);
+  return d_typeNode->getRecord();
 }
 
 DatatypeType SelectorType::getDomain() const {

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_arrays.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic, Clark Barrett
- ** Minor contributors (to current version): Tim King, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Clark Barrett, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Theory of arrays
  **
@@ -19,13 +19,14 @@
 #ifndef __CVC4__THEORY__ARRAYS__THEORY_ARRAYS_H
 #define __CVC4__THEORY__ARRAYS__THEORY_ARRAYS_H
 
-#include "theory/theory.h"
-#include "theory/arrays/array_info.h"
-#include "util/statistics_registry.h"
-#include "theory/uf/equality_engine.h"
 #include "context/cdhashmap.h"
 #include "context/cdhashset.h"
 #include "context/cdqueue.h"
+#include "theory/arrays/array_info.h"
+#include "theory/arrays/array_proof_reconstruction.h"
+#include "theory/theory.h"
+#include "theory/uf/equality_engine.h"
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace theory {
@@ -93,7 +94,7 @@ class TheoryArrays : public Theory {
   // MISC
   /////////////////////////////////////////////////////////////////////////////
 
-  private:
+ private:
 
   /** True node for predicates = true */
   Node d_true;
@@ -124,9 +125,20 @@ class TheoryArrays : public Theory {
   /** conflicts in setModelVal */
   IntStat d_numSetModelValConflicts;
 
-  public:
+  // Merge reason types
 
-  TheoryArrays(context::Context* c, context::UserContext* u, OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo);
+  /** Merge tag for ROW applications */
+  unsigned d_reasonRow;
+  /** Merge tag for ROW1 applications */
+  unsigned d_reasonRow1;
+  /** Merge tag for EXT applications */
+  unsigned d_reasonExt;
+
+ public:
+
+  TheoryArrays(context::Context* c, context::UserContext* u, OutputChannel& out,
+               Valuation valuation, const LogicInfo& logicInfo,
+               std::string name = "");
   ~TheoryArrays();
 
   void setMasterEqualityEngine(eq::EqualityEngine* eq);
@@ -137,7 +149,7 @@ class TheoryArrays : public Theory {
   // PREPROCESSING
   /////////////////////////////////////////////////////////////////////////////
 
-  private:
+ private:
 
   // PPNotifyClass: dummy template class for d_ppEqualityEngine - notifications not used
   class PPNotifyClass {
@@ -181,7 +193,7 @@ class TheoryArrays : public Theory {
   bool propagate(TNode literal);
 
   /** Explain why this literal is true by adding assumptions */
-  void explain(TNode literal, std::vector<TNode>& assumptions);
+  void explain(TNode literal, std::vector<TNode>& assumptions, eq::EqProof *proof);
 
   /** For debugging only- checks invariants about when things are preregistered*/
   context::CDHashSet<Node, NodeHashFunction > d_isPreRegistered;
@@ -193,6 +205,7 @@ class TheoryArrays : public Theory {
 
   void preRegisterTerm(TNode n);
   void propagate(Effort e);
+  Node explain(TNode n, eq::EqProof *proof);
   Node explain(TNode n);
 
   /////////////////////////////////////////////////////////////////////////////
@@ -256,6 +269,15 @@ class TheoryArrays : public Theory {
   void check(Effort e);
 
   private:
+
+  TNode weakEquivGetRep(TNode node);
+  TNode weakEquivGetRepIndex(TNode node, TNode index);
+  void visitAllLeaves(TNode reason, std::vector<TNode>& conjunctions);
+  void weakEquivBuildCond(TNode node, TNode index, std::vector<TNode>& conjunctions);
+  void weakEquivMakeRep(TNode node);
+  void weakEquivMakeRepIndex(TNode node);
+  void weakEquivAddSecondary(TNode index, TNode arrayFrom, TNode arrayTo, TNode reason);
+  void checkWeakEquiv(bool arraysMerged);
 
   // NotifyClass: template helper class for d_equalityEngine - handles call-back from congruence closure module
   class NotifyClass : public eq::EqualityEngineNotify {
@@ -394,6 +416,12 @@ class TheoryArrays : public Theory {
   typedef context::CDHashMap<Node,Node,NodeHashFunction> DefValMap;
   DefValMap d_defValues;
 
+  typedef std::hash_map<std::pair<TNode, TNode>, CTNodeList*, TNodePairHashFunction> ReadBucketMap;
+  ReadBucketMap d_readBucketTable;
+  context::Context* d_readTableContext;
+  context::CDList<Node> d_arrayMerges;
+  std::vector<CTNodeList*> d_readBucketAllocations;
+
   Node getSkolem(TNode ref, const std::string& name, const TypeNode& type, const std::string& comment, bool makeEqual = true);
   Node mkAnd(std::vector<TNode>& conjunctions, bool invert = false, unsigned startIndex = 0);
   void setNonLinear(TNode a);
@@ -404,23 +432,16 @@ class TheoryArrays : public Theory {
   void checkStore(TNode a);
   void checkRowForIndex(TNode i, TNode a);
   void checkRowLemmas(TNode a, TNode b);
+  void propagate(RowLemmaType lem);
   void queueRowLemma(RowLemmaType lem);
   bool dischargeLemmas();
 
   std::vector<Node> d_decisions;
   bool d_inCheckModel;
   int d_topLevel;
-  void convertNodeToAssumptions(TNode node, std::vector<TNode>& assumptions, TNode nodeSkip);
-  void preRegisterStores(TNode s);
-  void checkModel(Effort e);
-  bool hasLoop(TNode node, TNode target);
-  typedef std::hash_map<Node, Node, NodeHashFunction> NodeMap;
-  NodeMap d_getModelValCache;
-  NodeMap d_lastVal;
-  Node getModelVal(TNode node);
-  Node getModelValRec(TNode node);
-  bool setModelVal(TNode node, TNode val, bool invert,
-                   bool explain, std::vector<TNode>& assumptions);
+
+  /** An equality-engine callback for proof reconstruction */
+  ArrayProofReconstruction d_proofReconstruction;
 
   public:
 

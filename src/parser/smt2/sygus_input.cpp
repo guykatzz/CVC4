@@ -1,29 +1,34 @@
 /*********************                                                        */
 /*! \file sygus_input.cpp
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add file-specific comments here ]].
  **
  ** [[ Add file-specific comments here ]]
  **/
 
+// These headers should be the first two included.
+// See the documentation in "parser/antlr_undefines.h" for more details.
 #include <antlr3.h>
+#include "parser/antlr_undefines.h"
+
 
 #include "parser/smt2/sygus_input.h"
+
 #include "expr/expr_manager.h"
 #include "parser/input.h"
 #include "parser/parser.h"
 #include "parser/parser_exception.h"
 #include "parser/smt2/sygus_input.h"
-#include "parser/smt2/generated/Smt2Lexer.h"
-#include "parser/smt2/generated/Smt2Parser.h"
+#include "parser/smt2/Smt2Lexer.h"
+#include "parser/smt2/Smt2Parser.h"
 
 namespace CVC4 {
 namespace parser {

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file pickler.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King, Kshitij Bansal
+ ** Top contributors (to current version):
+ **   Morgan Deters, Kshitij Bansal, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief This is a "pickler" for expressions
  **
@@ -20,6 +20,8 @@
 #include <sstream>
 #include <string>
 
+#include "base/cvc4_assert.h"
+#include "base/output.h"
 #include "expr/pickler.h"
 #include "expr/pickle_data.h"
 #include "expr/expr.h"
@@ -28,10 +30,8 @@
 #include "expr/node_value.h"
 #include "expr/expr_manager_scope.h"
 #include "expr/variable_type_map.h"
-#include "util/cvc4_assert.h"
 #include "expr/kind.h"
 #include "expr/metakind.h"
-#include "util/output.h"
 
 namespace CVC4 {
 namespace expr {

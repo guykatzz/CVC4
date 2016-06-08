@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file output_channel.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Andrew Reynolds, Dejan Jovanovic, Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Liana Hadarean, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The theory output channel interface
  **
@@ -19,10 +19,11 @@
 #ifndef __CVC4__THEORY__OUTPUT_CHANNEL_H
 #define __CVC4__THEORY__OUTPUT_CHANNEL_H
 
-#include "util/cvc4_assert.h"
-#include "theory/interrupted.h"
-#include "util/resource_manager.h"
+#include "base/cvc4_assert.h"
 #include "smt/logic_exception.h"
+#include "theory/interrupted.h"
+#include "proof/proof_manager.h"
+#include "util/resource_manager.h"
 
 namespace CVC4 {
 namespace theory {
@@ -86,8 +87,9 @@ public:
    * With safePoint(), the theory signals that it is at a safe point
    * and can be interrupted.
    */
-  virtual void safePoint(uint64_t ammount) throw(Interrupted, UnsafeInterruptException, AssertionException) {
-  }
+  virtual void safePoint(uint64_t amount)
+      throw(Interrupted, UnsafeInterruptException, AssertionException)
+  {}
 
   /**
    * Indicate a theory conflict has arisen.
@@ -98,8 +100,10 @@ public:
    * assigned false), or else a literal by itself (in the case of a
    * unit conflict) which is assigned TRUE (and T-conflicting) in the
    * current assignment.
+   * @param pf - a proof of the conflict. This is only non-null if proofs
+   * are enabled. 
    */
-  virtual void conflict(TNode n) throw(AssertionException, UnsafeInterruptException) = 0;
+  virtual void conflict(TNode n, Proof* pf = NULL) throw(AssertionException, UnsafeInterruptException) = 0;
 
   /**
    * Propagate a theory literal.
@@ -114,14 +118,29 @@ public:
    * been detected.  (This requests a split.)
    *
    * @param n - a theory lemma valid at decision level 0
+   * @param rule - the proof rule for this lemma
    * @param removable - whether the lemma can be removed at any point
    * @param preprocess - whether to apply more aggressive preprocessing
+   * @param sendAtoms - whether to ensure atoms are sent to the theory
    * @return the "status" of the lemma, including user level at which
    * the lemma resides; the lemma will be removed when this user level pops
    */
-  virtual LemmaStatus lemma(TNode n, bool removable = false,
-                            bool preprocess = false)
-    throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException, LogicException) = 0;
+  virtual LemmaStatus lemma(TNode n, ProofRule rule,
+                            bool removable = false,
+                            bool preprocess = false,
+                            bool sendAtoms = false)
+    throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) = 0;
+
+  /**
+   * Variant of the lemma function that does not require providing a proof rule.
+   */
+  virtual LemmaStatus lemma(TNode n, 
+                            bool removable = false,
+                            bool preprocess = false,
+                            bool sendAtoms = false)
+    throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) {
+    return lemma(n, RULE_INVALID, removable, preprocess, sendAtoms);
+  }
 
   /**
    * Request a split on a new theory atom.  This is equivalent to

@@ -1,44 +1,33 @@
 /*********************                                                        */
 /*! \file interactive_shell.cpp
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Kshitij Bansal, Francois Bobot
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Interactive shell for CVC4
  **
  ** This file is the implementation for the CVC4 interactive shell.
  ** The shell supports the readline library.
  **/
-
-#include <iostream>
-#include <cstdlib>
-#include <vector>
-#include <string>
-#include <set>
-#include <algorithm>
-#include <utility>
-
-#include "cvc4autoconfig.h"
-
 #include "main/interactive_shell.h"
 
-#include "expr/command.h"
-#include "parser/input.h"
-#include "parser/parser.h"
-#include "parser/parser_builder.h"
-#include "options/options.h"
-#include "smt/options.h"
-#include "main/options.h"
-#include "util/language.h"
-#include "util/output.h"
-
-#include <string.h>
+#include <algorithm>
 #include <cassert>
+#include <cstdlib>
+#include <iostream>
+#include <set>
+#include <string.h>
+#include <string>
+#include <utility>
+#include <vector>
+
+//This must go before HAVE_LIBREADLINE.
+#include "cvc4autoconfig.h"
 
 #if HAVE_LIBREADLINE
 #  include <readline/readline.h>
@@ -47,6 +36,16 @@
 #    include <ext/stdio_filebuf.h>
 #  endif /* HAVE_EXT_STDIO_FILEBUF_H */
 #endif /* HAVE_LIBREADLINE */
+
+
+#include "base/output.h"
+#include "options/language.h"
+#include "options/options.h"
+#include "parser/input.h"
+#include "parser/parser.h"
+#include "parser/parser_builder.h"
+#include "smt/command.h"
+#include "theory/logic_info.h"
 
 using namespace std;
 
@@ -90,16 +89,18 @@ static set<string> s_declarations;
 #endif /* HAVE_LIBREADLINE */
 
 InteractiveShell::InteractiveShell(ExprManager& exprManager,
-                                   const Options& options) :
-  d_in(*options[options::in]),
-  d_out(*options[options::out]),
-  d_options(options),
-  d_quit(false) {
+                                   const Options& options)
+    : d_in(*options.getIn()),
+      d_out(*options.getOutConst()),
+      d_options(options),
+      d_quit(false)
+{
   ParserBuilder parserBuilder(&exprManager, INPUT_FILENAME, options);
   /* Create parser with bogus input. */
   d_parser = parserBuilder.withStringInput("").build();
-  if(d_options.wasSetByUser(options::forceLogic)) {
-    d_parser->forceLogic(d_options[options::forceLogic].getLogicString());
+  if(d_options.wasSetByUserForceLogicString()) {
+    LogicInfo tmp(d_options.getForceLogicString());
+    d_parser->forceLogic(tmp.getLogicString());
   }
 
 #if HAVE_LIBREADLINE
@@ -112,7 +113,8 @@ InteractiveShell::InteractiveShell(ExprManager& exprManager,
 #endif /* READLINE_COMPENTRY_FUNC_RETURNS_CHARP */
     ::using_history();
 
-    switch(OutputLanguage lang = toOutputLanguage(d_options[options::inputLanguage])) {
+    OutputLanguage lang = toOutputLanguage(d_options.getInputLanguage());
+    switch(lang) {
     case output::LANG_CVC4:
       d_historyFilename = string(getenv("HOME")) + "/.cvc4_history";
       commandsBegin = cvc_commands;
@@ -170,6 +172,7 @@ InteractiveShell::~InteractiveShell() {
              << ": " << strerror(err) << std::endl;
   }
 #endif /* HAVE_LIBREADLINE */
+  delete d_parser;
 }
 
 Command* InteractiveShell::readCommand() throw (UnsafeInterruptException) {
@@ -193,7 +196,8 @@ restart:
   /* Prompt the user for input. */
   if(d_usingReadline) {
 #if HAVE_LIBREADLINE
-    lineBuf = ::readline(d_options[options::interactivePrompt] ? (line == "" ? "CVC4> " : "... > ") : "");
+    lineBuf = ::readline(d_options.getInteractivePrompt()
+                         ? (line == "" ? "CVC4> " : "... > ") : "");
     if(lineBuf != NULL && lineBuf[0] != '\0') {
       ::add_history(lineBuf);
     }
@@ -201,7 +205,7 @@ restart:
     free(lineBuf);
 #endif /* HAVE_LIBREADLINE */
   } else {
-    if(d_options[options::interactivePrompt]) {
+    if(d_options.getInteractivePrompt()) {
       if(line == "") {
         d_out << "CVC4> " << flush;
       } else {
@@ -217,7 +221,8 @@ restart:
 
   string input = "";
   while(true) {
-    Debug("interactive") << "Input now '" << input << line << "'" << endl << flush;
+    Debug("interactive") << "Input now '" << input << line << "'" << endl
+                         << flush;
 
     assert( !(d_in.fail() && !d_in.eof()) || line.empty() );
 
@@ -258,7 +263,8 @@ restart:
       /* Extract the newline delimiter from the stream too */
       int c CVC4_UNUSED = d_in.get();
       assert(c == '\n');
-      Debug("interactive") << "Next char is '" << (char)c << "'" << endl << flush;
+      Debug("interactive") << "Next char is '" << (char)c << "'" << endl
+                           << flush;
     }
 
     input += line;
@@ -269,7 +275,7 @@ restart:
       input[n] = '\n';
       if(d_usingReadline) {
 #if HAVE_LIBREADLINE
-        lineBuf = ::readline(d_options[options::interactivePrompt] ? "... > " : "");
+        lineBuf = ::readline(d_options.getInteractivePrompt() ? "... > " : "");
         if(lineBuf != NULL && lineBuf[0] != '\0') {
           ::add_history(lineBuf);
         }
@@ -277,7 +283,7 @@ restart:
         free(lineBuf);
 #endif /* HAVE_LIBREADLINE */
       } else {
-        if(d_options[options::interactivePrompt]) {
+        if(d_options.getInteractivePrompt()) {
           d_out << "... > " << flush;
         }
 
@@ -293,7 +299,8 @@ restart:
     }
   }
 
-  d_parser->setInput(Input::newStringInput(d_options[options::inputLanguage], input, INPUT_FILENAME));
+  d_parser->setInput(Input::newStringInput(d_options.getInputLanguage(),
+                                           input, INPUT_FILENAME));
 
   /* There may be more than one command in the input. Build up a
      sequence. */
@@ -324,8 +331,8 @@ restart:
     line += "\n";
     goto restart;
   } catch(ParserException& pe) {
-    if(d_options[options::outputLanguage] == output::LANG_SMTLIB_V2_0 ||
-       d_options[options::outputLanguage] == output::LANG_SMTLIB_V2_5) {
+    if(d_options.getOutputLanguage() == output::LANG_SMTLIB_V2_0 ||
+       d_options.getOutputLanguage() == output::LANG_SMTLIB_V2_5) {
       d_out << "(error \"" << pe << "\")" << endl;
     } else {
       d_out << pe << endl;
@@ -401,4 +408,3 @@ char* commandGenerator(const char* text, int state) {
 #endif /* HAVE_LIBREADLINE */
 
 }/* CVC4 namespace */
-

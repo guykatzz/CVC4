@@ -1,31 +1,32 @@
 /*********************                                                        */
 /*! \file theory_bv.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic, Liana Hadarean
- ** Minor contributors (to current version): Clark Barrett, Kshitij Bansal, Tim King, Andrew Reynolds, Martin Brain <>
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Bitvector theory.
  **
  ** Bitvector theory.
  **/
 
+#include "cvc4_private.h"
+
 #ifndef __CVC4__THEORY__BV__THEORY_BV_H
 #define __CVC4__THEORY__BV__THEORY_BV_H
 
-#include "cvc4_private.h"
-#include "theory/theory.h"
-#include "context/context.h"
-#include "context/cdlist.h"
 #include "context/cdhashset.h"
-#include "theory/bv/theory_bv_utils.h"
-#include "util/statistics_registry.h"
-#include "util/hash.h"
+#include "context/cdlist.h"
+#include "context/context.h"
 #include "theory/bv/bv_subtheory.h"
+#include "theory/bv/theory_bv_utils.h"
+#include "theory/theory.h"
+#include "util/hash.h"
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 namespace theory {
@@ -34,10 +35,10 @@ namespace bv {
 class CoreSolver;
 class InequalitySolver;
 class AlgebraicSolver;
-class BitblastSolver; 
+class BitblastSolver;
 
 class EagerBitblastSolver;
-  
+
 class AbstractionModule;
 
 class TheoryBV : public Theory {
@@ -48,14 +49,16 @@ class TheoryBV : public Theory {
   /** Context dependent set of atoms we already propagated */
   context::CDHashSet<Node, NodeHashFunction> d_alreadyPropagatedSet;
   context::CDHashSet<Node, NodeHashFunction> d_sharedTermsSet;
-  
-  std::vector<SubtheorySolver*> d_subtheories;
-  __gnu_cxx::hash_map<SubTheory, SubtheorySolver*, std::hash<int> > d_subtheoryMap; 
 
+  std::vector<SubtheorySolver*> d_subtheories;
+  __gnu_cxx::hash_map<SubTheory, SubtheorySolver*, std::hash<int> > d_subtheoryMap;
 
 public:
 
-  TheoryBV(context::Context* c, context::UserContext* u, OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo);
+  TheoryBV(context::Context* c, context::UserContext* u, OutputChannel& out,
+           Valuation valuation, const LogicInfo& logicInfo,
+           std::string name = "");
+
   ~TheoryBV();
 
   void setMasterEqualityEngine(eq::EqualityEngine* eq);
@@ -79,13 +82,17 @@ public:
   PPAssertStatus ppAssert(TNode in, SubstitutionMap& outSubstitutions);
 
   void enableCoreTheorySlicer();
-  
+
   Node ppRewrite(TNode t);
 
   void ppStaticLearn(TNode in, NodeBuilder<>& learned);
-  
+
   void presolve();
-  bool applyAbstraction(const std::vector<Node>& assertions, std::vector<Node>& new_assertions); 
+
+  bool applyAbstraction(const std::vector<Node>& assertions, std::vector<Node>& new_assertions);
+
+  void setProofLog( BitVectorProof * bvp );
+
 private:
 
   class Statistics {
@@ -94,10 +101,10 @@ private:
     IntStat     d_solveSubstitutions;
     TimerStat   d_solveTimer;
     IntStat     d_numCallsToCheckFullEffort;
-    IntStat     d_numCallsToCheckStandardEffort; 
+    IntStat     d_numCallsToCheckStandardEffort;
     TimerStat   d_weightComputationTimer;
     IntStat     d_numMultSlice;
-    Statistics();
+    Statistics(const std::string &name);
     ~Statistics();
   };
 
@@ -115,12 +122,12 @@ private:
    */
   Node getBVDivByZero(Kind k, unsigned width);
 
-  typedef __gnu_cxx::hash_set<TNode, TNodeHashFunction> TNodeSet; 
-  void collectNumerators(TNode term, TNodeSet& seen);
-  
+  typedef __gnu_cxx::hash_set<TNode, TNodeHashFunction> TNodeSet;
+  void collectFunctionSymbols(TNode term, TNodeSet& seen);
+  void storeFunction(TNode func, TNode term);
   typedef __gnu_cxx::hash_set<Node, NodeHashFunction> NodeSet;
   NodeSet d_staticLearnCache;
-  
+
   /**
    * Maps from bit-vector width to division-by-zero uninterpreted
    * function symbols.
@@ -128,17 +135,15 @@ private:
   __gnu_cxx::hash_map<unsigned, Node> d_BVDivByZero;
   __gnu_cxx::hash_map<unsigned, Node> d_BVRemByZero;
 
-  /**
-   * Maps from bit-vector width to numerators
-   * of uninterpreted function symbol
-   */
-  typedef __gnu_cxx::hash_map<unsigned, TNodeSet > WidthToNumerators;
 
-  WidthToNumerators d_BVDivByZeroAckerman;
-  WidthToNumerators d_BVRemByZeroAckerman;
+  typedef __gnu_cxx::hash_map<Node, NodeSet, NodeHashFunction>  FunctionToArgs;
+  typedef __gnu_cxx::hash_map<Node, Node, NodeHashFunction>  NodeToNode;
+  // for ackermanization
+  FunctionToArgs d_funcToArgs;
+  CVC4::theory::SubstitutionMap d_funcToSkolem;
 
   context::CDO<bool> d_lemmasAdded;
-  
+
   // Are we in conflict?
   context::CDO<bool> d_conflict;
 
@@ -161,17 +166,17 @@ private:
   typedef context::CDHashMap<Node, SubTheory, NodeHashFunction> PropagatedMap;
   PropagatedMap d_propagatedBy;
 
-  EagerBitblastSolver* d_eagerSolver; 
+  EagerBitblastSolver* d_eagerSolver;
   AbstractionModule* d_abstractionModule;
   bool d_isCoreTheory;
   bool d_calledPreregister;
-  
+
   bool wasPropagatedBySubtheory(TNode literal) const {
-    return d_propagatedBy.find(literal) != d_propagatedBy.end(); 
+    return d_propagatedBy.find(literal) != d_propagatedBy.end();
   }
-  
+
   SubTheory getPropagatingSubtheory(TNode literal) const {
-    Assert(wasPropagatedBySubtheory(literal)); 
+    Assert(wasPropagatedBySubtheory(literal));
     PropagatedMap::const_iterator find = d_propagatedBy.find(literal);
     return (*find).second;
   }
@@ -187,7 +192,7 @@ private:
   void addSharedTerm(TNode t);
 
   bool isSharedTerm(TNode t) { return d_sharedTermsSet.contains(t); }
-  
+
   EqualityStatus getEqualityStatus(TNode a, TNode b);
 
   Node getModelValue(TNode var);
@@ -206,11 +211,10 @@ private:
 
   void sendConflict();
 
-  void lemma(TNode node) { d_out->lemma(node); d_lemmasAdded = true; }
+  void lemma(TNode node) { d_out->lemma(node, RULE_CONFLICT); d_lemmasAdded = true; }
 
-  void checkForLemma(TNode node); 
+  void checkForLemma(TNode node);
 
- 
   friend class LazyBitblaster;
   friend class TLazyBitblaster;
   friend class EagerBitblaster;

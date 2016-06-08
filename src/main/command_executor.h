@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file command_executor.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Kshitij Bansal
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Kshitij Bansal, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief An additional layer between commands and invoking them.
  **/
@@ -15,14 +15,14 @@
 #ifndef __CVC4__MAIN__COMMAND_EXECUTOR_H
 #define __CVC4__MAIN__COMMAND_EXECUTOR_H
 
+#include <iosfwd>
+#include <string>
+
 #include "expr/expr_manager.h"
+#include "options/options.h"
+#include "smt/command.h"
 #include "smt/smt_engine.h"
 #include "util/statistics_registry.h"
-#include "options/options.h"
-#include "expr/command.h"
-
-#include <string>
-#include <iostream>
 
 namespace CVC4 {
 namespace main {
@@ -37,12 +37,16 @@ protected:
   Options& d_options;
   StatisticsRegistry d_stats;
   Result d_result;
+  ExprStream* d_replayStream;
 
 public:
   CommandExecutor(ExprManager &exprMgr, Options &options);
 
   virtual ~CommandExecutor() {
     delete d_smtEngine;
+    if(d_replayStream != NULL){
+      delete d_replayStream;
+    }
   }
 
   /**
@@ -65,6 +69,14 @@ public:
     d_stats.flushInformation(out);
   }
 
+  static void printStatsFilterZeros(std::ostream& out,
+                                    const std::string& statsString);
+
+  LemmaChannels* channels() { return d_smtEngine->channels(); }
+  void flushOutputStreams();
+
+  void setReplayStream(ExprStream* replayStream);
+
 protected:
   /** Executes treating cmd as a singleton */
   virtual bool doCommandSingleton(CVC4::Command* cmd);
@@ -74,9 +86,7 @@ private:
 
 };/* class CommandExecutor */
 
-bool smtEngineInvoke(SmtEngine* smt,
-                     Command* cmd,
-                     std::ostream *out);
+bool smtEngineInvoke(SmtEngine* smt, Command* cmd, std::ostream *out);
 
 }/* CVC4::main namespace */
 }/* CVC4 namespace */

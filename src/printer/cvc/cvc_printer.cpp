@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cvc_printer.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic
- ** Minor contributors (to current version): Francois Bobot, Liana Hadarean, Clark Barrett, Tim King, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief The pretty-printer interface for the CVC output language
  **
@@ -15,25 +15,26 @@
  **/
 
 #include "printer/cvc/cvc_printer.h"
-#include "expr/expr.h" // for ExprSetDepth etc..
-#include "util/language.h" // for LANG_AST
-#include "expr/node_manager_attributes.h" // for VarNameAttr
-#include "expr/command.h"
-#include "theory/substitutions.h"
-#include "smt/smt_engine.h"
-#include "smt/options.h"
-#include "theory/theory_model.h"
-#include "theory/arrays/theory_arrays_rewriter.h"
-#include "printer/dagification_visitor.h"
-#include "util/node_visitor.h"
 
-#include <iostream>
-#include <vector>
-#include <string>
-#include <typeinfo>
 #include <algorithm>
+#include <iostream>
 #include <iterator>
 #include <stack>
+#include <string>
+#include <typeinfo>
+#include <vector>
+
+#include "expr/expr.h" // for ExprSetDepth etc..
+#include "expr/node_manager_attributes.h" // for VarNameAttr
+#include "options/language.h" // for LANG_AST
+#include "printer/dagification_visitor.h"
+#include "options/smt_options.h"
+#include "smt/command.h"
+#include "smt/smt_engine.h"
+#include "smt_util/node_visitor.h"
+#include "theory/arrays/theory_arrays_rewriter.h"
+#include "theory/substitutions.h"
+#include "theory/theory_model.h"
 
 using namespace std;
 
@@ -161,8 +162,32 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       }
       break;
 
-    case kind::DATATYPE_TYPE:
-      out << n.getConst<Datatype>().getName();
+    case kind::DATATYPE_TYPE: {
+      const Datatype& dt = n.getConst<Datatype>();
+      if( dt.isTuple() ){
+        out << '[';
+        for (unsigned i = 0; i < dt[0].getNumArgs(); ++ i) {
+          if (i > 0) {
+            out << ", ";
+          }
+          Type t = ((SelectorType)dt[0][i].getSelector().getType()).getRangeType();
+          out << t;
+        }
+        out << ']';
+      }else if( dt.isRecord() ){
+        out << "[# ";
+        for (unsigned i = 0; i < dt[0].getNumArgs(); ++ i) {
+          if (i > 0) {
+            out << ", ";
+          }
+          Type t = ((SelectorType)dt[0][i].getSelector().getType()).getRangeType();
+          out << dt[0][i].getSelector() << ":" << t;
+        }
+        out << " #]";
+      }else{
+        out << dt.getName();
+      }
+    }
       break;
 
     case kind::EMPTYSET:
@@ -213,7 +238,6 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       out << " ENDIF";
       return;
       break;
-    case kind::TUPLE_TYPE:
     case kind::SEXPR_TYPE:
       out << '[';
       for (unsigned i = 0; i < n.getNumChildren(); ++ i) {
@@ -328,9 +352,48 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       }
       return;
       break;
-    case kind::APPLY_CONSTRUCTOR:
+    case kind::APPLY_CONSTRUCTOR: {
+        TypeNode t = n.getType();
+        if( t.isTuple() ){
+          //no-op
+        }else if( t.isRecord() ){
+          const Record& rec = t.getRecord();
+          out << "(# ";
+          TNode::iterator i = n.begin();
+          bool first = true;
+          const Record::FieldVector& fields = rec.getFields();
+          for(Record::FieldVector::const_iterator j = fields.begin(); j != fields.end(); ++i, ++j) {
+            if(!first) {
+              out << ", ";
+            }
+            out << (*j).first << " := ";
+            toStream(out, *i, depth, types, false);
+            first = false;
+          }
+          out << " #)";
+          return;
+        }else{
+          toStream(op, n.getOperator(), depth, types, false);
+        }
+      }
+      break;
     case kind::APPLY_SELECTOR:
-    case kind::APPLY_SELECTOR_TOTAL:
+    case kind::APPLY_SELECTOR_TOTAL: {
+        TypeNode t = n.getType();
+        if( t.isTuple() ){
+          toStream(out, n[0], depth, types, true);
+          out << '.' << Datatype::indexOf( n.getOperator().toExpr() );
+        }else if( t.isRecord() ){
+          toStream(out, n[0], depth, types, true);
+          const Record& rec = t.getRecord();
+          unsigned index = Datatype::indexOf( n.getOperator().toExpr() );
+          std::pair<std::string, Type> fld = rec[index];
+          out << '.' << fld.first;
+        }else{
+          toStream(op, n.getOperator(), depth, types, false);
+        }
+      }
+      break;
     case kind::APPLY_TESTER:
       toStream(op, n.getOperator(), depth, types, false);
       break;
@@ -358,16 +421,6 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       out << " -> BOOLEAN";
       return;
       break;
-    case kind::TUPLE_SELECT:
-      toStream(out, n[0], depth, types, true);
-      out << '.' << n.getOperator().getConst<TupleSelect>().getIndex();
-      return;
-      break;
-    case kind::RECORD_SELECT:
-      toStream(out, n[0], depth, types, true);
-      out << '.' << n.getOperator().getConst<RecordSelect>().getField();
-      return;
-      break;
     case kind::TUPLE_UPDATE:
       toStream(out, n[0], depth, types, true);
       out << " WITH ." << n.getOperator().getConst<TupleUpdate>().getIndex() << " := ";
@@ -380,27 +433,6 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       toStream(out, n[1], depth, types, true);
       return;
       break;
-    case kind::TUPLE:
-      // no-op
-      break;
-    case kind::RECORD: {
-      // (# _a := 2, _b := 2 #)
-      const Record& rec = n.getOperator().getConst<Record>();
-      out << "(# ";
-      TNode::iterator i = n.begin();
-      bool first = true;
-      for(Record::const_iterator j = rec.begin(); j != rec.end(); ++i, ++j) {
-        if(!first) {
-          out << ", ";
-        }
-        out << (*j).first << " := ";
-        toStream(out, *i, depth, types, false);
-        first = false;
-      }
-      out << " #)";
-      return;
-      break;
-    }
 
     // ARRAYS
     case kind::ARRAY_TYPE:
@@ -761,6 +793,13 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       return;
       break;
     }
+    case kind::CARD: {
+      out << "||";
+      toStream(out, n[0], depth, types, false);
+      out << "||";
+      return;
+      break;
+    }
 
     // Quantifiers
     case kind::FORALL:
@@ -893,10 +932,6 @@ void CvcPrinter::toStream(std::ostream& out, const Command* c,
       << typeid(*c).name() << endl;
 
 }/* CvcPrinter::toStream(Command*) */
-
-static inline void toStream(std::ostream& out, const SExpr& sexpr) throw() {
-  Printer::getPrinter(language::output::LANG_CVC4)->toStream(out, sexpr);
-}
 
 template <class T>
 static bool tryToStream(std::ostream& out, const CommandStatus* s, bool cvc3Mode) throw();
@@ -1108,8 +1143,9 @@ static void toStream(std::ostream& out, const DefineFunctionCommand* c, bool cvc
 
 static void toStream(std::ostream& out, const DeclareTypeCommand* c, bool cvc3Mode) throw() {
   if(c->getArity() > 0) {
+    //TODO?
     out << "ERROR: Don't know how to print parameterized type declaration "
-           "in CVC language:" << endl << c->toString() << endl;
+           "in CVC language." << endl;
   } else {
     out << c->getSymbol() << " : TYPE;";
   }
@@ -1170,7 +1206,9 @@ static void toStream(std::ostream& out, const SetBenchmarkLogicCommand* c, bool 
 
 static void toStream(std::ostream& out, const SetInfoCommand* c, bool cvc3Mode) throw() {
   out << "% (set-info " << c->getFlag() << " ";
-  toStream(out, c->getSExpr());
+  OutputLanguage language =
+      cvc3Mode ? language::output::LANG_CVC3 : language::output::LANG_CVC4;
+  SExpr::toStream(out, c->getSExpr(), language);
   out << ")";
 }
 
@@ -1180,7 +1218,7 @@ static void toStream(std::ostream& out, const GetInfoCommand* c, bool cvc3Mode) 
 
 static void toStream(std::ostream& out, const SetOptionCommand* c, bool cvc3Mode) throw() {
   out << "OPTION \"" << c->getFlag() << "\" ";
-  toStream(out, c->getSExpr());
+  SExpr::toStream(out, c->getSExpr(), language::output::LANG_CVC4);
   out << ";";
 }
 
@@ -1229,7 +1267,13 @@ static void toStream(std::ostream& out, const DatatypeDeclarationCommand* c, boo
           }
           firstSelector = false;
           const DatatypeConstructorArg& selector = *k;
-          out << selector.getName() << ": " << SelectorType(selector.getType()).getRangeType();
+          Type t = SelectorType(selector.getType()).getRangeType();
+          if( t.isDatatype() ){
+            const Datatype & sdt = ((DatatypeType)t).getDatatype();
+            out << selector.getName() << ": " << sdt.getName();
+          }else{
+            out << selector.getName() << ": " << t;
+          }
         }
         out << ')';
       }

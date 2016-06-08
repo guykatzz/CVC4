@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_bv_rewrite_rules_core.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King, Clark Barrett, Liana Hadarean, Morgan Deters
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Liana Hadarean, Clark Barrett
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -276,7 +276,8 @@ bool RewriteRule<ReflexivityEq>::applies(TNode node) {
 template<> inline
 Node RewriteRule<ReflexivityEq>::apply(TNode node) {
   Debug("bv-rewrite") << "RewriteRule<ReflexivityEq>(" << node << ")" << std::endl;
-  return node[1].eqNode(node[0]);
+  Node res = node[1].eqNode(node[0]);
+  return res;
 }
 
 }

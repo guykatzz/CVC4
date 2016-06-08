@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file type_enumerator.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief An enumerator for bitvectors
  **
@@ -19,11 +19,11 @@
 #ifndef __CVC4__THEORY__BV__TYPE_ENUMERATOR_H
 #define __CVC4__THEORY__BV__TYPE_ENUMERATOR_H
 
+#include "expr/kind.h"
+#include "expr/type_node.h"
+#include "theory/type_enumerator.h"
 #include "util/bitvector.h"
 #include "util/integer.h"
-#include "theory/type_enumerator.h"
-#include "expr/type_node.h"
-#include "expr/kind.h"
 
 namespace CVC4 {
 namespace theory {
@@ -35,7 +35,7 @@ class BitVectorEnumerator : public TypeEnumeratorBase<BitVectorEnumerator> {
 
 public:
 
-  BitVectorEnumerator(TypeNode type) throw(AssertionException) :
+  BitVectorEnumerator(TypeNode type, TypeEnumeratorProperties * tep = NULL) throw(AssertionException) :
     TypeEnumeratorBase<BitVectorEnumerator>(type),
     d_size(type.getBitVectorSize()),
     d_bits(0) {

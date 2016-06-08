@@ -1,22 +1,22 @@
 /*********************                                                        */
 /*! \file bv_to_bool.cpp
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Preprocessing pass that lifts bit-vectors of size 1 to booleans.
  **
- ** Preprocessing pass that lifts bit-vectors of size 1 to booleans. 
+ ** Preprocessing pass that lifts bit-vectors of size 1 to booleans.
  **/
-
-
-#include "util/node_visitor.h"
 #include "theory/bv/bv_to_bool.h"
+
+#include "smt_util/node_visitor.h"
+#include "smt/smt_statistics_registry.h"
 
 using namespace std;
 using namespace CVC4;
@@ -32,7 +32,7 @@ BvToBoolPreprocessor::BvToBoolPreprocessor()
 {}
 
 void BvToBoolPreprocessor::addToLiftCache(TNode term, Node new_term) {
-  Assert (new_term != Node()); 
+  Assert (new_term != Node());
   Assert (!hasLiftCache(term));
   Assert (term.getType() == new_term.getType());
   d_liftCache[term] = new_term; 
@@ -240,13 +240,13 @@ BvToBoolPreprocessor::Statistics::Statistics()
   , d_numAtomsLifted("theory::bv::BvToBoolPreprocess::NumberOfAtomsLifted", 0)
   , d_numTermsForcedLifted("theory::bv::BvToBoolPreprocess::NumberOfTermsForcedLifted", 0)
 {
-  StatisticsRegistry::registerStat(&d_numTermsLifted);
-  StatisticsRegistry::registerStat(&d_numAtomsLifted);
-  StatisticsRegistry::registerStat(&d_numTermsForcedLifted);
+  smtStatisticsRegistry()->registerStat(&d_numTermsLifted);
+  smtStatisticsRegistry()->registerStat(&d_numAtomsLifted);
+  smtStatisticsRegistry()->registerStat(&d_numTermsForcedLifted);
 }
 
 BvToBoolPreprocessor::Statistics::~Statistics() {
-  StatisticsRegistry::unregisterStat(&d_numTermsLifted);
-  StatisticsRegistry::unregisterStat(&d_numAtomsLifted);
-  StatisticsRegistry::unregisterStat(&d_numTermsForcedLifted);
+  smtStatisticsRegistry()->unregisterStat(&d_numTermsLifted);
+  smtStatisticsRegistry()->unregisterStat(&d_numAtomsLifted);
+  smtStatisticsRegistry()->unregisterStat(&d_numTermsForcedLifted);
 }

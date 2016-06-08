@@ -1,35 +1,76 @@
 /*********************                                                        */
 /*! \file theory_proxy.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Kshitij Bansal, Morgan Deters
- ** Minor contributors (to current version): Clark Barrett, Christopher L. Conway, Tim King, Liana Hadarean
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Liana Hadarean
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
  ** [[ Add lengthier description here ]]
  ** \todo document this file
  **/
+#include "prop/theory_proxy.h"
 
+#include "context/context.h"
+#include "decision/decision_engine.h"
+#include "expr/expr_stream.h"
+#include "options/decision_options.h"
 #include "prop/cnf_stream.h"
 #include "prop/prop_engine.h"
-#include "prop/theory_proxy.h"
-#include "context/context.h"
-#include "theory/theory_engine.h"
+#include "proof/cnf_proof.h"
+#include "smt/command.h"
+#include "smt/smt_statistics_registry.h"
+#include "smt_util/lemma_input_channel.h"
+#include "smt_util/lemma_output_channel.h"
 #include "theory/rewriter.h"
-#include "expr/expr_stream.h"
-#include "decision/decision_engine.h"
-#include "decision/options.h"
-#include "util/lemma_input_channel.h"
-#include "util/lemma_output_channel.h"
+#include "theory/theory_engine.h"
 #include "util/statistics_registry.h"
+
 
 namespace CVC4 {
 namespace prop {
+
+TheoryProxy::TheoryProxy(PropEngine* propEngine,
+                         TheoryEngine* theoryEngine,
+                         DecisionEngine* decisionEngine,
+                         context::Context* context,
+                         CnfStream* cnfStream,
+                         std::ostream* replayLog,
+                         ExprStream* replayStream,
+                         LemmaChannels* channels)
+    : d_propEngine(propEngine),
+      d_cnfStream(cnfStream),
+      d_decisionEngine(decisionEngine),
+      d_theoryEngine(theoryEngine),
+      d_channels(channels),
+      d_replayLog(replayLog),
+      d_replayStream(replayStream),
+      d_queue(context),
+      d_replayedDecisions("prop::theoryproxy::replayedDecisions", 0)
+{
+  smtStatisticsRegistry()->registerStat(&d_replayedDecisions);
+}
+
+TheoryProxy::~TheoryProxy() {
+  /* nothing to do for now */
+  smtStatisticsRegistry()->unregisterStat(&d_replayedDecisions);
+}
+
+/** The lemma input channel we are using. */
+LemmaInputChannel* TheoryProxy::inputChannel() {
+  return d_channels->getLemmaInputChannel();
+}
+
+/** The lemma output channel we are using. */
+LemmaOutputChannel* TheoryProxy::outputChannel() {
+  return d_channels->getLemmaOutputChannel();
+}
+
 
 void TheoryProxy::variableNotify(SatVariable var) {
   d_theoryEngine->preRegister(getNode(SatLiteral(var)));
@@ -57,8 +98,25 @@ void TheoryProxy::theoryPropagate(std::vector<SatLiteral>& output) {
 void TheoryProxy::explainPropagation(SatLiteral l, SatClause& explanation) {
   TNode lNode = d_cnfStream->getNode(l);
   Debug("prop-explain") << "explainPropagation(" << lNode << ")" << std::endl;
-  Node theoryExplanation = d_theoryEngine->getExplanation(lNode);
-  Debug("prop-explain") << "explainPropagation() => " <<  theoryExplanation << std::endl;
+
+  LemmaProofRecipe* proofRecipe = NULL;
+  PROOF(proofRecipe = new LemmaProofRecipe;);
+
+  Node theoryExplanation = d_theoryEngine->getExplanationAndRecipe(lNode, proofRecipe);
+
+  PROOF({
+      ProofManager::getCnfProof()->pushCurrentAssertion(theoryExplanation);
+      ProofManager::getCnfProof()->setProofRecipe(proofRecipe);
+
+      Debug("pf::sat") << "TheoryProxy::explainPropagation: setting lemma recipe to: "
+                       << std::endl;
+      proofRecipe->dump("pf::sat");
+
+      delete proofRecipe;
+      proofRecipe = NULL;
+    });
+
+  Debug("prop-explain") << "explainPropagation() => " << theoryExplanation << std::endl;
   if (theoryExplanation.getKind() == kind::AND) {
     Node::const_iterator it = theoryExplanation.begin();
     Node::const_iterator it_end = theoryExplanation.end();
@@ -108,10 +166,10 @@ void TheoryProxy::notifyRestart() {
 
   static uint32_t lemmaCount = 0;
 
-  if(options::lemmaInputChannel() != NULL) {
-    while(options::lemmaInputChannel()->hasNewLemma()) {
+  if(inputChannel() != NULL) {
+    while(inputChannel()->hasNewLemma()) {
       Debug("shared") << "shared" << std::endl;
-      Expr lemma = options::lemmaInputChannel()->getNewLemma();
+      Expr lemma = inputChannel()->getNewLemma();
       Node asNode = lemma.getNode();
       asNode = theory::Rewriter::rewrite(asNode);
 
@@ -122,7 +180,9 @@ void TheoryProxy::notifyRestart() {
           if(lemmaCount % 1 == 0) {
             Debug("shared") << "=) " << asNode << std::endl;
           }
-          d_propEngine->assertLemma(d_theoryEngine->preprocess(asNode), false, true, RULE_INVALID);
+
+          LemmaProofRecipe* noProofRecipe = NULL;
+          d_propEngine->assertLemma(d_theoryEngine->preprocess(asNode), false, true, RULE_INVALID, noProofRecipe);
         } else {
           Debug("shared") << "=(" << asNode << std::endl;
         }
@@ -135,7 +195,7 @@ void TheoryProxy::notifyRestart() {
 
 void TheoryProxy::notifyNewLemma(SatClause& lemma) {
   Assert(lemma.size() > 0);
-  if(options::lemmaOutputChannel() != NULL) {
+  if(outputChannel() != NULL) {
     if(lemma.size() == 1) {
       // cannot share units yet
       //options::lemmaOutputChannel()->notifyNewLemma(d_cnfStream->getNode(lemma[0]).toExpr());
@@ -148,7 +208,7 @@ void TheoryProxy::notifyNewLemma(SatClause& lemma) {
 
       if(d_shared.find(n) == d_shared.end()) {
         d_shared.insert(n);
-        options::lemmaOutputChannel()->notifyNewLemma(n.toExpr());
+        outputChannel()->notifyNewLemma(n.toExpr());
       } else {
         Debug("shared") <<"drop new " << n << std::endl;
       }
@@ -158,8 +218,8 @@ void TheoryProxy::notifyNewLemma(SatClause& lemma) {
 
 SatLiteral TheoryProxy::getNextReplayDecision() {
 #ifdef CVC4_REPLAY
-  if(options::replayStream() != NULL) {
-    Expr e = options::replayStream()->nextExpr();
+  if(d_replayStream != NULL) {
+    Expr e = d_replayStream->nextExpr();
     if(!e.isNull()) { // we get null node when out of decisions to replay
       // convert & return
       ++d_replayedDecisions;
@@ -172,9 +232,9 @@ SatLiteral TheoryProxy::getNextReplayDecision() {
 
 void TheoryProxy::logDecision(SatLiteral lit) {
 #ifdef CVC4_REPLAY
-  if(options::replayLog() != NULL) {
+  if(d_replayLog != NULL) {
     Assert(lit != undefSatLiteral, "logging an `undef' decision ?!");
-    *options::replayLog() << d_cnfStream->getNode(lit) << std::endl;
+    (*d_replayLog) << d_cnfStream->getNode(lit) << std::endl;
   }
 #endif /* CVC4_REPLAY */
 }
@@ -193,6 +253,12 @@ bool TheoryProxy::isDecisionEngineDone() {
 
 SatValue TheoryProxy::getDecisionPolarity(SatVariable var) {
   return d_decisionEngine->getPolarity(var);
+}
+
+void TheoryProxy::dumpStatePop() {
+  if(Dump.isOn("state")) {
+    Dump("state") << PopCommand();
+  }
 }
 
 }/* CVC4::prop namespace */

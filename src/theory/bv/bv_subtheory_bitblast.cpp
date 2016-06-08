@@ -1,49 +1,53 @@
 /*********************                                                        */
 /*! \file bv_subtheory_bitblast.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Clark Barrett, Liana Hadarean
- ** Minor contributors (to current version): Morgan Deters, Kshitij Bansal, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Dejan Jovanovic, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Algebraic solver.
  **
  ** Algebraic solver.
  **/
 
+#include "decision/decision_attributes.h"
+#include "options/decision_options.h"
+#include "options/bv_options.h"
+#include "smt/smt_statistics_registry.h"
+#include "theory/bv/abstraction.h"
+#include "theory/bv/bitblaster_template.h"
+#include "theory/bv/bv_quick_check.h"
 #include "theory/bv/bv_subtheory_bitblast.h"
 #include "theory/bv/theory_bv.h"
 #include "theory/bv/theory_bv_utils.h"
-#include "theory/bv/bitblaster_template.h"
-#include "theory/bv/bv_quick_check.h"
-#include "theory/bv/options.h"
-#include "theory/bv/abstraction.h"
-#include "theory/decision_attributes.h"
-#include "decision/options.h"
-
+#include "proof/proof_manager.h"
+#include "proof/bitvector_proof.h"
 
 using namespace std;
-using namespace CVC4;
 using namespace CVC4::context;
-using namespace CVC4::theory;
-using namespace CVC4::theory::bv;
 using namespace CVC4::theory::bv::utils;
+
+namespace CVC4 {
+namespace theory {
+namespace bv {
 
 BitblastSolver::BitblastSolver(context::Context* c, TheoryBV* bv)
   : SubtheorySolver(c, bv),
-    d_bitblaster(new TLazyBitblaster(c, bv, "lazy")),
+    d_bitblaster(new TLazyBitblaster(c, bv, bv->getFullInstanceName() + "lazy")),
     d_bitblastQueue(c),
-    d_statistics(),
+    d_statistics(bv->getFullInstanceName()),
     d_validModelCache(c, true),
     d_lemmaAtomsQueue(c),
     d_useSatPropagation(options::bitvectorPropagate()),
     d_abstractionModule(NULL),
     d_quickCheck(options::bitvectorQuickXplain() ? new BVQuickCheck("bb", bv) : NULL),
     d_quickXplain(options::bitvectorQuickXplain() ? new QuickXPlain("bb", d_quickCheck) :  NULL)
-{}
+{
+}
 
 BitblastSolver::~BitblastSolver() {
   delete d_quickXplain;
@@ -51,21 +55,21 @@ BitblastSolver::~BitblastSolver() {
   delete d_bitblaster;
 }
 
-BitblastSolver::Statistics::Statistics()
-  : d_numCallstoCheck("theory::bv::BitblastSolver::NumCallsToCheck", 0)
-  , d_numBBLemmas("theory::bv::BitblastSolver::NumTimesLemmasBB", 0)
+BitblastSolver::Statistics::Statistics(const std::string &instanceName)
+  : d_numCallstoCheck(instanceName + "theory::bv::BitblastSolver::NumCallsToCheck", 0)
+  , d_numBBLemmas(instanceName + "theory::bv::BitblastSolver::NumTimesLemmasBB", 0)
 {
-  StatisticsRegistry::registerStat(&d_numCallstoCheck);
-  StatisticsRegistry::registerStat(&d_numBBLemmas);
+  smtStatisticsRegistry()->registerStat(&d_numCallstoCheck);
+  smtStatisticsRegistry()->registerStat(&d_numBBLemmas);
 }
 BitblastSolver::Statistics::~Statistics() {
-  StatisticsRegistry::unregisterStat(&d_numCallstoCheck);
-  StatisticsRegistry::unregisterStat(&d_numBBLemmas);
+  smtStatisticsRegistry()->unregisterStat(&d_numCallstoCheck);
+  smtStatisticsRegistry()->unregisterStat(&d_numBBLemmas);
 }
 
 void BitblastSolver::setAbstraction(AbstractionModule* abs) {
-  d_abstractionModule = abs; 
-  d_bitblaster->setAbstraction(abs); 
+  d_abstractionModule = abs;
+  d_bitblaster->setAbstraction(abs);
 }
 
 void BitblastSolver::preRegister(TNode node) {
@@ -78,8 +82,8 @@ void BitblastSolver::preRegister(TNode node) {
     CodeTimer weightComputationTime(d_bv->d_statistics.d_weightComputationTimer);
     d_bitblastQueue.push_back(node);
     if ((options::decisionUseWeight() || options::decisionThreshold() != 0) &&
-        !node.hasAttribute(theory::DecisionWeightAttr())) {
-      node.setAttribute(theory::DecisionWeightAttr(),computeAtomWeight(node));
+        !node.hasAttribute(decision::DecisionWeightAttr())) {
+      node.setAttribute(decision::DecisionWeightAttr(),computeAtomWeight(node));
     }
   }
 }
@@ -113,7 +117,7 @@ void BitblastSolver::bitblastQueue() {
 
 bool BitblastSolver::check(Theory::Effort e) {
   Debug("bv-bitblast") << "BitblastSolver::check (" << e << ")\n";
-  Assert(options::bitblastMode() == theory::bv::BITBLAST_MODE_LAZY); 
+  Assert(options::bitblastMode() == theory::bv::BITBLAST_MODE_LAZY);
 
   ++(d_statistics.d_numCallstoCheck);
 
@@ -131,10 +135,10 @@ bool BitblastSolver::check(Theory::Effort e) {
       // skip atoms that are the result of abstraction lemmas
       if (d_abstractionModule->isLemmaAtom(fact)) {
         d_lemmaAtomsQueue.push_back(fact);
-        continue; 
+        continue;
       }
     }
-    
+
     if (!d_bv->inConflict() &&
         (!d_bv->wasPropagatedBySubtheory(fact) || d_bv->getPropagatingSubtheory(fact) != SUB_BITBLAST)) {
       // Some atoms have not been bit-blasted yet
@@ -179,7 +183,7 @@ bool BitblastSolver::check(Theory::Effort e) {
   if (options::bvAbstraction() &&
       e == Theory::EFFORT_FULL &&
       d_lemmaAtomsQueue.size()) {
-    
+
     // bit-blast lemma atoms
     while(!d_lemmaAtomsQueue.empty()) {
       TNode lemma_atom = d_lemmaAtomsQueue.front();
@@ -195,7 +199,7 @@ bool BitblastSolver::check(Theory::Effort e) {
         return false;
       }
     }
-    
+
     Assert(!d_bv->inConflict());
     bool ok = d_bitblaster->solve();
     if (!ok) {
@@ -206,9 +210,9 @@ bool BitblastSolver::check(Theory::Effort e) {
       ++(d_statistics.d_numBBLemmas);
       return false;
     }
-    
+
   }
-  
+
 
   return true;
 }
@@ -224,56 +228,31 @@ void BitblastSolver::collectModelInfo(TheoryModel* m, bool fullModel) {
 Node BitblastSolver::getModelValue(TNode node)
 {
   if (d_bv->d_invalidateModelCache.get()) {
-    d_bitblaster->invalidateModelCache(); 
+    d_bitblaster->invalidateModelCache();
   }
-  d_bv->d_invalidateModelCache.set(false); 
+  d_bv->d_invalidateModelCache.set(false);
   Node val = d_bitblaster->getTermModel(node, true);
   return val;
 }
 
-// Node BitblastSolver::getModelValueRec(TNode node)
-// {
-//   Node val;
-//   if (node.isConst()) {
-//     return node;
-//   }
-//   NodeMap::iterator it = d_modelCache.find(node);
-//   if (it != d_modelCache.end()) {
-//     val = (*it).second;
-//     Debug("bitvector-model") << node << " => (cached) " << val <<"\n";
-//     return val;
-//   }
-//   if (d_bv->isLeaf(node)) {
-//     val = d_bitblaster->getVarValue(node);
-//     if (val == Node()) {
-//       // If no value in model, just set to 0
-//       val = utils::mkConst(utils::getSize(node), (unsigned)0);
-//     }
-//   } else {
-//     NodeBuilder<> valBuilder(node.getKind());
-//     if (node.getMetaKind() == kind::metakind::PARAMETERIZED) {
-//       valBuilder << node.getOperator();
-//     }
-//     for (unsigned i = 0; i < node.getNumChildren(); ++i) {
-//       valBuilder << getModelValueRec(node[i]);
-//     }
-//     val = valBuilder;
-//     val = Rewriter::rewrite(val);
-//   }
-//   Assert(val.isConst());
-//   d_modelCache[node] = val;
-//   Debug("bitvector-model") << node << " => " << val <<"\n";
-//   return val;
-// }
 
 
 void BitblastSolver::setConflict(TNode conflict) {
   Node final_conflict = conflict;
   if (options::bitvectorQuickXplain() &&
       conflict.getKind() == kind::AND) {
-    // std::cout << "Original conflict " << conflict.getNumChildren() << "\n"; 
+    // std::cout << "Original conflict " << conflict.getNumChildren() << "\n";
     final_conflict = d_quickXplain->minimizeConflict(conflict);
-    //std::cout << "Minimized conflict " << final_conflict.getNumChildren() << "\n"; 
+    //std::cout << "Minimized conflict " << final_conflict.getNumChildren() << "\n";
   }
   d_bv->setConflict(final_conflict);
 }
+
+void BitblastSolver::setProofLog( BitVectorProof * bvp ) {
+  d_bitblaster->setProofLog( bvp );
+  bvp->setBitblaster(d_bitblaster);
+}
+
+}/* namespace CVC4::theory::bv */
+}/* namespace CVC4::theory */
+}/* namespace CVC4 */

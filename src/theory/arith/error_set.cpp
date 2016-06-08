@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file error_set.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,8 +15,9 @@
  ** \todo document this file
  **/
 
-
 #include "theory/arith/error_set.h"
+
+#include "smt/smt_statistics_registry.h"
 #include "theory/arith/constraint.h"
 
 using namespace std;
@@ -134,21 +135,21 @@ ErrorSet::Statistics::Statistics():
   d_enqueuesCollectionDuplicates("theory::arith::pqueue::enqueuesCollectionDuplicates", 0),
   d_enqueuesVarOrderModeDuplicates("theory::arith::pqueue::enqueuesVarOrderModeDuplicates", 0)
 {
-  StatisticsRegistry::registerStat(&d_enqueues);
-  StatisticsRegistry::registerStat(&d_enqueuesCollection);
-  StatisticsRegistry::registerStat(&d_enqueuesDiffMode);
-  StatisticsRegistry::registerStat(&d_enqueuesVarOrderMode);
-  StatisticsRegistry::registerStat(&d_enqueuesCollectionDuplicates);
-  StatisticsRegistry::registerStat(&d_enqueuesVarOrderModeDuplicates);
+  smtStatisticsRegistry()->registerStat(&d_enqueues);
+  smtStatisticsRegistry()->registerStat(&d_enqueuesCollection);
+  smtStatisticsRegistry()->registerStat(&d_enqueuesDiffMode);
+  smtStatisticsRegistry()->registerStat(&d_enqueuesVarOrderMode);
+  smtStatisticsRegistry()->registerStat(&d_enqueuesCollectionDuplicates);
+  smtStatisticsRegistry()->registerStat(&d_enqueuesVarOrderModeDuplicates);
 }
 
 ErrorSet::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_enqueues);
-  StatisticsRegistry::unregisterStat(&d_enqueuesCollection);
-  StatisticsRegistry::unregisterStat(&d_enqueuesDiffMode);
-  StatisticsRegistry::unregisterStat(&d_enqueuesVarOrderMode);
-  StatisticsRegistry::unregisterStat(&d_enqueuesCollectionDuplicates);
-  StatisticsRegistry::unregisterStat(&d_enqueuesVarOrderModeDuplicates);
+  smtStatisticsRegistry()->unregisterStat(&d_enqueues);
+  smtStatisticsRegistry()->unregisterStat(&d_enqueuesCollection);
+  smtStatisticsRegistry()->unregisterStat(&d_enqueuesDiffMode);
+  smtStatisticsRegistry()->unregisterStat(&d_enqueuesVarOrderMode);
+  smtStatisticsRegistry()->unregisterStat(&d_enqueuesCollectionDuplicates);
+  smtStatisticsRegistry()->unregisterStat(&d_enqueuesVarOrderModeDuplicates);
 }
 
 ErrorSet::ErrorSet(ArithVariables& vars, TableauSizes tabSizes, BoundCountingLookup lookups):

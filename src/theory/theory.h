@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Tim King, Dejan Jovanovic
- ** Minor contributors (to current version): Francois Bobot, Kshitij Bansal, Martin Brain <>, Clark Barrett, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Base of the theory interface.
  **
@@ -19,28 +19,25 @@
 #ifndef __CVC4__THEORY__THEORY_H
 #define __CVC4__THEORY__THEORY_H
 
-#include "expr/node.h"
-//#include "expr/attribute.h"
-#include "expr/command.h"
-#include "smt/logic_request.h"
-#include "theory/valuation.h"
-#include "theory/output_channel.h"
-#include "theory/logic_info.h"
-#include "theory/options.h"
-#include "theory/theoryof_mode.h"
-#include "context/context.h"
+#include <ext/hash_set>
+#include <iosfwd>
+#include <string>
+
 #include "context/cdlist.h"
 #include "context/cdo.h"
-#include "options/options.h"
-#include "util/statistics_registry.h"
-#include "util/dump.h"
+#include "context/context.h"
+#include "expr/node.h"
 #include "lib/ffs.h"
-
-#include <string>
-#include <iostream>
-
-#include <strings.h>
-#include <ext/hash_set>
+#include "options/options.h"
+#include "options/theory_options.h"
+#include "options/theoryof_mode.h"
+#include "smt/command.h"
+#include "smt/dump.h"
+#include "smt/logic_request.h"
+#include "theory/logic_info.h"
+#include "theory/output_channel.h"
+#include "theory/valuation.h"
+#include "util/statistics_registry.h"
 
 namespace CVC4 {
 
@@ -141,14 +138,19 @@ private:
   friend class ::CVC4::TheoryEngine;
 
   // Disallow default construction, copy, assignment.
-  Theory() CVC4_UNUSED;
-  Theory(const Theory&) CVC4_UNUSED;
-  Theory& operator=(const Theory&) CVC4_UNUSED;
+  Theory() CVC4_UNDEFINED;
+  Theory(const Theory&) CVC4_UNDEFINED;
+  Theory& operator=(const Theory&) CVC4_UNDEFINED;
 
   /**
    * An integer identifying the type of the theory
    */
   TheoryId d_id;
+
+  /** Name of this theory instance. Along with the TheoryId this should provide
+   * an unique string identifier for each instance of a Theory class. We need
+   * this to ensure unique statistics names over multiple theory instances. */
+  std::string d_instanceName;
 
   /**
    * The SAT search context for the Theory.
@@ -205,12 +207,6 @@ protected:
   /** time spent in theory combination */
   TimerStat d_computeCareGraphTime;
 
-  static std::string statName(TheoryId id, const char* statName) {
-    std::stringstream ss;
-    ss << "theory<" << id << ">::" << statName;
-    return ss.str();
-  }
-
   /**
    * The only method to add suff to the care graph.
    */
@@ -241,32 +237,18 @@ protected:
    * termSet.  This is used by collectModelInfo to delimit the set of
    * terms that should be used when constructing a model
    */
-  void computeRelevantTerms(std::set<Node>& termSet) const;
+  void computeRelevantTerms(std::set<Node>& termSet, bool includeShared = true) const;
 
   /**
    * Construct a Theory.
+   *
+   * The pair <id, instance> is assumed to uniquely identify this Theory
+   * w.r.t. the SmtEngine.
    */
-  Theory(TheoryId id, context::Context* satContext, context::UserContext* userContext,
-         OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo) throw()
-  : d_id(id)
-  , d_satContext(satContext)
-  , d_userContext(userContext)
-  , d_logicInfo(logicInfo)
-  , d_facts(satContext)
-  , d_factsHead(satContext, 0)
-  , d_sharedTermsIndex(satContext, 0)
-  , d_careGraph(NULL)
-  , d_quantEngine(NULL)
-  , d_checkTime(statName(id, "checkTime"))
-  , d_computeCareGraphTime(statName(id, "computeCareGraphTime"))
-  , d_sharedTerms(satContext)
-  , d_out(&out)
-  , d_valuation(valuation)
-  , d_proofEnabled(false)
-  {
-    StatisticsRegistry::registerStat(&d_checkTime);
-    StatisticsRegistry::registerStat(&d_computeCareGraphTime);
-  }
+  Theory(TheoryId id, context::Context* satContext,
+         context::UserContext* userContext, OutputChannel& out,
+         Valuation valuation, const LogicInfo& logicInfo,
+         std::string instance = "") throw();  // taking : No default.
 
   /**
    * This is called at shutdown time by the TheoryEngine, just before
@@ -289,6 +271,12 @@ protected:
    * theory engine (and other theories).
    */
   Valuation d_valuation;
+
+  /**
+   * Whether proofs are enabled
+   *
+   */
+  bool d_proofsEnabled;
 
   /**
    * Returns the next assertion in the assertFact() queue.
@@ -432,6 +420,13 @@ public:
   TheoryId getId() const {
     return d_id;
   }
+
+  /**
+   * Returns a string that uniquely identifies this theory solver w.r.t. the
+   * SmtEngine.
+   */
+  std::string getFullInstanceName() const;
+
 
   /**
    * Get the SAT context associated to this Theory.
@@ -871,6 +866,11 @@ public:
    * E |= lit in the theory.
    */
   virtual std::pair<bool, Node> entailmentCheck(TNode lit, const EntailmentCheckParameters* params = NULL, EntailmentCheckSideEffects* out = NULL);
+
+  /**
+   * Turn on proof-production mode.
+   */
+  void produceProofs() { d_proofsEnabled = true; }
 
 };/* class Theory */
 

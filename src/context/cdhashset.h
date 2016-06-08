@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cdhashset.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Tim King, Morgan Deters
- ** Minor contributors (to current version): Francois Bobot, Kshitij Bansal
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Kshitij Bansal
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Context-dependent set class.
  **
@@ -19,9 +19,10 @@
 #ifndef __CVC4__CONTEXT__CDHASHSET_H
 #define __CVC4__CONTEXT__CDHASHSET_H
 
+#include "base/cvc4_assert.h"
 #include "context/context.h"
 #include "context/cdinsert_hashmap.h"
-#include "util/cvc4_assert.h"
+
 
 namespace CVC4 {
 namespace context {

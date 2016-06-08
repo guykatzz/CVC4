@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_arith.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Andrew Reynolds, Martin Brain <>, Tianyi Liang, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -16,9 +16,11 @@
  **/
 
 #include "theory/arith/theory_arith.h"
-#include "theory/arith/theory_arith_private.h"
+
+#include "options/smt_options.h"
+#include "smt/smt_statistics_registry.h"
 #include "theory/arith/infer_bounds.h"
-#include "smt/options.h"
+#include "theory/arith/theory_arith_private.h"
 
 using namespace std;
 using namespace CVC4::kind;
@@ -27,12 +29,18 @@ namespace CVC4 {
 namespace theory {
 namespace arith {
 
-TheoryArith::TheoryArith(context::Context* c, context::UserContext* u, OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo)
-  : Theory(THEORY_ARITH, c, u, out, valuation, logicInfo)
-  , d_internal(new TheoryArithPrivate(*this, c, u, out, valuation, logicInfo))
-{}
+TheoryArith::TheoryArith(context::Context* c, context::UserContext* u,
+                         OutputChannel& out, Valuation valuation,
+                         const LogicInfo& logicInfo)
+    : Theory(THEORY_ARITH, c, u, out, valuation, logicInfo)
+    , d_internal(new TheoryArithPrivate(*this, c, u, out, valuation, logicInfo))
+    , d_ppRewriteTimer("theory::arith::ppRewriteTimer")
+{
+  smtStatisticsRegistry()->registerStat(&d_ppRewriteTimer);
+}
 
 TheoryArith::~TheoryArith(){
+  smtStatisticsRegistry()->unregisterStat(&d_ppRewriteTimer);
   delete d_internal;
 }
 

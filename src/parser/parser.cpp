@@ -1,37 +1,39 @@
 /*********************                                                        */
 /*! \file parser.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway
- ** Minor contributors (to current version): Tim King, Dejan Jovanovic, Kshitij Bansal, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Parser state implementation.
  **
  ** Parser state implementation.
  **/
 
-#include <iostream>
-#include <fstream>
-#include <sstream>
-#include <iterator>
-#include <stdint.h>
-#include <cassert>
-
-#include "parser/input.h"
 #include "parser/parser.h"
-#include "parser/parser_exception.h"
-#include "expr/command.h"
+
+#include <stdint.h>
+
+#include <cassert>
+#include <fstream>
+#include <iostream>
+#include <iterator>
+#include <sstream>
+
+#include "base/output.h"
 #include "expr/expr.h"
+#include "expr/expr_iomanip.h"
 #include "expr/kind.h"
 #include "expr/type.h"
-#include "util/output.h"
-#include "util/resource_manager.h"
 #include "options/options.h"
-#include "smt/options.h"
+#include "parser/input.h"
+#include "parser/parser_exception.h"
+#include "smt/command.h"
+#include "util/resource_manager.h"
 
 using namespace std;
 using namespace CVC4::kind;
@@ -329,7 +331,7 @@ Parser::mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes) {
           j != j_end;
           ++j) {
         const DatatypeConstructor& ctor = *j;
-        Expr::printtypes::Scope pts(Debug("parser-idt"), true);
+        expr::ExprPrintTypes::Scope pts(Debug("parser-idt"), true);
         Expr constructor = ctor.getConstructor();
         Debug("parser-idt") << "+ define " << constructor << std::endl;
         string constructorName = ctor.getName();
@@ -497,17 +499,20 @@ Command* Parser::nextCommand() throw(ParserException, UnsafeInterruptException) 
   Debug("parser") << "nextCommand() => " << cmd << std::endl;
   if (cmd != NULL &&
       dynamic_cast<SetOptionCommand*>(cmd) == NULL &&
-      dynamic_cast<QuitCommand*>(cmd) == NULL) {
+      dynamic_cast<QuitCommand*>(cmd) == NULL)
+  {
     // don't count set-option commands as to not get stuck in an infinite
     // loop of resourcing out
-    d_resourceManager->spendResource(d_exprManager->getOptions()[options::parseStep]);
+    const Options& options = d_exprManager->getOptions();
+    d_resourceManager->spendResource(options.getParseStep());
   }
   return cmd;
 }
 
 Expr Parser::nextExpression() throw(ParserException, UnsafeInterruptException) {
   Debug("parser") << "nextExpression()" << std::endl;
-  d_resourceManager->spendResource(d_exprManager->getOptions()[options::parseStep]);
+  const Options& options = d_exprManager->getOptions();
+  d_resourceManager->spendResource(options.getParseStep());
   Expr result;
   if(!done()) {
     try {

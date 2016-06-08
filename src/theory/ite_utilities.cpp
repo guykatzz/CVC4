@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file ite_utilities.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Kshitij Bansal, Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters, Kshitij Bansal
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Simplifications for ITE expressions
  **
@@ -16,10 +16,11 @@
  ** Kim, Somenzi, Jin.  Efficient Term-ITE Conversion for SMT.  FMCAD 2009.
  ** Burch, Jerry.  Techniques for Verifying Superscalar Microprocessors.  DAC '96
  **/
-
-
 #include "theory/ite_utilities.h"
+
 #include <utility>
+
+#include "smt/smt_statistics_registry.h"
 #include "theory/rewriter.h"
 #include "theory/theory.h"
 
@@ -276,13 +277,13 @@ ITECompressor::Statistics::Statistics():
   d_compressCalls("ite-simp::compressCalls", 0),
   d_skolemsAdded("ite-simp::skolems", 0)
 {
-  StatisticsRegistry::registerStat(&d_compressCalls);
-  StatisticsRegistry::registerStat(&d_skolemsAdded);
+  smtStatisticsRegistry()->registerStat(&d_compressCalls);
+  smtStatisticsRegistry()->registerStat(&d_skolemsAdded);
 
 }
 ITECompressor::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_compressCalls);
-  StatisticsRegistry::unregisterStat(&d_skolemsAdded);
+  smtStatisticsRegistry()->unregisterStat(&d_compressCalls);
+  smtStatisticsRegistry()->unregisterStat(&d_skolemsAdded);
 }
 
 Node ITECompressor::push_back_boolean(Node original, Node compressed){
@@ -611,25 +612,25 @@ ITESimplifier::Statistics::Statistics():
   d_simpITEVisits("ite-simp::simpITE.visits", 0),
   d_inSmaller("ite-simp::inSmaller")
 {
-  StatisticsRegistry::registerStat(&d_maxNonConstantsFolded);
-  StatisticsRegistry::registerStat(&d_unexpected);
-  StatisticsRegistry::registerStat(&d_unsimplified);
-  StatisticsRegistry::registerStat(&d_exactMatchFold);
-  StatisticsRegistry::registerStat(&d_binaryPredFold);
-  StatisticsRegistry::registerStat(&d_specialEqualityFolds);
-  StatisticsRegistry::registerStat(&d_simpITEVisits);
-  StatisticsRegistry::registerStat(&d_inSmaller);
+  smtStatisticsRegistry()->registerStat(&d_maxNonConstantsFolded);
+  smtStatisticsRegistry()->registerStat(&d_unexpected);
+  smtStatisticsRegistry()->registerStat(&d_unsimplified);
+  smtStatisticsRegistry()->registerStat(&d_exactMatchFold);
+  smtStatisticsRegistry()->registerStat(&d_binaryPredFold);
+  smtStatisticsRegistry()->registerStat(&d_specialEqualityFolds);
+  smtStatisticsRegistry()->registerStat(&d_simpITEVisits);
+  smtStatisticsRegistry()->registerStat(&d_inSmaller);
 }
 
 ITESimplifier::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_maxNonConstantsFolded);
-  StatisticsRegistry::unregisterStat(&d_unexpected);
-  StatisticsRegistry::unregisterStat(&d_unsimplified);
-  StatisticsRegistry::unregisterStat(&d_exactMatchFold);
-  StatisticsRegistry::unregisterStat(&d_binaryPredFold);
-  StatisticsRegistry::unregisterStat(&d_specialEqualityFolds);
-  StatisticsRegistry::unregisterStat(&d_simpITEVisits);
-  StatisticsRegistry::unregisterStat(&d_inSmaller);
+  smtStatisticsRegistry()->unregisterStat(&d_maxNonConstantsFolded);
+  smtStatisticsRegistry()->unregisterStat(&d_unexpected);
+  smtStatisticsRegistry()->unregisterStat(&d_unsimplified);
+  smtStatisticsRegistry()->unregisterStat(&d_exactMatchFold);
+  smtStatisticsRegistry()->unregisterStat(&d_binaryPredFold);
+  smtStatisticsRegistry()->unregisterStat(&d_specialEqualityFolds);
+  smtStatisticsRegistry()->unregisterStat(&d_simpITEVisits);
+  smtStatisticsRegistry()->unregisterStat(&d_inSmaller);
 }
 
 bool ITESimplifier::isConstantIte(TNode e){
@@ -656,6 +657,8 @@ ITESimplifier::NodeVec* ITESimplifier::computeConstantLeaves(TNode ite){
   // special case 2 constant children
   if(thenB.isConst() && elseB.isConst()){
     NodeVec* pair = new NodeVec(2);
+    d_allocatedConstantLeaves.push_back(pair);
+
     (*pair)[0] = std::min(thenB, elseB);
     (*pair)[1] = std::max(thenB, elseB);
     d_constantLeaves[ite] = pair;
@@ -693,6 +696,7 @@ ITESimplifier::NodeVec* ITESimplifier::computeConstantLeaves(TNode ite){
   }
 
   NodeVec* both = new NodeVec(defChildren->size()+maybeChildren->size());
+  d_allocatedConstantLeaves.push_back(both);
   NodeVec::iterator newEnd;
   newEnd = std::set_union(defChildren->begin(), defChildren->end(),
                           maybeChildren->begin(), maybeChildren->end(),
@@ -1028,7 +1032,7 @@ Node ITESimplifier::intersectConstantIte(TNode lcite, TNode rcite){
       Node bothHold = lefteq.andNode(righteq);
       nb << bothHold;
     }
-    Node result = (nb.getNumChildren() >= 1) ? (Node)nb : nb[0];
+    Node result = (nb.getNumChildren() > 1) ? (Node)nb : nb[0];
     return result;
   }
 }
@@ -1398,25 +1402,32 @@ Node ITESimplifier::simpITE(TNode assertion)
 }
 
 ITECareSimplifier::ITECareSimplifier()
-  : d_usedSets()
+    : d_careSetsOutstanding(0)
+    , d_usedSets()
 {
   d_true = NodeManager::currentNM()->mkConst<bool>(true);
   d_false = NodeManager::currentNM()->mkConst<bool>(false);
 }
 
-ITECareSimplifier::~ITECareSimplifier(){}
+ITECareSimplifier::~ITECareSimplifier(){
+  Assert(d_usedSets.empty());
+  Assert(d_careSetsOutstanding == 0);
+}
 
 void ITECareSimplifier::clear(){
-  d_usedSets.clear();
+  Assert(d_usedSets.empty());
+  Assert(d_careSetsOutstanding == 0);
 }
 
 ITECareSimplifier::CareSetPtr ITECareSimplifier::getNewSet()
 {
   if (d_usedSets.empty()) {
+    d_careSetsOutstanding++;
     return ITECareSimplifier::CareSetPtr::mkNew(*this);
   }
   else {
-    ITECareSimplifier::CareSetPtr cs = ITECareSimplifier::CareSetPtr::recycle(d_usedSets.back());
+    ITECareSimplifier::CareSetPtr cs =
+        ITECareSimplifier::CareSetPtr::recycle(d_usedSets.back());
     cs.getCareSet().clear();
     d_usedSets.pop_back();
     return cs;
@@ -1487,125 +1498,144 @@ Node ITECareSimplifier::substitute(TNode e, TNodeMap& substTable, TNodeMap& cach
 Node ITECareSimplifier::simplifyWithCare(TNode e)
 {
   TNodeMap substTable;
-  CareMap queue;
-  CareMap::iterator it;
-  ITECareSimplifier::CareSetPtr cs = getNewSet();
-  ITECareSimplifier::CareSetPtr cs2;
-  queue[e] = cs;
 
-  TNode v;
-  bool done;
-  unsigned i;
+  /* This extra block is to trigger the destructors for cs and cs2
+   * before starting garbage collection.
+   */
+  {
+    CareMap queue;
+    CareMap::iterator it;
+    ITECareSimplifier::CareSetPtr cs = getNewSet();
+    ITECareSimplifier::CareSetPtr cs2;
+    queue[e] = cs;
 
-  while (!queue.empty()) {
-    it = queue.end();
-    --it;
-    v = it->first;
-    cs = it->second;
-    set<Node>& css = cs.getCareSet();
-    queue.erase(v);
+    TNode v;
+    bool done;
+    unsigned i;
 
-    done = false;
-    set<Node>::iterator iCare, iCareEnd = css.end();
+    while (!queue.empty()) {
+      it = queue.end();
+      --it;
+      v = it->first;
+      cs = it->second;
+      set<Node>& css = cs.getCareSet();
+      queue.erase(v);
 
-    switch (v.getKind()) {
-      case kind::ITE: {
-        iCare = css.find(v[0]);
-        if (iCare != iCareEnd) {
-          Assert(substTable.find(v) == substTable.end());
-          substTable[v] = v[1];
-          updateQueue(queue, v[1], cs);
+      done = false;
+      set<Node>::iterator iCare, iCareEnd = css.end();
+
+      switch (v.getKind()) {
+        case kind::ITE: {
+          iCare = css.find(v[0]);
+          if (iCare != iCareEnd) {
+            Assert(substTable.find(v) == substTable.end());
+            substTable[v] = v[1];
+            updateQueue(queue, v[1], cs);
+            done = true;
+            break;
+          }
+          else {
+            iCare = css.find(v[0].negate());
+            if (iCare != iCareEnd) {
+              Assert(substTable.find(v) == substTable.end());
+              substTable[v] = v[2];
+              updateQueue(queue, v[2], cs);
+              done = true;
+              break;
+            }
+          }
+          updateQueue(queue, v[0], cs);
+          cs2 = getNewSet();
+          cs2.getCareSet() = css;
+          cs2.getCareSet().insert(v[0]);
+          updateQueue(queue, v[1], cs2);
+          cs2 = getNewSet();
+          cs2.getCareSet() = css;
+          cs2.getCareSet().insert(v[0].negate());
+          updateQueue(queue, v[2], cs2);
           done = true;
           break;
         }
-        else {
-          iCare = css.find(v[0].negate());
-          if (iCare != iCareEnd) {
-            Assert(substTable.find(v) == substTable.end());
-            substTable[v] = v[2];
-            updateQueue(queue, v[2], cs);
-            done = true;
-            break;
+        case kind::AND: {
+          for (i = 0; i < v.getNumChildren(); ++i) {
+            iCare = css.find(v[i].negate());
+            if (iCare != iCareEnd) {
+              Assert(substTable.find(v) == substTable.end());
+              substTable[v] = d_false;
+              done = true;
+              break;
+            }
           }
-        }
-        updateQueue(queue, v[0], cs);
-        cs2 = getNewSet();
-        cs2.getCareSet() = css;
-        cs2.getCareSet().insert(v[0]);
-        updateQueue(queue, v[1], cs2);
-        cs2 = getNewSet();
-        cs2.getCareSet() = css;
-        cs2.getCareSet().insert(v[0].negate());
-        updateQueue(queue, v[2], cs2);
-        done = true;
-        break;
-      }
-      case kind::AND: {
-        for (i = 0; i < v.getNumChildren(); ++i) {
-          iCare = css.find(v[i].negate());
-          if (iCare != iCareEnd) {
-            Assert(substTable.find(v) == substTable.end());
-            substTable[v] = d_false;
-            done = true;
-            break;
+          if (done) break;
+
+          Assert(v.getNumChildren() > 1);
+          updateQueue(queue, v[0], cs);
+          cs2 = getNewSet();
+          cs2.getCareSet() = css;
+          cs2.getCareSet().insert(v[0]);
+          for (i = 1; i < v.getNumChildren(); ++i) {
+            updateQueue(queue, v[i], cs2);
           }
+          done = true;
+          break;
         }
-        if (done) break;
-
-        Assert(v.getNumChildren() > 1);
-        updateQueue(queue, v[0], cs);
-        cs2 = getNewSet();
-        cs2.getCareSet() = css;
-        cs2.getCareSet().insert(v[0]);
-        for (i = 1; i < v.getNumChildren(); ++i) {
-          updateQueue(queue, v[i], cs2);
-        }
-        done = true;
-        break;
-      }
-      case kind::OR: {
-        for (i = 0; i < v.getNumChildren(); ++i) {
-          iCare = css.find(v[i]);
-          if (iCare != iCareEnd) {
-            Assert(substTable.find(v) == substTable.end());
-            substTable[v] = d_true;
-            done = true;
-            break;
+        case kind::OR: {
+          for (i = 0; i < v.getNumChildren(); ++i) {
+            iCare = css.find(v[i]);
+            if (iCare != iCareEnd) {
+              Assert(substTable.find(v) == substTable.end());
+              substTable[v] = d_true;
+              done = true;
+              break;
+            }
           }
-        }
-        if (done) break;
+          if (done) break;
 
-        Assert(v.getNumChildren() > 1);
-        updateQueue(queue, v[0], cs);
-        cs2 = getNewSet();
-        cs2.getCareSet() = css;
-        cs2.getCareSet().insert(v[0].negate());
-        for (i = 1; i < v.getNumChildren(); ++i) {
-          updateQueue(queue, v[i], cs2);
+          Assert(v.getNumChildren() > 1);
+          updateQueue(queue, v[0], cs);
+          cs2 = getNewSet();
+          cs2.getCareSet() = css;
+          cs2.getCareSet().insert(v[0].negate());
+          for (i = 1; i < v.getNumChildren(); ++i) {
+            updateQueue(queue, v[i], cs2);
+          }
+          done = true;
+          break;
         }
-        done = true;
-        break;
+        default:
+          break;
       }
-      default:
-        break;
-    }
 
-    if (done) {
-      continue;
-    }
+      if (done) {
+        continue;
+      }
 
-    for (unsigned i = 0; i < v.getNumChildren(); ++i) {
-      updateQueue(queue, v[i], cs);
+      for (unsigned i = 0; i < v.getNumChildren(); ++i) {
+        updateQueue(queue, v[i], cs);
+      }
     }
   }
+  /* Perform garbage collection. */
   while (!d_usedSets.empty()) {
-    delete d_usedSets.back();
+    CareSetPtrVal* used = d_usedSets.back();
     d_usedSets.pop_back();
+    Assert(used->safeToGarbageCollect());
+    delete used;
+    Assert(d_careSetsOutstanding > 0);
+    d_careSetsOutstanding--;
   }
 
   TNodeMap cache;
   return substitute(e, substTable, cache);
 }
+
+ITECareSimplifier::CareSetPtr ITECareSimplifier::CareSetPtr::mkNew(
+    ITECareSimplifier& simp) {
+  CareSetPtrVal* val = new CareSetPtrVal(simp);
+  return CareSetPtr(val);
+}
+
+
 
 } /* namespace theory */
 } /* namespace CVC4 */

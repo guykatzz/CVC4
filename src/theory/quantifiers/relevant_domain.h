@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file relevant_domain.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief relevant domain class
  **/
@@ -23,7 +23,7 @@ namespace CVC4 {
 namespace theory {
 namespace quantifiers {
 
-class RelevantDomain
+class RelevantDomain : public QuantifiersUtil
 {
 private:
   class RDomain
@@ -33,11 +33,10 @@ private:
     void reset() { d_parent = NULL; d_terms.clear(); }
     RDomain * d_parent;
     std::vector< Node > d_terms;
-    std::vector< Node > d_ng_terms;
     void merge( RDomain * r );
-    void addTerm( Node t, bool nonGround = false );
+    void addTerm( Node t );
     RDomain * getParent();
-    void removeRedundantTerms( FirstOrderModel * fm );
+    void removeRedundantTerms( QuantifiersEngine * qe );
     bool hasTerm( Node n ) { return std::find( d_terms.begin(), d_terms.end(), n )!=d_terms.end(); }
   };
   std::map< Node, std::map< int, RDomain * > > d_rel_doms;
@@ -45,18 +44,32 @@ private:
   std::map< RDomain *, int > d_ri_map;
   QuantifiersEngine* d_qe;
   FirstOrderModel* d_model;
-  void computeRelevantDomain( Node n, bool hasPol, bool pol );
+  void computeRelevantDomain( Node q, Node n, bool hasPol, bool pol );
   void computeRelevantDomainOpCh( RDomain * rf, Node n );
   bool d_is_computed;
+  
+  //what each literal does
+  class RDomainLit {
+  public:
+    RDomainLit() : d_merge(false){}
+    ~RDomainLit(){}
+    bool d_merge;
+    RDomain * d_rd[2];
+    std::vector< Node > d_val;
+  };
+  std::map< bool, std::map< bool, std::map< Node, RDomainLit > > > d_rel_dom_lit;
+  void computeRelevantDomainLit( Node q, bool hasPol, bool pol, Node n );
 public:
   RelevantDomain( QuantifiersEngine* qe, FirstOrderModel* m );
   virtual ~RelevantDomain(){}
-  void reset();
+  /* reset */
+  bool reset( Theory::Effort e );
+  /** identify */
+  std::string identify() const { return "RelevantDomain"; }
   //compute the relevant domain
   void compute();
 
-  RDomain * getRDomain( Node n, int i );
-  Node getRelevantTerm( Node f, int i, Node r );
+  RDomain * getRDomain( Node n, int i, bool getParent = true );
 };/* class RelevantDomain */
 
 }/* CVC4::theory::quantifiers namespace */

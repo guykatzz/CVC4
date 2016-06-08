@@ -1,24 +1,26 @@
 /*********************                                                        */
 /*! \file dual_simplex.cpp
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
  ** [[ Add lengthier description here ]]
  ** \todo document this file
  **/
-
-
 #include "theory/arith/dual_simplex.h"
-#include "theory/arith/options.h"
+
+#include "base/output.h"
+#include "options/arith_options.h"
+#include "smt/smt_statistics_registry.h"
 #include "theory/arith/constraint.h"
+
 
 using namespace std;
 
@@ -40,21 +42,21 @@ DualSimplexDecisionProcedure::Statistics::Statistics(uint32_t& pivots):
   d_searchTime("theory::arith::dual::searchTime"),
   d_finalCheckPivotCounter("theory::arith::dual::lastPivots", pivots)
 {
-  StatisticsRegistry::registerStat(&d_statUpdateConflicts);
-  StatisticsRegistry::registerStat(&d_processSignalsTime);
-  StatisticsRegistry::registerStat(&d_simplexConflicts);
-  StatisticsRegistry::registerStat(&d_recentViolationCatches);
-  StatisticsRegistry::registerStat(&d_searchTime);
-  StatisticsRegistry::registerStat(&d_finalCheckPivotCounter);
+  smtStatisticsRegistry()->registerStat(&d_statUpdateConflicts);
+  smtStatisticsRegistry()->registerStat(&d_processSignalsTime);
+  smtStatisticsRegistry()->registerStat(&d_simplexConflicts);
+  smtStatisticsRegistry()->registerStat(&d_recentViolationCatches);
+  smtStatisticsRegistry()->registerStat(&d_searchTime);
+  smtStatisticsRegistry()->registerStat(&d_finalCheckPivotCounter);
 }
 
 DualSimplexDecisionProcedure::Statistics::~Statistics(){
-  StatisticsRegistry::unregisterStat(&d_statUpdateConflicts);
-  StatisticsRegistry::unregisterStat(&d_processSignalsTime);
-  StatisticsRegistry::unregisterStat(&d_simplexConflicts);
-  StatisticsRegistry::unregisterStat(&d_recentViolationCatches);
-  StatisticsRegistry::unregisterStat(&d_searchTime);
-  StatisticsRegistry::unregisterStat(&d_finalCheckPivotCounter);
+  smtStatisticsRegistry()->unregisterStat(&d_statUpdateConflicts);
+  smtStatisticsRegistry()->unregisterStat(&d_processSignalsTime);
+  smtStatisticsRegistry()->unregisterStat(&d_simplexConflicts);
+  smtStatisticsRegistry()->unregisterStat(&d_recentViolationCatches);
+  smtStatisticsRegistry()->unregisterStat(&d_searchTime);
+  smtStatisticsRegistry()->unregisterStat(&d_finalCheckPivotCounter);
 }
 
 Result::Sat DualSimplexDecisionProcedure::dualFindModel(bool exactResult){

@@ -29,6 +29,16 @@ OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWA
 #include "prop/bvminisat/mtl/Map.h"
 #include "prop/bvminisat/mtl/Alloc.h"
 
+namespace CVC4 {
+namespace BVMinisat {
+class Solver;
+}
+template <class Solver> class ProofProxy;
+typedef ProofProxy<BVMinisat::Solver> BVProofProxy;
+}
+
+namespace CVC4 {
+
 namespace BVMinisat {
 
 //=================================================================================================
@@ -204,6 +214,8 @@ public:
 
 
 const CRef CRef_Undef = RegionAllocator<uint32_t>::Ref_Undef;
+const CRef CRef_Lazy  = RegionAllocator<uint32_t>::Ref_Undef - 1;
+
 class ClauseAllocator : public RegionAllocator<uint32_t>
 {
     static int clauseWord32Size(int size, bool has_extra){
@@ -244,21 +256,7 @@ class ClauseAllocator : public RegionAllocator<uint32_t>
         RegionAllocator<uint32_t>::free(clauseWord32Size(c.size(), c.has_extra()));
     }
 
-    void reloc(CRef& cr, ClauseAllocator& to)
-    {
-        Clause& c = operator[](cr);
-        
-        if (c.reloced()) { cr = c.relocation(); return; }
-        
-        cr = to.alloc(c, c.learnt());
-        c.relocate(cr);
-        
-        // Copy extra data-fields: 
-        // (This could be cleaned-up. Generalize Clause-constructor to be applicable here instead?)
-        to[cr].mark(c.mark());
-        if (to[cr].learnt())         to[cr].activity() = c.activity();
-        else if (to[cr].has_extra()) to[cr].calcAbstraction();
-    }
+  void reloc(CRef& cr, ClauseAllocator& to, CVC4::BVProofProxy* proxy = NULL);
 };
 
 
@@ -417,6 +415,7 @@ inline void Clause::strengthen(Lit p)
 
 
 //=================================================================================================
-}
+} /* CVC4::BVMinisat namespace */
+} /* CVC4 namespace */
 
 #endif

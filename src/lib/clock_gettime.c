@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file clock_gettime.c
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Replacement for clock_gettime() for systems without it (like
  ** Mac OS X)
@@ -16,17 +16,13 @@
  ** OS X).
  **/
 
-#include "cvc4_private.h"
+// #warning "TODO(taking): Make lib/clock_gettime.h cvc4_private.h again."
 
 #include "lib/clock_gettime.h"
 
 #ifdef __cplusplus
 extern "C" {
 #endif /* __cplusplus */
-
-#if !(defined(__APPLE__) || defined(__WIN32__))
-#  warning "This code assumes you're on Mac OS X or Win32, and you don't seem to be.  You'll likely have problems."
-#endif /* !(__APPLE__ || __WIN32__) */
 
 #ifdef __APPLE__
 
@@ -64,7 +60,8 @@ long clock_gettime(clockid_t which_clock, struct timespec* tp) {
   return 0;
 }
 
-#else /* else we're __WIN32__ */
+#else /* not defined __APPLE__ */
+#ifdef __WIN32__
 
 #include <time.h>
 #include <windows.h>
@@ -80,7 +77,8 @@ long clock_gettime(clockid_t which_clock, struct timespec* tp) {
   return 0;
 }
 
-#endif /* __APPLE__ / __WIN32__ */
+#endif /* closing #ifdef __WIN32__ */
+#endif /* closing #else for #ifdef __APPLE__ / __WIN32__ */
 
 #ifdef __cplusplus
 }/* extern "C" */

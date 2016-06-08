@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file unconstrained_simplifier.cpp
  ** \verbatim
- ** Original author: Clark Barrett
- ** Major contributors: none
- ** Minor contributors (to current version): Kshitij Bansal, Morgan Deters, Tim King, Liana Hadarean, Peter Collingbourne, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Clark Barrett, Peter Collingbourne, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Simplifications based on unconstrained variables
  **
@@ -17,8 +17,10 @@
 
 
 #include "theory/unconstrained_simplifier.h"
+
 #include "theory/rewriter.h"
 #include "theory/logic_info.h"
+#include "smt/smt_statistics_registry.h"
 
 using namespace std;
 using namespace CVC4;
@@ -30,13 +32,13 @@ UnconstrainedSimplifier::UnconstrainedSimplifier(context::Context* context,
   : d_numUnconstrainedElim("preprocessor::number of unconstrained elims", 0),
     d_context(context), d_substitutions(context), d_logicInfo(logicInfo)
 {
-  StatisticsRegistry::registerStat(&d_numUnconstrainedElim);
+  smtStatisticsRegistry()->registerStat(&d_numUnconstrainedElim);
 }
 
 
 UnconstrainedSimplifier::~UnconstrainedSimplifier()
 {
-  StatisticsRegistry::unregisterStat(&d_numUnconstrainedElim);    
+  smtStatisticsRegistry()->unregisterStat(&d_numUnconstrainedElim);
 }
 
 
@@ -57,9 +59,9 @@ void UnconstrainedSimplifier::visitAll(TNode assertion)
   while (!toVisit.empty())
   {
     // The current node we are processing
-    unc_preprocess_stack_element& stackHead = toVisit.back();
+    TNode current = toVisit.back().node;
+    TNode parent = toVisit.back().parent;
     toVisit.pop_back();
-    TNode current = stackHead.node;
 
     TNodeCountMap::iterator find = d_visited.find(current);
     if (find != d_visited.end()) {
@@ -74,7 +76,7 @@ void UnconstrainedSimplifier::visitAll(TNode assertion)
     }
 
     d_visited[current] = 1;
-    d_visitedOnce[current] = stackHead.parent;
+    d_visitedOnce[current] = parent;
 
     if (current.getNumChildren() == 0) {
       if (current.isVar()) {

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file result.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Encapsulation of the result of a query.
  **
@@ -22,7 +22,8 @@
 #include <iostream>
 #include <string>
 
-#include "util/exception.h"
+#include "base/exception.h"
+#include "options/language.h"
 
 namespace CVC4 {
 
@@ -74,49 +75,20 @@ private:
   std::string d_inputName;
 
 public:
-  Result() :
-    d_sat(SAT_UNKNOWN),
-    d_validity(VALIDITY_UNKNOWN),
-    d_which(TYPE_NONE),
-    d_unknownExplanation(UNKNOWN_REASON),
-    d_inputName("") {
-  }
-  Result(enum Sat s, std::string inputName = "") :
-    d_sat(s),
-    d_validity(VALIDITY_UNKNOWN),
-    d_which(TYPE_SAT),
-    d_unknownExplanation(UNKNOWN_REASON),
-    d_inputName(inputName) {
-    CheckArgument(s != SAT_UNKNOWN,
-                  "Must provide a reason for satisfiability being unknown");
-  }
-  Result(enum Validity v, std::string inputName = "") :
-    d_sat(SAT_UNKNOWN),
-    d_validity(v),
-    d_which(TYPE_VALIDITY),
-    d_unknownExplanation(UNKNOWN_REASON),
-    d_inputName(inputName) {
-    CheckArgument(v != VALIDITY_UNKNOWN,
-                  "Must provide a reason for validity being unknown");
-  }
-  Result(enum Sat s, enum UnknownExplanation unknownExplanation, std::string inputName = "") :
-    d_sat(s),
-    d_validity(VALIDITY_UNKNOWN),
-    d_which(TYPE_SAT),
-    d_unknownExplanation(unknownExplanation),
-    d_inputName(inputName) {
-    CheckArgument(s == SAT_UNKNOWN,
-                  "improper use of unknown-result constructor");
-  }
-  Result(enum Validity v, enum UnknownExplanation unknownExplanation, std::string inputName = "") :
-    d_sat(SAT_UNKNOWN),
-    d_validity(v),
-    d_which(TYPE_VALIDITY),
-    d_unknownExplanation(unknownExplanation),
-    d_inputName(inputName) {
-    CheckArgument(v == VALIDITY_UNKNOWN,
-                  "improper use of unknown-result constructor");
-  }
+
+  Result();
+
+  Result(enum Sat s, std::string inputName = "");
+
+  Result(enum Validity v, std::string inputName = "");
+
+  Result(enum Sat s,
+         enum UnknownExplanation unknownExplanation,
+         std::string inputName = "");
+
+  Result(enum Validity v, enum UnknownExplanation unknownExplanation,
+         std::string inputName = "");
+
   Result(const std::string& s, std::string inputName = "");
 
   Result(const Result& r, std::string inputName) {
@@ -127,24 +99,24 @@ public:
   enum Sat isSat() const {
     return d_which == TYPE_SAT ? d_sat : SAT_UNKNOWN;
   }
+
   enum Validity isValid() const {
     return d_which == TYPE_VALIDITY ? d_validity : VALIDITY_UNKNOWN;
   }
+
   bool isUnknown() const {
     return isSat() == SAT_UNKNOWN && isValid() == VALIDITY_UNKNOWN;
   }
+
   Type getType() const {
     return d_which;
   }
+
   bool isNull() const {
     return d_which == TYPE_NONE;
   }
-  enum UnknownExplanation whyUnknown() const {
-    CheckArgument( isUnknown(), this,
-                   "This result is not unknown, so the reason for "
-                   "being unknown cannot be inquired of it" );
-    return d_unknownExplanation;
-  }
+
+  enum UnknownExplanation whyUnknown() const;
 
   bool operator==(const Result& r) const throw();
   inline bool operator!=(const Result& r) const throw();
@@ -155,6 +127,32 @@ public:
 
   std::string getInputName() const { return d_inputName; }
 
+  /**
+   * Write a Result out to a stream in this language.
+   */
+  void toStream(std::ostream& out, OutputLanguage language) const throw();
+
+  /**
+   * This is mostly the same the default
+   * If getType() == Result::TYPE_SAT && isSat() == Result::SAT_UNKNOWN,
+   *
+   */
+  void toStreamSmt2(std::ostream& out) const throw();
+
+  /**
+   * Write a Result out to a stream in the Tptp format
+   */
+  void toStreamTptp(std::ostream& out) const throw();
+
+  /**
+   * Write a Result out to a stream.
+   *
+   * The default implementation writes a reasonable string in lowercase
+   * for sat, unsat, valid, invalid, or unknown results.  This behavior
+   * is overridable by each Printer, since sometimes an output language
+   * has a particular preference for how results should appear.
+   */
+  void toStreamDefault(std::ostream& out) const throw();
 };/* class Result */
 
 inline bool Result::operator!=(const Result& r) const throw() {

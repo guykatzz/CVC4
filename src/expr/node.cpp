@@ -1,25 +1,27 @@
 /*********************                                                        */
 /*! \file node.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Tim King
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Reference-counted encapsulation of a pointer to node information.
  **
  ** Reference-counted encapsulation of a pointer to node information.
  **/
-
 #include "expr/node.h"
-#include "expr/attribute.h"
-#include "util/output.h"
 
 #include <iostream>
 #include <cstring>
+
+#include "base/exception.h"
+#include "base/output.h"
+#include "expr/attribute.h"
+
 
 using namespace std;
 
@@ -30,8 +32,10 @@ TypeCheckingExceptionPrivate::TypeCheckingExceptionPrivate(TNode node,
   Exception(message),
   d_node(new Node(node)) {
 #ifdef CVC4_DEBUG
-  // yes, this leaks memory, but only in debug modes with exceptions occurring
-  s_debugLastException = strdup(toString().c_str());
+  LastExceptionBuffer* current = LastExceptionBuffer::getCurrent();
+  if(current != NULL){
+    current->setContents(toString().c_str());
+  }
 #endif /* CVC4_DEBUG */
 }
 

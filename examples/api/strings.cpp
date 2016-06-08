@@ -1,13 +1,13 @@
 /*********************                                                        */
-/*! \file sets.cpp
+/*! \file strings.cpp
  ** \verbatim
- ** Original author: Tianyi Liang
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Clark Barrett, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Reasoning about strings with CVC4 via C++ API.
  **
@@ -18,6 +18,7 @@
 
 //#include <cvc4/cvc4.h> // use this after CVC4 is properly installed
 #include "smt/smt_engine.h"
+#include "options/set_language.h"
 
 using namespace CVC4;
 
@@ -35,8 +36,8 @@ int main() {
   smt.setOption("strings-exp", true);
 
   // Set output language to SMTLIB2
-  std::cout << Expr::setlanguage(language::output::LANG_SMTLIB_V2);
-  
+  std::cout << language::SetLanguage(language::output::LANG_SMTLIB_V2);
+
   // String type
   Type string = em.stringType();
 

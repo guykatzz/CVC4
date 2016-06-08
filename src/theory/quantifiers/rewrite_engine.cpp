@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file rewrite_engine.cpp
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Rewrite engine module
  **
@@ -15,13 +15,14 @@
  **/
 
 #include "theory/quantifiers/rewrite_engine.h"
-#include "theory/quantifiers/quant_util.h"
+
+#include "options/quantifiers_options.h"
 #include "theory/quantifiers/first_order_model.h"
-#include "theory/quantifiers/model_engine.h"
-#include "theory/quantifiers/options.h"
 #include "theory/quantifiers/inst_match_generator.h"
-#include "theory/theory_engine.h"
+#include "theory/quantifiers/model_engine.h"
+#include "theory/quantifiers/quant_util.h"
 #include "theory/quantifiers/term_database.h"
+#include "theory/theory_engine.h"
 
 using namespace CVC4;
 using namespace std;
@@ -38,7 +39,6 @@ struct PrioritySort {
 
 
 RewriteEngine::RewriteEngine( context::Context* c, QuantifiersEngine* qe ) : QuantifiersModule(qe) {
-  d_true = NodeManager::currentNM()->mkConst( true );
   d_needsSort = false;
 }
 
@@ -68,7 +68,7 @@ bool RewriteEngine::needsCheck( Theory::Effort e ){
 
 void RewriteEngine::check( Theory::Effort e, unsigned quant_e ) {
   if( quant_e==QuantifiersEngine::QEFFORT_STANDARD ){
-  //if( e==Theory::EFFORT_FULL ){  
+    Assert( !d_quantEngine->inConflict() );
     Trace("rewrite-engine") << "---Rewrite Engine Round, effort = " << e << "---" << std::endl;
     //if( e==Theory::EFFORT_LAST_CALL ){
     //  if( !d_quantEngine->getModel()->isModelSet() ){
@@ -95,7 +95,7 @@ void RewriteEngine::check( Theory::Effort e, unsigned quant_e ) {
     //per priority level
     int index = 0;
     bool success = true;
-    while( success && index<(int)d_priority_order.size() ) {
+    while( !d_quantEngine->inConflict() && success && index<(int)d_priority_order.size() ) {
       addedLemmas += checkRewriteRule( d_priority_order[index], e );
       index++;
       if( index<(int)d_priority_order.size() ){
@@ -104,11 +104,6 @@ void RewriteEngine::check( Theory::Effort e, unsigned quant_e ) {
     }
 
     Trace("rewrite-engine") << "Finished rewrite engine, added " << addedLemmas << " lemmas." << std::endl;
-    if (addedLemmas==0) {
-
-    }else{
-      //otherwise, the search will continue
-    }
   }
 }
 
@@ -124,12 +119,13 @@ int RewriteEngine::checkRewriteRule( Node f, Theory::Effort e ) {
     std::map< Node, QuantInfo >::iterator it = d_qinfo.find( f );
     if( it!=d_qinfo.end() ){
       QuantInfo * qi = &it->second;
-      if( qi->d_mg->isValid() ){
+      if( qi->matchGeneratorIsValid() ){
         Node rr = TermDb::getRewriteRule( f );
         Trace("rewrite-engine-inst-debug") << "   Reset round..." << std::endl;
         qi->reset_round( qcf );
         Trace("rewrite-engine-inst-debug") << "   Get matches..." << std::endl;
-        while( qi->d_mg->getNextMatch( qcf, qi ) && ( addedLemmas==0 || !options::rrOneInstPerRound() ) ){
+        while( !d_quantEngine->inConflict() && qi->getNextMatch( qcf ) &&
+               ( addedLemmas==0 || !options::rrOneInstPerRound() ) ){
           Trace("rewrite-engine-inst-debug") << "   Got match to complete..." << std::endl;
           qi->debugPrintMatch( "rewrite-engine-inst-debug" );
           std::vector< int > assigned;
@@ -137,7 +133,7 @@ int RewriteEngine::checkRewriteRule( Node f, Theory::Effort e ) {
             bool doContinue = false;
             bool success = true;
             int tempAddedLemmas = 0;
-            while( tempAddedLemmas==0 && success && ( addedLemmas==0 || !options::rrOneInstPerRound() ) ){
+            while( !d_quantEngine->inConflict() && tempAddedLemmas==0 && success && ( addedLemmas==0 || !options::rrOneInstPerRound() ) ){
               success = qi->completeMatch( qcf, assigned, doContinue );
               doContinue = true;
               if( success ){
@@ -158,7 +154,7 @@ int RewriteEngine::checkRewriteRule( Node f, Theory::Effort e ) {
                 if( inst.size()>f[0].getNumChildren() ){
                   inst.resize( f[0].getNumChildren() );
                 }
-                if( d_quantEngine->addInstantiation( f, inst, false ) ){
+                if( d_quantEngine->addInstantiation( f, inst ) ){
                   addedLemmas++;
                   tempAddedLemmas++;
                   /*
@@ -179,7 +175,7 @@ int RewriteEngine::checkRewriteRule( Node f, Theory::Effort e ) {
                   for( unsigned j=0; j<to_remove.size(); j++ ){
                     Node ns = d_quantEngine->getSubstitute( to_remove[j], inst );
                     Trace("rewrite-engine-inst-debug") << "Will remove : " << ns << std::endl;
-                    ns.setAttribute(NoMatchAttribute(),true);
+                    d_quantEngine->getTermDatabase()->setTermInactive( ns );
                   }
                   */
                 }else{
@@ -277,7 +273,7 @@ void RewriteEngine::registerQuantifier( Node f ) {
             body_c.push_back( d_rr[f][1][j].negate() );
           }
         }
-      }else if( d_rr[f][1]!=d_true ){
+      }else if( d_rr[f][1]!=d_quantEngine->getTermDatabase()->d_true ){
         if( MatchGen::isHandled( d_rr[f][1] ) ){
           body_c.push_back( d_rr[f][1].negate() );
         }
@@ -289,7 +285,7 @@ void RewriteEngine::registerQuantifier( Node f ) {
       //make the quantified formula
       d_qinfo_n[f] = NodeManager::currentNM()->mkNode( FORALL, qcfn_c );
       Trace("rr-register") << "  qcf formula is : " << d_qinfo_n[f] << std::endl;
-      d_qinfo[f].initialize( d_qinfo_n[f], d_qinfo_n[f][1] );
+      d_qinfo[f].initialize( qcf, d_qinfo_n[f], d_qinfo_n[f][1] );
     }
   }
 }

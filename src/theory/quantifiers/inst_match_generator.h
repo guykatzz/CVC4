@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file inst_match_generator.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Andrew Reynolds, Clark Barrett
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief inst match generator class
  **/
@@ -39,11 +39,11 @@ public:
   /** reset, eqc is the equivalence class to search in (any if eqc=null) */
   virtual void reset( Node eqc, QuantifiersEngine* qe ) = 0;
   /** get the next match.  must call reset( eqc ) before this function. */
-  virtual bool getNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe ) = 0;
+  virtual bool getNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe ) = 0;
   /** add instantiations directly */
-  virtual int addInstantiations( Node f, InstMatch& baseMatch, QuantifiersEngine* qe ) = 0;
+  virtual int addInstantiations( Node q, InstMatch& baseMatch, QuantifiersEngine* qe ) = 0;
   /** add ground term t, called when t is added to term db */
-  virtual int addTerm( Node f, Node t, QuantifiersEngine* qe ) { return 0; }
+  virtual int addTerm( Node q, Node t, QuantifiersEngine* qe ) { return 0; }
   /** set active add */
   virtual void setActiveAdd( bool val ) {}
 };/* class IMGenerator */
@@ -64,7 +64,7 @@ protected:
   InstMatchGenerator* d_next;
   /** eq class */
   Node d_eq_class;
-  bool d_eq_class_rel;
+  Node d_eq_class_rel;
   /** variable numbers */
   std::map< int, int > d_var_num;
   /** initialize pattern */
@@ -72,7 +72,7 @@ protected:
   /** children types 0 : variable, 1 : child term, -1 : ground term */
   std::vector< int > d_children_types;
   /** continue */
-  bool continueNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe );
+  bool continueNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe );
 public:
   enum {
     //options for producing matches
@@ -85,13 +85,13 @@ public:
       d_match_pattern and t should have the same shape.
       only valid for use where !d_match_pattern.isNull().
   */
-  bool getMatch( Node f, Node t, InstMatch& m, QuantifiersEngine* qe );
+  bool getMatch( Node q, Node t, InstMatch& m, QuantifiersEngine* qe );
 
   /** constructors */
   InstMatchGenerator( Node pat );
   InstMatchGenerator();
   /** destructor */
-  ~InstMatchGenerator() throw() {}
+  virtual ~InstMatchGenerator() throw();
   /** The pattern we are producing matches for.
       If null, this is a multi trigger that is merging matches from d_children.
   */
@@ -108,11 +108,11 @@ public:
   /** reset, eqc is the equivalence class to search in (any if eqc=null) */
   void reset( Node eqc, QuantifiersEngine* qe );
   /** get the next match.  must call reset( eqc ) before this function. */
-  bool getNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe );
+  bool getNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe );
   /** add instantiations */
-  int addInstantiations( Node f, InstMatch& baseMatch, QuantifiersEngine* qe );
+  int addInstantiations( Node q, InstMatch& baseMatch, QuantifiersEngine* qe );
   /** add ground term t */
-  int addTerm( Node f, Node t, QuantifiersEngine* qe );
+  int addTerm( Node q, Node t, QuantifiersEngine* qe );
 
   bool d_active_add;
   void setActiveAdd( bool val );
@@ -125,7 +125,7 @@ public:
 class VarMatchGeneratorBooleanTerm : public InstMatchGenerator {
 public:
   VarMatchGeneratorBooleanTerm( Node var, Node comp );
-  ~VarMatchGeneratorBooleanTerm() throw() {}
+  virtual ~VarMatchGeneratorBooleanTerm() throw() {}
   Node d_comp;
   bool d_rm_prev;
   /** reset instantiation round (call this at beginning of instantiation round) */
@@ -133,17 +133,18 @@ public:
   /** reset, eqc is the equivalence class to search in (any if eqc=null) */
   void reset( Node eqc, QuantifiersEngine* qe ){ d_eq_class = eqc; }
   /** get the next match.  must call reset( eqc ) before this function. */
-  bool getNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe );
+  bool getNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe );
   /** add instantiations directly */
-  int addInstantiations( Node f, InstMatch& baseMatch, QuantifiersEngine* qe ){ return 0; }
+  int addInstantiations( Node q, InstMatch& baseMatch, QuantifiersEngine* qe ){ return 0; }
 };
 
 //match generator for purified terms (matched term is substituted into d_subs)
 class VarMatchGeneratorTermSubs : public InstMatchGenerator {
 public:
   VarMatchGeneratorTermSubs( Node var, Node subs );
-  ~VarMatchGeneratorTermSubs() throw() {}
+  virtual ~VarMatchGeneratorTermSubs() throw() {}
   TNode d_var;
+  TypeNode d_var_type;
   Node d_subs;
   bool d_rm_prev;
   /** reset instantiation round (call this at beginning of instantiation round) */
@@ -151,9 +152,9 @@ public:
   /** reset, eqc is the equivalence class to search in (any if eqc=null) */
   void reset( Node eqc, QuantifiersEngine* qe ){ d_eq_class = eqc; }
   /** get the next match.  must call reset( eqc ) before this function. */
-  bool getNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe );
+  bool getNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe );
   /** add instantiations directly */
-  int addInstantiations( Node f, InstMatch& baseMatch, QuantifiersEngine* qe ) { return 0; }
+  int addInstantiations( Node q, InstMatch& baseMatch, QuantifiersEngine* qe ) { return 0; }
 };
 
 /** smart multi-trigger implementation */
@@ -182,25 +183,27 @@ private:
   int d_matchPolicy;
   /** children generators */
   std::vector< InstMatchGenerator* > d_children;
+  /** order */
+  std::map< unsigned, InstMatchTrie::ImtIndexOrder* > d_imtio;
   /** inst match tries for each child */
   std::vector< InstMatchTrieOrdered > d_children_trie;
   /** calculate matches */
   void calculateMatches( QuantifiersEngine* qe );
 public:
   /** constructors */
-  InstMatchGeneratorMulti( Node f, std::vector< Node >& pats, QuantifiersEngine* qe );
+  InstMatchGeneratorMulti( Node q, std::vector< Node >& pats, QuantifiersEngine* qe );
   /** destructor */
-  ~InstMatchGeneratorMulti() throw() {}
+  virtual ~InstMatchGeneratorMulti() throw();
   /** reset instantiation round (call this whenever equivalence classes have changed) */
   void resetInstantiationRound( QuantifiersEngine* qe );
   /** reset, eqc is the equivalence class to search in (any if eqc=null) */
   void reset( Node eqc, QuantifiersEngine* qe );
   /** get the next match.  must call reset( eqc ) before this function. (not implemented) */
-  bool getNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe ) { return false; }
+  bool getNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe ) { return false; }
   /** add instantiations */
-  int addInstantiations( Node f, InstMatch& baseMatch, QuantifiersEngine* qe );
+  int addInstantiations( Node q, InstMatch& baseMatch, QuantifiersEngine* qe );
   /** add ground term t */
-  int addTerm( Node f, Node t, QuantifiersEngine* qe );
+  int addTerm( Node q, Node t, QuantifiersEngine* qe );
 };/* class InstMatchGeneratorMulti */
 
 /** smart (single)-trigger implementation */
@@ -210,6 +213,9 @@ private:
   Node d_f;
   /** match term */
   Node d_match_pattern;
+  /** equivalence class */
+  bool d_pol;
+  Node d_eqc;
   /** match pattern arg types */
   std::vector< TypeNode > d_match_pattern_arg_types;
   /** operator */
@@ -220,7 +226,7 @@ private:
   void addInstantiations( InstMatch& m, QuantifiersEngine* qe, int& addedLemmas, int argIndex, quantifiers::TermArgTrie* tat );
 public:
   /** constructors */
-  InstMatchGeneratorSimple( Node f, Node pat );
+  InstMatchGeneratorSimple( Node q, Node pat, QuantifiersEngine* qe );
   /** destructor */
   ~InstMatchGeneratorSimple() throw() {}
   /** reset instantiation round (call this whenever equivalence classes have changed) */
@@ -228,11 +234,11 @@ public:
   /** reset, eqc is the equivalence class to search in (any if eqc=null) */
   void reset( Node eqc, QuantifiersEngine* qe ) {}
   /** get the next match.  must call reset( eqc ) before this function. (not implemented) */
-  bool getNextMatch( Node f, InstMatch& m, QuantifiersEngine* qe ) { return false; }
+  bool getNextMatch( Node q, InstMatch& m, QuantifiersEngine* qe ) { return false; }
   /** add instantiations */
-  int addInstantiations( Node f, InstMatch& baseMatch, QuantifiersEngine* qe );
+  int addInstantiations( Node q, InstMatch& baseMatch, QuantifiersEngine* qe );
   /** add ground term t, possibly add instantiations */
-  int addTerm( Node f, Node t, QuantifiersEngine* qe );
+  int addTerm( Node q, Node t, QuantifiersEngine* qe );
 };/* class InstMatchGeneratorSimple */
 
 }

@@ -1,42 +1,41 @@
 /*********************                                                        */
 /*! \file main.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway
- ** Minor contributors (to current version): Clark Barrett, Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Christopher L. Conway
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Main driver for CVC4 executable
  **
  ** Main driver for CVC4 executable.
  **/
+#include "main/main.h"
 
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <iostream>
-
 #include <stdio.h>
 #include <unistd.h>
 
-#include "main/main.h"
-#include "main/interactive_shell.h"
+#include "base/configuration.h"
+#include "base/output.h"
+#include "expr/expr_manager.h"
 #include "main/command_executor.h"
+#include "main/interactive_shell.h"
+#include "options/language.h"
+#include "options/options.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
 #include "parser/parser_exception.h"
-#include "expr/expr_manager.h"
+#include "smt/command.h"
 #include "smt/smt_engine.h"
-#include "expr/command.h"
-#include "util/configuration.h"
-#include "main/options.h"
-#include "util/output.h"
 #include "util/result.h"
 #include "util/statistics.h"
-#include "util/language.h"
 
 using namespace std;
 using namespace CVC4;
@@ -56,24 +55,24 @@ int main(int argc, char* argv[]) {
     return runCvc4(argc, argv, opts);
   } catch(OptionException& e) {
 #ifdef CVC4_COMPETITION_MODE
-    *opts[options::out] << "unknown" << endl;
+    *opts.getOut() << "unknown" << endl;
 #endif
     cerr << "CVC4 Error:" << endl << e << endl << endl
          << "Please use --help to get help on command-line options."
          << endl;
   } catch(Exception& e) {
 #ifdef CVC4_COMPETITION_MODE
-    *opts[options::out] << "unknown" << endl;
+    *opts.getOut() << "unknown" << endl;
 #endif
-    if(opts[options::outputLanguage] == output::LANG_SMTLIB_V2_0 ||
-       opts[options::outputLanguage] == output::LANG_SMTLIB_V2_5) {
-      *opts[options::err] << "(error \"" << e << "\")" << endl;
+    if(opts.getOutputLanguage() == output::LANG_SMTLIB_V2_0 ||
+       opts.getOutputLanguage() == output::LANG_SMTLIB_V2_5) {
+      *opts.getOut() << "(error \"" << e << "\")" << endl;
     } else {
-      *opts[options::err] << "CVC4 Error:" << endl << e << endl;
+      *opts.getErr() << "CVC4 Error:" << endl << e << endl;
     }
-    if(opts[options::statistics] && pExecutor != NULL) {
+    if(opts.getStatistics() && pExecutor != NULL) {
       pTotalTime->stop();
-      pExecutor->flushStatistics(*opts[options::err]);
+      pExecutor->flushStatistics(*opts.getErr());
     }
   }
   exit(1);

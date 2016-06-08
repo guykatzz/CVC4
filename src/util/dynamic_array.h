@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file dynamic_array.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -20,7 +20,7 @@
 #ifndef __CVC4__UTIL__DYNAMIC_ARRAY_H
 #define __CVC4__UTIL__DYNAMIC_ARRAY_H
 
-#include "util/cvc4_assert.h"
+#include "base/cvc4_assert.h"
 
 namespace CVC4 {
 

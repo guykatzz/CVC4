@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file conjecture_generator.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Clark Barrett, Tim King, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief conjecture generator class
  **/
@@ -39,7 +39,7 @@ public:
   std::map< TNode, OpArgIndex > d_child;
   std::vector< TNode > d_ops;
   std::vector< TNode > d_op_terms;
-  void addTerm( ConjectureGenerator * s, TNode n, unsigned index = 0 );
+  void addTerm( std::vector< TNode >& terms, TNode n, unsigned index = 0 );
   Node getGroundTerm( ConjectureGenerator * s, std::vector< TNode >& args );
   void getGroundTerms( ConjectureGenerator * s, std::vector< TNode >& terms );
 };
@@ -171,6 +171,7 @@ public:
   bool considerCurrentTermCanon( unsigned tg_id );
   void changeContext( bool add );
   bool isRelevantFunc( Node f );
+  bool isRelevantTerm( Node t );
   //carry
   TermDb * getTermDatabase();
   Node getGroundEqc( TNode r );
@@ -307,14 +308,8 @@ private:  //information regarding the conjectures
   /** conjecture index */
   TheoremIndex d_thm_index;
 private:  //free variable list
-  //free variables
-  std::map< TypeNode, std::vector< Node > > d_free_var;
-  //map from free variable to FV#
-  std::map< TNode, unsigned > d_free_var_num;
   // get canonical free variable #i of type tn
   Node getFreeVar( TypeNode tn, unsigned i );
-  // get canonical term, return null if it contains a term apart from handled signature
-  Node getCanonicalTerm( TNode n, std::map< TypeNode, unsigned >& var_count, std::map< TNode, TNode >& subs );
 private:  //information regarding the terms
   //relevant patterns (the LHS's)
   std::map< TypeNode, std::vector< Node > > d_rel_patterns;

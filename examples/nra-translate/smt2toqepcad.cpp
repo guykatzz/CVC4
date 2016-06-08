@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file smt2toqepcad.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,44 +15,42 @@
  ** \todo document this file
  **/
 
-#include <string>
-#include <iostream>
-#include <typeinfo>
 #include <cassert>
-#include <vector>
+#include <iostream>
 #include <map>
+#include <string>
+#include <typeinfo>
+#include <vector>
 
-#include "options/options.h"
 #include "expr/expr.h"
-#include "expr/command.h"
+#include "options/options.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
+#include "smt/command.h"
 
 using namespace std;
 using namespace CVC4;
 using namespace CVC4::parser;
-using namespace CVC4::options;
-
 
 void translate_to_qepcad(
         string input,
         const vector<string>& info_tags,
         const vector<string>& info_data,
-	const map<Expr, unsigned>& variables, 
+	const map<Expr, unsigned>& variables,
 	const vector<Expr>& assertions);
 
-int main(int argc, char* argv[]) 
+int main(int argc, char* argv[])
 {
   std::map<Expr, unsigned> vars2id;
 
-  // Get the filename 
+  // Get the filename
   string input(argv[1]);
 
   // Create the expression manager
   Options options;
-  options.set(inputLanguage, language::input::LANG_SMTLIB_V2);
+  options.setInputLanguage(language::input::LANG_SMTLIB_V2);
   ExprManager exprManager(options);
-  
+
   // Create the parser
   ParserBuilder parserBuilder(&exprManager, input, options);
   Parser* parser = parserBuilder.build();
@@ -74,7 +72,8 @@ int main(int argc, char* argv[])
       continue;
     }
 
-    DeclareFunctionCommand* declare = dynamic_cast<DeclareFunctionCommand*>(cmd);
+    DeclareFunctionCommand* declare =
+        dynamic_cast<DeclareFunctionCommand*>(cmd);
     if (declare) {
       string name = declare->getSymbol();
       Expr var = parser->getVariable(name);
@@ -83,7 +82,7 @@ int main(int argc, char* argv[])
       delete cmd;
       continue;
     }
-    
+
     AssertCommand* assert = dynamic_cast<AssertCommand*>(cmd);
     if (assert) {
       assertions.push_back(assert->getExpr());
@@ -91,30 +90,32 @@ int main(int argc, char* argv[])
       continue;
     }
 
-    delete cmd;  
+    delete cmd;
   }
 
   // Do the translation
   translate_to_qepcad(input, info_tags, info_data, variables, assertions);
-		
+
   // Get rid of the parser
   delete parser;
 }
 
-void translate_to_qepcad_term(const std::map<Expr, unsigned>& variables, const Expr& term) {
+void translate_to_qepcad_term(const std::map<Expr, unsigned>& variables,
+                              const Expr& term)
+{
   bool first;
 
   unsigned n = term.getNumChildren();
-  
+
   if (n == 0) {
     if (term.getKind() == kind::CONST_RATIONAL) {
       cout << term.getConst<Rational>();
-    } else {      
+    } else {
       assert(variables.find(term) != variables.end());
       cout << "x" << variables.find(term)->second;
     }
   } else {
-        
+
     switch (term.getKind()) {
       case kind::PLUS:
         cout << "(";
@@ -139,12 +140,12 @@ void translate_to_qepcad_term(const std::map<Expr, unsigned>& variables, const E
           translate_to_qepcad_term(variables, term[i]);
         }
         cout << ")";
-        break;      
+        break;
       case kind::MINUS:
         cout << "(";
         translate_to_qepcad_term(variables, term[0]);
         cout << " - ";
-        translate_to_qepcad_term(variables, term[1]);        
+        translate_to_qepcad_term(variables, term[1]);
         cout << ")";
         break;
       case kind::UMINUS:
@@ -166,25 +167,27 @@ void translate_to_qepcad_term(const std::map<Expr, unsigned>& variables, const E
         assert(false);
         break;
     }
-  }  
+  }
 }
 
-void translate_to_qepcad(const std::map<Expr, unsigned>& variables, const Expr& assertion) {
+void translate_to_qepcad(const std::map<Expr, unsigned>& variables,
+                         const Expr& assertion)
+{
   bool first;
-  
+
   unsigned n = assertion.getNumChildren();
-  
+
   if (n == 0) {
     assert(false);
   } else {
-    
+
     std::string op;
     bool theory = false;
     bool binary = false;
-    
+
     switch (assertion.getKind()) {
-      case kind::NOT: 
-        cout << "[~";  
+      case kind::NOT:
+        cout << "[~";
         translate_to_qepcad(variables, assertion[0]);
         cout << "]";
         break;
@@ -211,7 +214,7 @@ void translate_to_qepcad(const std::map<Expr, unsigned>& variables, const Expr& 
           translate_to_qepcad(variables, assertion[i]);
         }
         cout << "]";
-        break;      
+        break;
       case kind::IMPLIES:
         op = "==>";
         binary =  true;
@@ -219,7 +222,7 @@ void translate_to_qepcad(const std::map<Expr, unsigned>& variables, const Expr& 
       case kind::IFF:
         op = "<==>";
         binary =  true;
-        break;            
+        break;
       case kind::EQUAL:
         op = "=";
         theory =  true;
@@ -251,7 +254,7 @@ void translate_to_qepcad(const std::map<Expr, unsigned>& variables, const Expr& 
       cout << " " << op << " ";
       translate_to_qepcad_term(variables, assertion[1]);
       cout << "]";
-    }      
+    }
 
     if (binary) {
       cout << "[";
@@ -259,15 +262,15 @@ void translate_to_qepcad(const std::map<Expr, unsigned>& variables, const Expr& 
       cout << " " << op << " ";
       translate_to_qepcad(variables, assertion[1]);
       cout << "]";
-    }      
-  }  
+    }
+  }
 }
 
 void translate_to_qepcad(
         string input,
         const vector<string>& info_tags,
         const vector<string>& info_data,
-	const std::map<Expr, unsigned>& variables, 
+	const std::map<Expr, unsigned>& variables,
 	const vector<Expr>& assertions)
 {
   bool first;
@@ -276,22 +279,22 @@ void translate_to_qepcad(
   cout << "[ translated from " << input << " ";
 
   bool dump_tags = false;
-  if (dump_tags) {  
-    first = true;  
+  if (dump_tags) {
+    first = true;
     for (unsigned i = 0; i < info_tags.size(); ++ i) {
       if (!first) {
-        cout << ", "; 
+        cout << ", ";
       }
       first = false;
       cout << info_tags[i] << " = " << info_data[i];
     }
   }
-  
-  cout << "]" << endl;   
+
+  cout << "]" << endl;
 
   // Declare the variables
   cout << "(";
-  
+
   first = true;
   for (unsigned i = 0; i < variables.size(); ++ i) {
     if (!first) {
@@ -300,17 +303,17 @@ void translate_to_qepcad(
     first = false;
     cout << "x" << i;;
   }
-  
+
   cout << ")" << endl;
 
-  // Number of free variables 
+  // Number of free variables
   cout << "0" << endl;
 
-  // The quantifiers first 
+  // The quantifiers first
   for (unsigned i = 0; i < variables.size(); ++ i) {
     cout << "(Ex" << i << ")";
   }
-  
+
   // Now the formula
   cout << "[";
   if (assertions.size() > 1) {
@@ -318,35 +321,34 @@ void translate_to_qepcad(
     for (unsigned i = 0; i < assertions.size(); ++ i) {
       if (!first) {
         cout << " /\\ ";
-      } 
+      }
       first = false;
       translate_to_qepcad(variables, assertions[i]);
     }
   } else {
     translate_to_qepcad(variables, assertions[0]);
   }
-  cout << "]." << endl;  
+  cout << "]." << endl;
 
   // Before normalization
   cout << "go" << endl;
-  
+
   // Before projection
   if (variables.size() > 3) {
     cout << "proj-op (m,m";
     for (unsigned i = 3; i < variables.size(); ++ i) {
       cout << ",h";
-    } 
+    }
     cout << ")" << endl;
   }
   cout << "go" << endl;
-  
+
   // Before choice
   cout << "d-stat" << endl;
-  
+
   // Before solution
-  cout << "go" << endl;  
+  cout << "go" << endl;
 
   // Finish up
   cout << "finish" << endl;
 }
-

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_uf_type_rules.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Christopher L. Conway, Andrew Reynolds, Morgan Deters
- ** Minor contributors (to current version): Tim King
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add brief comments here ]]
  **
@@ -71,6 +71,10 @@ public:
       if( n[1].getKind()!=kind::CONST_RATIONAL ){
         throw TypeCheckingExceptionPrivate(n, "cardinality constraint must be a constant");
       }
+      CVC4::Rational r(INT_MAX);
+      if( n[1].getConst<Rational>()>r ){
+        throw TypeCheckingExceptionPrivate(n, "Exceeded INT_MAX in cardinality constraint");
+      }
       if( n[1].getConst<Rational>().getNumerator().sgn()!=1 ){
         throw TypeCheckingExceptionPrivate(n, "cardinality constraint must be positive");
       }
@@ -91,6 +95,10 @@ public:
       if( n[0].getKind()!=kind::CONST_RATIONAL ){
         throw TypeCheckingExceptionPrivate(n, "combined cardinality constraint must be a constant");
       }
+      CVC4::Rational r(INT_MAX);
+      if( n[0].getConst<Rational>()>r ){
+        throw TypeCheckingExceptionPrivate(n, "Exceeded INT_MAX in combined cardinality constraint");
+      }
       if( n[0].getConst<Rational>().getNumerator().sgn()==-1 ){
         throw TypeCheckingExceptionPrivate(n, "combined cardinality constraint must be non-negative");
       }
@@ -98,6 +106,25 @@ public:
     return nodeManager->booleanType();
   }
 };/* class CardinalityConstraintTypeRule */
+
+class PartialTypeRule {
+public:
+  inline static TypeNode computeType(NodeManager* nodeManager, TNode n, bool check)
+      throw (TypeCheckingExceptionPrivate, AssertionException) {
+    return n.getOperator().getType().getRangeType();
+  }
+};/* class PartialTypeRule */
+
+class CardinalityValueTypeRule {
+public:
+  inline static TypeNode computeType(NodeManager* nodeManager, TNode n, bool check)
+      throw(TypeCheckingExceptionPrivate) {
+    if( check ) {
+      n[0].getType(check);
+    }
+    return nodeManager->integerType();
+  }
+};/* class CardinalityValueTypeRule */
 
 }/* CVC4::theory::uf namespace */
 }/* CVC4::theory namespace */

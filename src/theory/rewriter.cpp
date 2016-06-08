@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file rewriter.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Liana Hadarean, Clark Barrett
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Morgan Deters, Liana Hadarean
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,10 +15,12 @@
  ** \todo document this file
  **/
 
-#include "theory/theory.h"
 #include "theory/rewriter.h"
-#include "theory/rewriter_tables.h"
+
+#include "theory/theory.h"
 #include "smt/smt_engine_scope.h"
+#include "smt/smt_statistics_registry.h"
+#include "theory/rewriter_tables.h"
 #include "util/resource_manager.h"
 
 using namespace std;
@@ -38,7 +40,9 @@ static CVC4_THREADLOCAL(std::hash_set<Node, NodeHashFunction>*) s_rewriteStack =
 
 class RewriterInitializer {
   static RewriterInitializer s_rewriterInitializer;
-  RewriterInitializer() { Rewriter::init(); }
+  RewriterInitializer() {
+    Rewriter::init();
+  }
   ~RewriterInitializer() { Rewriter::shutdown(); }
 };/* class RewriterInitializer */
 
@@ -188,7 +192,8 @@ Node Rewriter::rewriteTo(theory::TheoryId theoryId, Node node) {
 
       // Incorporate the children if necessary
       if (rewriteStackTop.node.getNumChildren() > 0) {
-        rewriteStackTop.node = rewriteStackTop.builder;
+        Node rewritten = rewriteStackTop.builder;
+        rewriteStackTop.node = rewritten;
         rewriteStackTop.theoryId = theoryOf(rewriteStackTop.node);
       }
 
@@ -206,7 +211,8 @@ Node Rewriter::rewriteTo(theory::TheoryId theoryId, Node node) {
           Assert(s_rewriteStack->find(response.node) == s_rewriteStack->end());
           s_rewriteStack->insert(response.node);
 #endif
-          rewriteStackTop.node = rewriteTo(newTheoryId, response.node);
+          Node rewritten = rewriteTo(newTheoryId, response.node);
+          rewriteStackTop.node = rewritten;
 #ifdef CVC4_ASSERTIONS
           s_rewriteStack->erase(response.node);
 #endif

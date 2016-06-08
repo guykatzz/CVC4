@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file full_model_check.h
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Full model check class
  **/
@@ -92,8 +92,9 @@ protected:
   std::map<Node, Node > d_quant_cond;
   std::map< TypeNode, Node > d_array_cond;
   std::map< Node, Node > d_array_term_cond;
-  std::map<Node, std::vector< int > > d_star_insts;
-  void initializeType( FirstOrderModelFmc * fm, TypeNode tn );
+  std::map< Node, std::vector< int > > d_star_insts;
+  std::map< TypeNode, bool > d_preinitialized_types;
+  void preInitializeType( FirstOrderModelFmc * fm, TypeNode tn );
   Node normalizeArgReps(FirstOrderModelFmc * fm, Node op, Node n);
   bool exhaustiveInstantiate(FirstOrderModelFmc * fm, Node f, Node c, int c_index);
 protected:
@@ -142,7 +143,8 @@ public:
 
   Node getFunctionValue(FirstOrderModelFmc * fm, Node op, const char* argPrefix );
 
-  /** process build model */
+  /** process build model */  
+  void preProcessBuildModel(TheoryModel* m, bool fullModel); 
   void processBuildModel(TheoryModel* m, bool fullModel);
   /** get current model value */
   Node getCurrentUfModelValue( FirstOrderModelFmc* fm, Node n, std::vector< Node > & args, bool partial );

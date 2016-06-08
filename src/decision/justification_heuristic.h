@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file justification_heuristic.h
  ** \verbatim
- ** Original author: Kshitij Bansal
- ** Major contributors: none
- ** Minor contributors (to current version): Tim King, Morgan Deters
+ ** Top contributors (to current version):
+ **   Kshitij Bansal, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Justification heuristic for decision making
  **
@@ -23,17 +23,16 @@
 #ifndef __CVC4__DECISION__JUSTIFICATION_HEURISTIC
 #define __CVC4__DECISION__JUSTIFICATION_HEURISTIC
 
-#include "decision_engine.h"
-#include "decision_strategy.h"
-
+#include "context/cdhashmap.h"
 #include "context/cdhashset.h"
 #include "context/cdlist.h"
-#include "context/cdhashmap.h"
+#include "decision/decision_attributes.h"
+#include "decision/decision_engine.h"
+#include "decision/decision_strategy.h"
 #include "expr/node.h"
 #include "prop/sat_solver_types.h"
 
 namespace CVC4 {
-
 namespace decision {
 
 class JustificationHeuristic : public ITEDecisionStrategy {

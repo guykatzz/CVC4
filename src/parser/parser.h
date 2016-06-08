@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file parser.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway
- ** Minor contributors (to current version): Dejan Jovanovic, Kshitij Bansal, Francois Bobot, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Andrew Reynolds
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A collection of state for use by parser implementations.
  **
@@ -41,6 +41,33 @@ class Command;
 class FunctionType;
 class Type;
 class ResourceManager;
+
+//for sygus gterm two-pass parsing
+class CVC4_PUBLIC SygusGTerm {
+public:
+  enum{
+    gterm_op,
+    gterm_let,
+    gterm_constant,
+    gterm_variable,
+    gterm_input_variable,
+    gterm_local_variable,
+    gterm_nested_sort,
+    gterm_unresolved,
+    gterm_ignore,
+  };
+  Type d_type;
+  Expr d_expr;
+  std::vector< Expr > d_let_vars;
+  unsigned d_gterm_type;
+  std::string d_name;
+  std::vector< SygusGTerm > d_children;
+  
+  unsigned getNumChildren() { return d_children.size(); }
+  void addChild(){
+    d_children.push_back( SygusGTerm() );
+  }
+};
 
 namespace parser {
 

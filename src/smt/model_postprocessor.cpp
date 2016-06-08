@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file model_postprocessor.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Morgan Deters, Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief
  **
@@ -15,12 +15,15 @@
  **/
 
 #include "smt/model_postprocessor.h"
-#include "smt/boolean_terms.h"
+
 #include "expr/node_manager_attributes.h"
+#include "expr/record.h"
+#include "smt/boolean_terms.h"
 
 using namespace std;
-using namespace CVC4;
-using namespace CVC4::smt;
+
+namespace CVC4 {
+namespace smt {
 
 Node ModelPostprocessor::rewriteAs(TNode n, TypeNode asType) {
   if(n.getType().isSubtypeOf(asType)) {
@@ -68,21 +71,6 @@ Node ModelPostprocessor::rewriteAs(TNode n, TypeNode asType) {
       return NodeManager::currentNM()->mkNode(kind::APPLY_CONSTRUCTOR, (tf ? asDatatype[0] : asDatatype[1]).getConstructor());
     }
   }
-  if(n.getType().isRecord() && asType.isRecord()) {
-    Debug("boolean-terms") << "+++ got a record - rewriteAs " << n << " : " << asType << endl;
-    const Record& rec CVC4_UNUSED = n.getType().getConst<Record>();
-    const Record& asRec = asType.getConst<Record>();
-    Assert(rec.getNumFields() == asRec.getNumFields());
-    Assert(n.getNumChildren() == asRec.getNumFields());
-    NodeBuilder<> b(n.getKind());
-    b << asType;
-    for(size_t i = 0; i < n.getNumChildren(); ++i) {
-      b << rewriteAs(n[i], TypeNode::fromType(asRec[i].second));
-    }
-    Node out = b;
-    Debug("boolean-terms") << "+++ returning record " << out << endl;
-    return out;
-  }
   Debug("boolean-terms") << "+++ rewriteAs " << n << " : " << asType << endl;
   if(n.getType().isArray()) {
     Assert(asType.isArray());
@@ -96,6 +84,15 @@ Node ModelPostprocessor::rewriteAs(TNode n, TypeNode asType) {
     const ArrayStoreAll& asa = n.getConst<ArrayStoreAll>();
     Node val = rewriteAs(asa.getExpr(), asType[1]);
     return NodeManager::currentNM()->mkConst(ArrayStoreAll(asType.toType(), val.toExpr()));
+  }
+  if( n.getType().isSet() ){
+    if( n.getKind()==kind::UNION ){
+      std::vector< Node > children;
+      for( unsigned i=0; i<n.getNumChildren(); i++ ){
+        children.push_back( rewriteAs( n[i], asType ) );
+      }
+      return NodeManager::currentNM()->mkNode(kind::UNION,children);
+    }
   }
   if(n.getType().isParametricDatatype() &&
      n.getType().isInstantiatedDatatype() &&
@@ -144,70 +141,8 @@ Node ModelPostprocessor::rewriteAs(TNode n, TypeNode asType) {
 void ModelPostprocessor::visit(TNode current, TNode parent) {
   Debug("tuprec") << "visiting " << current << endl;
   Assert(!alreadyVisited(current, TNode::null()));
-  if(current.getType().hasAttribute(expr::DatatypeTupleAttr())) {
-    Assert(current.getKind() == kind::APPLY_CONSTRUCTOR);
-    TypeNode expectType = current.getType().getAttribute(expr::DatatypeTupleAttr());
-    NodeBuilder<> b(kind::TUPLE);
-    TypeNode::iterator t = expectType.begin();
-    for(TNode::iterator i = current.begin(); i != current.end(); ++i, ++t) {
-      Assert(alreadyVisited(*i, TNode::null()));
-      Assert(t != expectType.end());
-      TNode n = d_nodes[*i];
-      n = n.isNull() ? *i : n;
-      if(!n.getType().isSubtypeOf(*t)) {
-        Assert(n.getType().isBitVector(1u) ||
-               (n.getType().isDatatype() && n.getType().hasAttribute(BooleanTermAttr())));
-        Assert(n.isConst());
-        Assert((*t).isBoolean());
-        if(n.getType().isBitVector(1u)) {
-          b << NodeManager::currentNM()->mkConst(bool(n.getConst<BitVector>().getValue() == 1));
-        } else {
-          // we assume (by construction) false is first; see boolean_terms.cpp
-          b << NodeManager::currentNM()->mkConst(bool(Datatype::indexOf(n.getOperator().toExpr()) == 1));
-        }
-      } else {
-        b << n;
-      }
-    }
-    Assert(t == expectType.end());
-    d_nodes[current] = b;
-    Debug("tuprec") << "returning " << d_nodes[current] << endl;
-    // The assert below is too strong---we might be returning a model value but
-    // expect a type that still uses datatypes for tuples/records.  If it's
-    // really not the right type we should catch it in SmtEngine anyway.
-    // Assert(d_nodes[current].getType() == expectType);
-  } else if(current.getType().hasAttribute(expr::DatatypeRecordAttr())) {
-    Assert(current.getKind() == kind::APPLY_CONSTRUCTOR);
-    TypeNode expectType = current.getType().getAttribute(expr::DatatypeRecordAttr());
-    const Record& expectRec = expectType.getConst<Record>();
-    NodeBuilder<> b(kind::RECORD);
-    b << current.getType().getAttribute(expr::DatatypeRecordAttr());
-    Record::const_iterator t = expectRec.begin();
-    for(TNode::iterator i = current.begin(); i != current.end(); ++i, ++t) {
-      Assert(alreadyVisited(*i, TNode::null()));
-      Assert(t != expectRec.end());
-      TNode n = d_nodes[*i];
-      n = n.isNull() ? *i : n;
-      if(!n.getType().isSubtypeOf(TypeNode::fromType((*t).second))) {
-        Assert(n.getType().isBitVector(1u) ||
-               (n.getType().isDatatype() && n.getType().hasAttribute(BooleanTermAttr())));
-        Assert(n.isConst());
-        Assert((*t).second.isBoolean());
-        if(n.getType().isBitVector(1u)) {
-          b << NodeManager::currentNM()->mkConst(bool(n.getConst<BitVector>().getValue() == 1));
-        } else {
-          // we assume (by construction) false is first; see boolean_terms.cpp
-          b << NodeManager::currentNM()->mkConst(bool(Datatype::indexOf(n.getOperator().toExpr()) == 1));
-        }
-      } else {
-        b << n;
-      }
-    }
-    Assert(t == expectRec.end());
-    d_nodes[current] = b;
-    Debug("tuprec") << "returning " << d_nodes[current] << endl;
-    Assert(d_nodes[current].getType() == expectType);
-  } else if(current.getKind() == kind::APPLY_CONSTRUCTOR &&
+  bool rewriteChildren = false;
+  if(current.getKind() == kind::APPLY_CONSTRUCTOR &&
             ( current.getOperator().hasAttribute(BooleanTermAttr()) ||
               ( current.getOperator().getKind() == kind::APPLY_TYPE_ASCRIPTION &&
                 current.getOperator()[0].hasAttribute(BooleanTermAttr()) ) )) {
@@ -244,7 +179,13 @@ void ModelPostprocessor::visit(TNode current, TNode parent) {
     Debug("boolean-terms") << "model-post: " << current << endl
                            << "- returning " << n << endl;
     d_nodes[current] = n;
-  } else if(current.getKind() == kind::LAMBDA) {
+    return;
+  //all kinds with children that can occur in nodes in a model go here
+  } else if(current.getKind() == kind::LAMBDA || current.getKind() == kind::SINGLETON || current.getKind() == kind::UNION || 
+            current.getKind()==kind::STORE || current.getKind()==kind::STORE_ALL || current.getKind()==kind::APPLY_CONSTRUCTOR ) {
+    rewriteChildren = true;
+  }
+  if( rewriteChildren ){
     // rewrite based on children
     bool self = true;
     for(size_t i = 0; i < current.getNumChildren(); ++i) {
@@ -279,7 +220,7 @@ void ModelPostprocessor::visit(TNode current, TNode parent) {
         nb << rw;
       }
       d_nodes[current] = nb;
-      Debug("tuprec") << "rewrote children for kind " << current.getKind() << " got " << d_nodes[current] << endl;
+      Debug("tuprec") << "rewrote children for kind " << current.getKind() << " got " << d_nodes[current] << ", operator = " << d_nodes[current].getOperator() << endl;
     }
   } else {
     Debug("tuprec") << "returning self for kind " << current.getKind() << endl;
@@ -287,3 +228,6 @@ void ModelPostprocessor::visit(TNode current, TNode parent) {
     d_nodes[current] = Node::null();
   }
 }/* ModelPostprocessor::visit() */
+
+} /* namespace smt */
+} /* namespace CVC4 */

@@ -1,23 +1,25 @@
 /*********************                                                        */
 /*! \file slicer.cpp
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Bitvector theory.
  **
  ** Bitvector theory.
  **/
-
 #include "theory/bv/slicer.h"
+
+#include "options/bv_options.h"
+#include "smt/smt_statistics_registry.h"
 #include "theory/bv/theory_bv_utils.h"
 #include "theory/rewriter.h"
-#include "theory/bv/options.h"
+
 using namespace CVC4;
 using namespace CVC4::theory;
 using namespace CVC4::theory::bv;
@@ -597,17 +599,17 @@ UnionFind::Statistics::Statistics():
   d_avgFindDepth("theory::bv::slicer::AverageFindDepth"),
   d_numAddedEqualities("theory::bv::slicer::NumberOfEqualitiesAdded", Slicer::d_numAddedEqualities)
 {
-  StatisticsRegistry::registerStat(&d_numRepresentatives);
-  StatisticsRegistry::registerStat(&d_numSplits);
-  StatisticsRegistry::registerStat(&d_numMerges);
-  StatisticsRegistry::registerStat(&d_avgFindDepth);
-  StatisticsRegistry::registerStat(&d_numAddedEqualities);
+  smtStatisticsRegistry()->registerStat(&d_numRepresentatives);
+  smtStatisticsRegistry()->registerStat(&d_numSplits);
+  smtStatisticsRegistry()->registerStat(&d_numMerges);
+  smtStatisticsRegistry()->registerStat(&d_avgFindDepth);
+  smtStatisticsRegistry()->registerStat(&d_numAddedEqualities);
 }
 
 UnionFind::Statistics::~Statistics() {
-  StatisticsRegistry::unregisterStat(&d_numRepresentatives);
-  StatisticsRegistry::unregisterStat(&d_numSplits);
-  StatisticsRegistry::unregisterStat(&d_numMerges);
-  StatisticsRegistry::unregisterStat(&d_avgFindDepth);
-  StatisticsRegistry::unregisterStat(&d_numAddedEqualities);
+  smtStatisticsRegistry()->unregisterStat(&d_numRepresentatives);
+  smtStatisticsRegistry()->unregisterStat(&d_numSplits);
+  smtStatisticsRegistry()->unregisterStat(&d_numMerges);
+  smtStatisticsRegistry()->unregisterStat(&d_avgFindDepth);
+  smtStatisticsRegistry()->unregisterStat(&d_numAddedEqualities);
 }

@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cnf_stream_white.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic, Christopher L. Conway
- ** Minor contributors (to current version): Liana Hadarean
+ ** Top contributors (to current version):
+ **   Morgan Deters, Christopher L. Conway, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief White box testing of CVC4::prop::CnfStream.
  **
@@ -18,24 +18,21 @@
 /* #include <gmock/gmock.h> */
 /* #include <gtest/gtest.h> */
 
-#include "util/cvc4_assert.h"
-
+#include "base/cvc4_assert.h"
+#include "context/context.h"
 #include "expr/expr_manager.h"
 #include "expr/node_manager.h"
-#include "context/context.h"
 #include "prop/cnf_stream.h"
 #include "prop/prop_engine.h"
 #include "prop/theory_proxy.h"
 #include "smt/smt_engine.h"
 #include "smt/smt_engine_scope.h"
-
+#include "theory/arith/theory_arith.h"
+#include "theory/booleans/theory_bool.h"
+#include "theory/builtin/theory_builtin.h"
 #include "theory/theory.h"
 #include "theory/theory_engine.h"
 #include "theory/theory_registrar.h"
-
-#include "theory/builtin/theory_builtin.h"
-#include "theory/booleans/theory_bool.h"
-#include "theory/arith/theory_arith.h"
 
 using namespace CVC4;
 using namespace CVC4::context;
@@ -67,10 +64,19 @@ public:
     return d_nextVar++;
   }
 
-  void addClause(SatClause& c, bool lemma, uint64_t) {
+  ClauseId addClause(SatClause& c, bool lemma) {
     d_addClauseCalled = true;
+    return ClauseIdUndef;
   }
 
+  ClauseId addXorClause(SatClause& clause, bool rhs, bool removable) {
+    d_addClauseCalled = true;
+    return ClauseIdUndef;
+  }
+
+  bool nativeXor() { return false; }
+
+  
   void reset() {
     d_addClauseCalled = false;
   }
@@ -120,6 +126,8 @@ public:
     return true;
   }
 
+  bool ok() const { return true; }
+
 };/* class FakeSatSolver */
 
 class CnfStreamWhite : public CxxTest::TestSuite {
@@ -158,7 +166,9 @@ class CnfStreamWhite : public CxxTest::TestSuite {
     d_theoryEngine = d_smt->d_theoryEngine;
 
     d_satSolver = new FakeSatSolver();
-    d_cnfStream = new CVC4::prop::TseitinCnfStream(d_satSolver, new theory::TheoryRegistrar(d_theoryEngine), new context::Context());
+    d_cnfStream = new CVC4::prop::TseitinCnfStream(
+        d_satSolver, new theory::TheoryRegistrar(d_theoryEngine),
+        new context::Context(), d_smt->channels());
   }
 
   void tearDown() {

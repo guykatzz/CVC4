@@ -1,27 +1,28 @@
 /*********************                                                        */
 /*! \file symmetry_breaking.cpp
  ** \verbatim
- ** Original author: Andrew Reynolds
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Andrew Reynolds, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief symmetry breaking module
  **
  **/
 
+#include "theory/quantifiers/symmetry_breaking.h"
+
 #include <vector>
 
-#include "theory/quantifiers/symmetry_breaking.h"
-#include "theory/rewriter.h"
 #include "theory/quantifiers_engine.h"
+#include "theory/rewriter.h"
+#include "theory/sort_inference.h"
 #include "theory/theory_engine.h"
-#include "util/sort_inference.h"
-#include "theory/uf/theory_uf_strong_solver.h"
 #include "theory/uf/theory_uf.h"
+#include "theory/uf/theory_uf_strong_solver.h"
 
 using namespace CVC4;
 using namespace CVC4::kind;

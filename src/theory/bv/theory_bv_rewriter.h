@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_bv_rewriter.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters, Liana Hadarean
- ** Minor contributors (to current version): Tim King
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -77,6 +77,8 @@ class TheoryBVRewriter {
   static RewriteResponse RewriteSignExtend(TNode node, bool prerewrite = false);
   static RewriteResponse RewriteRotateRight(TNode node, bool prerewrite = false);
   static RewriteResponse RewriteRotateLeft(TNode node, bool prerewrite = false);
+  static RewriteResponse RewriteRedor(TNode node, bool prerewrite = false);
+  static RewriteResponse RewriteRedand(TNode node, bool prerewrite = false);
 
   static RewriteResponse RewriteBVToNat(TNode node, bool prerewrite = false);
   static RewriteResponse RewriteIntToBV(TNode node, bool prerewrite = false);

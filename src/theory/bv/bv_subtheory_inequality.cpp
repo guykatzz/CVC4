@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bv_subtheory_inequality.cpp
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: Andrew Reynolds
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Algebraic solver.
  **
@@ -15,10 +15,12 @@
  **/
 
 #include "theory/bv/bv_subtheory_inequality.h"
+
+#include "options/smt_options.h"
+#include "smt/smt_statistics_registry.h"
 #include "theory/bv/theory_bv.h"
 #include "theory/bv/theory_bv_utils.h"
 #include "theory/theory_model.h"
-#include "smt/options.h"
 
 using namespace std;
 using namespace CVC4;
@@ -227,9 +229,8 @@ bool InequalitySolver::addInequality(TNode a, TNode b, bool strict, TNode fact) 
 InequalitySolver::Statistics::Statistics()
   : d_numCallstoCheck("theory::bv::InequalitySolver::NumCallsToCheck", 0)
 {
-  StatisticsRegistry::registerStat(&d_numCallstoCheck);
+  smtStatisticsRegistry()->registerStat(&d_numCallstoCheck);
 }
 InequalitySolver::Statistics::~Statistics() {
-  StatisticsRegistry::unregisterStat(&d_numCallstoCheck);
+  smtStatisticsRegistry()->unregisterStat(&d_numCallstoCheck);
 }
-

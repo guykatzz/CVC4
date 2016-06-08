@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file sha1_inversion.cpp
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -22,16 +22,18 @@
  *      Author: dejan
  */
 
-#include <string>
+#include <boost/uuid/sha1.hpp>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <string>
 
-#include "word.h"
+#include "expr/expr_iomanip.h"
+#include "options/language.h"
+#include "options/set_language.h"
 #include "sha1.hpp"
-#include "expr/command.h"
-
-#include <boost/uuid/sha1.hpp>
+#include "smt/command.h"
+#include "word.h"
 
 using namespace std;
 using namespace CVC4;
@@ -50,7 +52,7 @@ int main(int argc, char* argv[]) {
     string msg = argv[1];
     unsigned msgSize = msg.size();
     ofstream output(argv[2]);
-    output << expr::ExprSetDepth(-1) << expr::ExprSetLanguage(language::output::LANG_SMTLIB_V2);
+    output << expr::ExprSetDepth(-1) << language::SetLanguage(language::output::LANG_SMTLIB_V2);
     output << SetBenchmarkLogicCommand("QF_BV") << endl;
     output << SetBenchmarkStatusCommand(SMT_SATISFIABLE) << endl;
 
@@ -58,7 +60,7 @@ int main(int argc, char* argv[]) {
     hashsmt::cvc4_uchar8 *cvc4input = new hashsmt::cvc4_uchar8[msgSize];
     for (unsigned i = 0; i < msgSize; ++ i) {
       stringstream ss;
-      ss << "x" << i; 
+      ss << "x" << i;
       cvc4input[i] = hashsmt::cvc4_uchar8(ss.str());
       output << DeclareFunctionCommand(ss.str(), cvc4input[i].getExpr(), cvc4input[i].getExpr().getType()) << endl;
 
@@ -102,6 +104,3 @@ int main(int argc, char* argv[]) {
     cerr << e << endl;
   }
 }
-
-
-

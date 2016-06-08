@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file theory_bv_rewrite_rules_simplification.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters, Dejan Jovanovic, Tim King, Clark Barrett
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Clark Barrett, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -379,8 +379,8 @@ Node RewriteRule<XorZero>::apply(TNode node) {
       children.push_back(node[i]); 
     }
   }
-
-  return utils::mkNode(kind::BITVECTOR_XOR, children); 
+  Node res = utils::mkNode(kind::BITVECTOR_XOR, children); 
+  return res;
 }
 
 
@@ -488,7 +488,7 @@ bool RewriteRule<NotIdemp>::applies(TNode node) {
 
 template<> inline
 Node RewriteRule<NotIdemp>::apply(TNode node) {
-  Debug("bv-rewrite") << "RewriteRule<XorIdemp>(" << node << ")" << std::endl;
+  Debug("bv-rewrite") << "RewriteRule<NotIdemp>(" << node << ")" << std::endl;
   return node[0][0];
 }
 

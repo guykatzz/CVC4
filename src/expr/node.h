@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file node.h
  ** \verbatim
- ** Original author: Dejan Jovanovic
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Kshitij Bansal, Francois Bobot, Clark Barrett, Tim King, Christopher L. Conway
+ ** Top contributors (to current version):
+ **   Morgan Deters, Dejan Jovanovic, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Reference-counted encapsulation of a pointer to node information
  **
@@ -30,15 +30,17 @@
 #include <functional>
 #include <stdint.h>
 
+#include "base/configuration.h"
+#include "base/cvc4_assert.h"
+#include "base/exception.h"
+#include "base/output.h"
 #include "expr/type.h"
 #include "expr/kind.h"
 #include "expr/metakind.h"
 #include "expr/expr.h"
-#include "util/cvc4_assert.h"
-#include "util/configuration.h"
-#include "util/output.h"
-#include "util/exception.h"
-#include "util/language.h"
+#include "expr/expr_iomanip.h"
+#include "options/language.h"
+#include "options/set_language.h"
 #include "util/utility.h"
 #include "util/hash.h"
 
@@ -864,7 +866,7 @@ public:
   /**
    * IOStream manipulator to set the output language for Exprs.
    */
-  typedef expr::ExprSetLanguage setlanguage;
+  typedef language::SetLanguage setlanguage;
 
   /**
    * Very basic pretty printer for Node.

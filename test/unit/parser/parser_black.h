@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file parser_black.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Black box testing of CVC4::parser::Parser, including CVC, SMT and
  ** SMT v2 inputs.
@@ -19,15 +19,17 @@
 #include <cxxtest/TestSuite.h>
 #include <sstream>
 
+#include "base/output.h"
 #include "expr/expr.h"
 #include "expr/expr_manager.h"
+#include "options/base_options.h"
+#include "options/language.h"
+#include "options/options.h"
 #include "parser/parser.h"
 #include "parser/parser_builder.h"
 #include "parser/smt2/smt2.h"
-#include "expr/command.h"
-#include "options/options.h"
-#include "util/output.h"
-#include "util/language.h"
+#include "smt/command.h"
+
 
 using namespace CVC4;
 using namespace CVC4::parser;

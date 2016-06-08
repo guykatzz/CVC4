@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cdo.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): Clark Barrett, Francois Bobot
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Francois Bobot
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A context-dependent object.
  **
@@ -19,8 +19,9 @@
 #ifndef __CVC4__CONTEXT__CDO_H
 #define __CVC4__CONTEXT__CDO_H
 
+#include "base/cvc4_assert.h"
 #include "context/context.h"
-#include "util/cvc4_assert.h"
+
 
 namespace CVC4 {
 namespace context {
@@ -69,8 +70,11 @@ protected:
    */
   virtual void restore(ContextObj* pContextObj) {
     //Debug("context") << "restore cdo " << this;
-    d_data = ((CDO<T>*) pContextObj)->d_data;
+    CDO<T>* p = static_cast<CDO<T>*>(pContextObj);
+    d_data = p->d_data;
     //Debug("context") << " to " << get() << std::endl;
+    // Explicitly call destructor as it will not otherwise get called.
+    p->d_data.~T();
   }
 
 public:

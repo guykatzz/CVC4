@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cdchunk_list.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Clark Barrett
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Context-dependent list class designed for use with a
  ** context memory allocator.
@@ -24,9 +24,10 @@
 #include <iterator>
 #include <memory>
 
+#include "base/cvc4_assert.h"
 #include "context/context.h"
 #include "context/context_mm.h"
-#include "util/cvc4_assert.h"
+
 
 namespace CVC4 {
 namespace context {

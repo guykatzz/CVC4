@@ -1,28 +1,32 @@
 /*********************                                                        */
 /*! \file smt1_input.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Christopher L. Conway
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add file-specific comments here ]].
  **
  ** [[ Add file-specific comments here ]]
  **/
 
+// These headers must be the first two included.
+// See the documentation in "parser/antlr_undefines.h" for more details.
 #include <antlr3.h>
+#include "parser/antlr_undefines.h"
 
 #include "parser/smt1/smt1_input.h"
+
 #include "expr/expr_manager.h"
 #include "parser/input.h"
 #include "parser/parser.h"
 #include "parser/parser_exception.h"
-#include "parser/smt1/generated/Smt1Lexer.h"
-#include "parser/smt1/generated/Smt1Parser.h"
+#include "parser/smt1/Smt1Lexer.h"
+#include "parser/smt1/Smt1Parser.h"
 
 namespace CVC4 {
 namespace parser {

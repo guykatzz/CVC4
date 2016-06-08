@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file bitblast_utils.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Various utility functions for bit-blasting.
  **
@@ -221,7 +221,7 @@ inline void shiftAddMultiplier(const std::vector<T>&a, const std::vector<T>&b, s
   T carry_in = mkFalse<T>();
   T carry_out;
     for(unsigned j = 0; j < res.size() -k; ++j) {
-      T aj = mkAnd(a[j], b[k]);
+      T aj = mkAnd(b[k], a[j]);
       carry_out = mkOr(mkAnd(res[j+k], aj),
                        mkAnd( mkXor(res[j+k], aj), carry_in));
       res[j+k] = mkXor(mkXor(res[j+k], aj), carry_in);

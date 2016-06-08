@@ -1,13 +1,13 @@
 /* *******************                                                        */
 /*! \file Tptp.g
  ** \verbatim
- ** Original author: Francois Bobot
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Francois Bobot, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Parser for TPTP input language.
  **
@@ -40,6 +40,10 @@ options {
 }/* @header */
 
 @lexer::includes {
+
+// This should come immediately after #include <antlr3.h> in the generated
+// files. See the documentation in "parser/antlr_undefines.h" for more details.
+#include "parser/antlr_undefines.h"
 
 /** This suppresses warnings about the redefinition of token symbols between
   * different parsers. The redefinitions should be harmless as long as no
@@ -83,7 +87,12 @@ using namespace CVC4::parser;
 }/* @lexer::postinclude */
 
 @parser::includes {
-#include "expr/command.h"
+
+// This should come immediately after #include <antlr3.h> in the generated
+// files. See the documentation in "parser/antlr_undefines.h" for more details.
+#include "parser/antlr_undefines.h"
+
+#include "smt/command.h"
 #include "parser/parser.h"
 #include "parser/tptp/tptp.h"
 #include "parser/antlr_tracing.h"
@@ -92,6 +101,11 @@ using namespace CVC4::parser;
 
 @parser::postinclude {
 
+#include <algorithm>
+#include <iterator>
+#include <vector>
+
+#include "base/output.h"
 #include "expr/expr.h"
 #include "expr/kind.h"
 #include "expr/type.h"
@@ -99,11 +113,7 @@ using namespace CVC4::parser;
 #include "parser/parser.h"
 #include "parser/tptp/tptp.h"
 #include "util/integer.h"
-#include "util/output.h"
 #include "util/rational.h"
-#include <vector>
-#include <iterator>
-#include <algorithm>
 
 using namespace CVC4;
 using namespace CVC4::parser;
@@ -203,7 +213,7 @@ parseCommand returns [CVC4::Command* cmd = NULL]
         filename = filename.substr(0, filename.length() - 2);
       }
       CommandSequence* seq = new CommandSequence();
-      seq->addCommand(new SetInfoCommand("name", filename));
+      seq->addCommand(new SetInfoCommand("name", SExpr(filename)));
       if(PARSER_STATE->hasConjecture()) {
         seq->addCommand(new QueryCommand(MK_CONST(bool(false))));
       } else {

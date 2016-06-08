@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file regexp.h
  ** \verbatim
- ** Original author: Tianyi Liang
- ** Major contributors: none
- ** Minor contributors (to current version): Morgan Deters
+ ** Top contributors (to current version):
+ **   Tianyi Liang, Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -25,8 +25,8 @@
 #include <set>
 #include <sstream>
 #include <cassert>
-//#include "util/integer.h"
-#include "util/exception.h"
+
+#include "base/exception.h"
 #include "util/hash.h"
 
 namespace CVC4 {
@@ -252,7 +252,7 @@ public:
         }
       }
     }*/
-    std::vector<unsigned>::const_iterator itr = std::search(d_str.begin(), d_str.end(), y.d_str.begin(), y.d_str.end());
+    std::vector<unsigned>::const_iterator itr = std::search(d_str.begin() + start, d_str.end(), y.d_str.begin(), y.d_str.end());
     if(itr != d_str.end()) {
       ret = itr - d_str.begin();
     }
@@ -293,6 +293,7 @@ public:
   String suffix(std::size_t i) const {
     return substr(d_str.size() - i, i);
   }
+  // if y=y1...yn and overlap returns m, then this is x1...y1...ym
   std::size_t overlap(String &y) const;
 
   bool isNumber() const {

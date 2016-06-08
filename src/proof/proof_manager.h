@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file proof_manager.h
  ** \verbatim
- ** Original author: Liana Hadarean
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Liana Hadarean, Morgan Deters, Guy Katz
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief A manager for Proofs
  **
@@ -19,21 +19,31 @@
 #ifndef __CVC4__PROOF_MANAGER_H
 #define __CVC4__PROOF_MANAGER_H
 
-#include <iostream>
+#include <iosfwd>
 #include <map>
 #include "proof/proof.h"
+#include "proof/skolemization_manager.h"
 #include "util/proof.h"
 #include "expr/node.h"
+#include "proof/clause_id.h"
+#include "proof/proof.h"
 #include "theory/logic_info.h"
 #include "theory/substitutions.h"
+#include "util/proof.h"
 
 
 namespace CVC4 {
+
+class SmtGlobals;
 
 // forward declarations
 namespace Minisat {
   class Solver;
 }/* Minisat namespace */
+
+namespace BVMinisat {
+  class Solver;
+}/* BVMinisat namespace */
 
 namespace prop {
   class CnfStream;
@@ -41,16 +51,35 @@ namespace prop {
 
 class SmtEngine;
 
-typedef int ClauseId;
+const ClauseId ClauseIdEmpty(-1);
+const ClauseId ClauseIdUndef(-2);
+const ClauseId ClauseIdError(-3);
 
 class Proof;
-class SatProof;
-class CnfProof;
-class TheoryProof;
+template <class Solver> class TSatProof;
+typedef TSatProof< CVC4::Minisat::Solver> CoreSatProof;
 
-class LFSCSatProof;
+class CnfProof;
+class RewriterProof;
+class TheoryProofEngine;
+class TheoryProof;
+class UFProof;
+class ArithProof;
+class ArrayProof;
+class BitVectorProof;
+
+template <class Solver> class LFSCSatProof;
+typedef LFSCSatProof< CVC4::Minisat::Solver> LFSCCoreSatProof;
+
 class LFSCCnfProof;
-class LFSCTheoryProof;
+class LFSCTheoryProofEngine;
+class LFSCUFProof;
+class LFSCBitVectorProof;
+class LFSCRewriterProof;
+
+template <class Solver> class ProofProxy;
+typedef ProofProxy< CVC4::Minisat::Solver> CoreProofProxy;
+typedef ProofProxy< CVC4::BVMinisat::Solver> BVProofProxy;
 
 namespace prop {
   typedef uint64_t SatVariable;
@@ -66,18 +95,11 @@ enum ProofFormat {
 
 std::string append(const std::string& str, uint64_t num);
 
-typedef __gnu_cxx::hash_map < ClauseId, const prop::SatClause* > IdToClause;
-typedef std::map < ClauseId, const prop::SatClause* > OrderedIdToClause;
-typedef __gnu_cxx::hash_set<prop::SatVariable > VarSet;
+typedef __gnu_cxx::hash_map < ClauseId, prop::SatClause* > IdToSatClause;
 typedef __gnu_cxx::hash_set<Expr, ExprHashFunction > ExprSet;
-
-typedef int ClauseId;
-
-enum ClauseKind {
-  INPUT,
-  THEORY_LEMMA,
-  LEARNT
-};/* enum ClauseKind */
+typedef __gnu_cxx::hash_set<Node, NodeHashFunction > NodeSet;
+typedef __gnu_cxx::hash_map<Node, std::vector<Node>, NodeHashFunction > NodeToNodes;
+typedef std::hash_set<ClauseId> IdHashSet;
 
 enum ProofRule {
   RULE_GIVEN,       /* input assertion */
@@ -87,44 +109,37 @@ enum ProofRule {
   RULE_INVALID,     /* assert-fail if this is ever needed in proof; use e.g. for split lemmas */
   RULE_CONFLICT,    /* re-construct as a conflict */
   RULE_TSEITIN,     /* Tseitin CNF transformation */
+  RULE_SPLIT,       /* A splitting lemma of the form a v ~ a*/
 
   RULE_ARRAYS_EXT,  /* arrays, extensional */
   RULE_ARRAYS_ROW,  /* arrays, read-over-write */
 };/* enum ProofRules */
 
 class ProofManager {
-
-  SatProof*    d_satProof;
-  CnfProof*    d_cnfProof;
-  TheoryProof* d_theoryProof;
+  CoreSatProof*  d_satProof;
+  CnfProof*      d_cnfProof;
+  TheoryProofEngine* d_theoryProof;
 
   // information that will need to be shared across proofs
-  IdToClause d_inputClauses;
-  OrderedIdToClause d_theoryLemmas;
-  IdToClause d_theoryPropagations;
   ExprSet    d_inputFormulas;
   ExprSet    d_inputCoreFormulas;
   ExprSet    d_outputCoreFormulas;
-  //VarSet     d_propVars;
+
+  SkolemizationManager d_skolemizationManager;
 
   int d_nextId;
 
   Proof* d_fullProof;
   ProofFormat d_format; // used for now only in debug builds
 
-  __gnu_cxx::hash_map< Node, std::vector<Node>, NodeHashFunction > d_deps;
-
+  NodeToNodes d_deps;
   // trace dependences back to unsat core
   void traceDeps(TNode n);
 
-  Node d_registering_assertion;
-  ProofRule d_registering_rule;
-  std::map< ClauseId, Expr > d_clause_id_to_assertion;
-  std::map< ClauseId, ProofRule > d_clause_id_to_rule;
-  std::map< Expr, Expr > d_cnf_dep;
-  //LFSC number for assertions
-  unsigned d_assertion_counter;
-  std::map< Expr, unsigned > d_assertion_to_id;
+  std::set<Type> d_printedTypes;
+
+  std::map<std::string, std::string> d_rewriteFilters;
+
 protected:
   LogicInfo d_logic;
 
@@ -136,93 +151,110 @@ public:
 
   // initialization
   static void         initSatProof(Minisat::Solver* solver);
-  static void         initCnfProof(CVC4::prop::CnfStream* cnfStream);
-  static void         initTheoryProof();
+  static void         initCnfProof(CVC4::prop::CnfStream* cnfStream,
+                                   context::Context* ctx);
+  static void         initTheoryProofEngine();
 
-  static Proof*       getProof(SmtEngine* smt);
-  static SatProof*    getSatProof();
-  static CnfProof*    getCnfProof();
-  static TheoryProof* getTheoryProof();
+  // getting various proofs
+  static Proof*         getProof(SmtEngine* smt);
+  static CoreSatProof*  getSatProof();
+  static CnfProof*      getCnfProof();
+  static TheoryProofEngine* getTheoryProofEngine();
+  static TheoryProof* getTheoryProof( theory::TheoryId id );
+  static UFProof* getUfProof();
+  static BitVectorProof* getBitVectorProof();
+  static ArrayProof* getArrayProof();
+  static ArithProof* getArithProof();
+
+  static SkolemizationManager *getSkolemizationManager();
 
   // iterators over data shared by proofs
-  typedef IdToClause::const_iterator clause_iterator;
-  typedef OrderedIdToClause::const_iterator ordered_clause_iterator;
   typedef ExprSet::const_iterator assertions_iterator;
-  typedef VarSet::const_iterator var_iterator;
 
-
-  __gnu_cxx::hash_map< Node, std::vector<Node>, NodeHashFunction >::const_iterator begin_deps() const { return d_deps.begin(); }
-  __gnu_cxx::hash_map< Node, std::vector<Node>, NodeHashFunction >::const_iterator end_deps() const { return d_deps.end(); }
-
-  clause_iterator begin_input_clauses() const { return d_inputClauses.begin(); }
-  clause_iterator end_input_clauses() const { return d_inputClauses.end(); }
-  size_t num_input_clauses() const { return d_inputClauses.size(); }
-
-  ordered_clause_iterator begin_lemmas() const { return d_theoryLemmas.begin(); }
-  ordered_clause_iterator end_lemmas() const { return d_theoryLemmas.end(); }
-  size_t num_lemmas() const { return d_theoryLemmas.size(); }
-
-  assertions_iterator begin_assertions() const { return d_inputFormulas.begin(); }
+  // iterate over the assertions (these are arbitrary boolean formulas)
+  assertions_iterator begin_assertions() const {
+    return d_inputFormulas.begin();
+  }
   assertions_iterator end_assertions() const { return d_inputFormulas.end(); }
   size_t num_assertions() const { return d_inputFormulas.size(); }
 
-  void printProof(std::ostream& os, TNode n);
+//---from Morgan---
+  Node mkOp(TNode n);
+  Node lookupOp(TNode n) const;
+  bool hasOp(TNode n) const;
 
-  void addAssertion(Expr formula, bool inUnsatCore);
-  void addClause(ClauseId id, const prop::SatClause* clause, ClauseKind kind);
-  // note that n depends on dep (for cores)
+  std::map<Node, Node> d_ops;
+  std::map<Node, Node> d_bops;
+//---end from Morgan---
+
+
+  // variable prefixes
+  static std::string getInputClauseName(ClauseId id, const std::string& prefix = "");
+  static std::string getLemmaClauseName(ClauseId id, const std::string& prefix = "");
+  static std::string getLemmaName(ClauseId id, const std::string& prefix = "");
+  static std::string getLearntClauseName(ClauseId id, const std::string& prefix = "");
+  static std::string getPreprocessedAssertionName(Node node, const std::string& prefix = "");
+  static std::string getAssertionName(Node node, const std::string& prefix = "");
+
+  static std::string getVarName(prop::SatVariable var, const std::string& prefix = "");
+  static std::string getAtomName(prop::SatVariable var, const std::string& prefix = "");
+  static std::string getAtomName(TNode atom, const std::string& prefix = "");
+  static std::string getLitName(prop::SatLiteral lit, const std::string& prefix = "");
+  static std::string getLitName(TNode lit, const std::string& prefix = "");
+
+  // for SMT variable names that have spaces and other things
+  static std::string sanitize(TNode var);
+
+  /** Add proof assertion - unlike addCoreAssertion this is post definition expansion **/
+  void addAssertion(Expr formula);
+
+  /** Public unsat core methods **/
+  void addCoreAssertion(Expr formula);
+
   void addDependence(TNode n, TNode dep);
   void addUnsatCore(Expr formula);
 
+  void traceUnsatCore();
   assertions_iterator begin_unsat_core() const { return d_outputCoreFormulas.begin(); }
   assertions_iterator end_unsat_core() const { return d_outputCoreFormulas.end(); }
   size_t size_unsat_core() const { return d_outputCoreFormulas.size(); }
 
   int nextId() { return d_nextId++; }
 
-  // variable prefixes
-  static std::string getInputClauseName(ClauseId id);
-  static std::string getLemmaName(ClauseId id);
-  static std::string getLemmaClauseName(ClauseId id);
-  static std::string getLearntClauseName(ClauseId id);
-
-  static std::string getVarName(prop::SatVariable var);
-  static std::string getAtomName(prop::SatVariable var);
-  static std::string getAtomName(TNode atom);
-  static std::string getLitName(prop::SatLiteral lit);
-  static std::string getLitName(TNode lit);
-
   void setLogic(const LogicInfo& logic);
   const std::string getLogic() const { return d_logic.getLogicString(); }
+  LogicInfo & getLogicInfo() { return d_logic; }
 
-  
-  void setCnfDep( Expr child, Expr parent );
-  Expr getFormulaForClauseId( ClauseId id );
-  ProofRule getProofRuleForClauseId( ClauseId id );
-  unsigned getAssertionCounter() { return d_assertion_counter; }
-  void setAssertion( Expr e );
-  bool isInputAssertion( Expr e, std::ostream& out );
+  void markPrinted(const Type& type);
+  bool wasPrinted(const Type& type) const;
 
-public:  // AJR : FIXME this is hacky
-  //currently, to map between ClauseId and Expr, requires:
-  // (1) CnfStream::assertClause(...) to call setRegisteringFormula,
-  // (2) SatProof::registerClause(...)/registerUnitClause(...) to call setRegisteredClauseId.
-  //this is under the assumption that the first call at (2) is invoked for the clause corresponding to the Expr at (1).
-  void setRegisteringFormula( Node n, ProofRule proof_id );
-  void setRegisteredClauseId( ClauseId id );
+  void addRewriteFilter(const std::string &original, const std::string &substitute);
+  void clearRewriteFilters();
+
 };/* class ProofManager */
 
 class LFSCProof : public Proof {
-  LFSCSatProof* d_satProof;
+  LFSCCoreSatProof* d_satProof;
   LFSCCnfProof* d_cnfProof;
-  LFSCTheoryProof* d_theoryProof;
+  LFSCTheoryProofEngine* d_theoryProof;
   SmtEngine* d_smtEngine;
+
+  // FIXME: hack until we get preprocessing
+  void printPreprocessedAssertions(const NodeSet& assertions,
+                                   std::ostream& os,
+                                   std::ostream& paren);
 public:
-  LFSCProof(SmtEngine* smtEngine, LFSCSatProof* sat, LFSCCnfProof* cnf, LFSCTheoryProof* theory);
+  LFSCProof(SmtEngine* smtEngine,
+            LFSCCoreSatProof* sat,
+            LFSCCnfProof* cnf,
+            LFSCTheoryProofEngine* theory);
   virtual void toStream(std::ostream& out);
   virtual ~LFSCProof() {}
 };/* class LFSCProof */
 
+std::ostream& operator<<(std::ostream& out, CVC4::ProofRule k);
 }/* CVC4 namespace */
+
+
 
 #endif /* __CVC4__PROOF_MANAGER_H */

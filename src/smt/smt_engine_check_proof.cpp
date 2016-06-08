@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file smt_engine_check_proof.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Morgan Deters, Tim King, Guy Katz
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -15,15 +15,21 @@
  ** \todo document this file
  **/
 
-#include "smt/smt_engine.h"
-#include "util/statistics_registry.h"
-#include "check.h"
+#include <unistd.h>
 
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
 #include <string>
-#include <unistd.h>
+
+// #warning "TODO: Why is lfsc's check.h being included like this?"
+#include "check.h"
+
+#include "base/configuration_private.h"
+#include "base/cvc4_assert.h"
+#include "base/output.h"
+#include "smt/smt_engine.h"
+#include "util/statistics_registry.h"
 
 using namespace CVC4;
 using namespace std;
@@ -49,7 +55,7 @@ public:
 
 void SmtEngine::checkProof() {
 
-#ifdef CVC4_PROOF
+#if IS_PROOFS_BUILD
 
   Chat() << "generating proof..." << endl;
 
@@ -57,16 +63,33 @@ void SmtEngine::checkProof() {
 
   Chat() << "checking proof..." << endl;
 
-  if( !(d_logic.isPure(theory::THEORY_BOOL) ||
-	(d_logic.isPure(theory::THEORY_UF) &&
-	 ! d_logic.hasCardinalityConstraints())) ||
-      d_logic.isQuantified()) {
-    // no checking for these yet
-    Notice() << "Notice: no proof-checking for non-UF/Bool proofs yet" << endl;
+  std::string logicString = d_logic.getLogicString();
+
+  if (!(
+        // Pure logics
+        logicString == "QF_UF" ||
+        logicString == "QF_AX" ||
+        logicString == "QF_BV" ||
+        // Non-pure logics
+        logicString == "QF_AUF" ||
+        logicString == "QF_UFBV" ||
+        logicString == "QF_ABV" ||
+        logicString == "QF_AUFBV"
+        )) {
+    // This logic is not yet supported
+    Notice() << "Notice: no proof-checking for " << logicString << " proofs yet" << endl;
     return;
   }
 
-  char* pfFile = strdup("/tmp/cvc4_proof.XXXXXX");
+  char const* tempDir = getenv("TMPDIR");
+  if (!tempDir) {
+    tempDir = "/tmp";
+  }
+
+  stringstream pfPath;
+  pfPath << tempDir << "/cvc4_proof.XXXXXX";
+
+  char* pfFile = strdup(pfPath.str().c_str());
   int fd = mkstemp(pfFile);
 
   // ensure this temp file is removed after
@@ -85,13 +108,13 @@ void SmtEngine::checkProof() {
   a.use_nested_app = false;
   a.compile_lib = false;
   init();
-  check_file(pfFile, args());
+  check_file(pfFile, a);
   close(fd);
 
-#else /* CVC4_PROOF */
+#else /* IS_PROOFS_BUILD */
 
   Unreachable("This version of CVC4 was built without proof support; cannot check proofs.");
 
-#endif /* CVC4_PROOF */
+#endif /* IS_PROOFS_BUILD */
 
 }

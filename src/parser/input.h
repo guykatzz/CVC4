@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file input.h
  ** \verbatim
- ** Original author: Christopher L. Conway
- ** Major contributors: Morgan Deters
- ** Minor contributors (to current version): Francois Bobot
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Base for parser inputs.
  **
@@ -20,14 +20,14 @@
 #define __CVC4__PARSER__INPUT_H
 
 #include <iostream>
-#include <string>
 #include <stdio.h>
+#include <string>
 #include <vector>
 
+#include "options/language.h"
 #include "expr/expr.h"
 #include "expr/expr_manager.h"
 #include "parser/parser_exception.h"
-#include "util/language.h"
 
 namespace CVC4 {
 
@@ -94,8 +94,8 @@ class CVC4_PUBLIC Input {
    * copy construction and assignment.  Mark them private and do not define
    * them.
    */
-  Input(const Input& input) CVC4_UNUSED;
-  Input& operator=(const Input& input) CVC4_UNUSED;
+  Input(const Input& input) CVC4_UNDEFINED;
+  Input& operator=(const Input& input) CVC4_UNDEFINED;
 
 public:
 

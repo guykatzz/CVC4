@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file dio_solver.h
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Tim King
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Diophantine equation solver
  **
@@ -16,22 +16,22 @@
 
 #include "cvc4_private.h"
 
+
 #ifndef __CVC4__THEORY__ARITH__DIO_SOLVER_H
 #define __CVC4__THEORY__ARITH__DIO_SOLVER_H
 
-#include "context/context.h"
-#include "context/cdo.h"
-#include "context/cdlist.h"
-#include "context/cdqueue.h"
+#include <utility>
+#include <vector>
 
+#include "base/output.h"
+#include "context/cdlist.h"
+#include "context/cdo.h"
+#include "context/cdqueue.h"
+#include "context/context.h"
+#include "theory/arith/normal_form.h"
 #include "theory/arith/partial_model.h"
 #include "util/rational.h"
-#include "theory/arith/normal_form.h"
-
 #include "util/statistics_registry.h"
-
-#include <vector>
-#include <utility>
 
 namespace CVC4 {
 namespace theory {

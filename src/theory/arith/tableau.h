@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file tableau.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: none
- ** Minor contributors (to current version): none
+ ** Top contributors (to current version):
+ **   Tim King, Morgan Deters
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief [[ Add one-line brief description here ]]
  **
@@ -19,11 +19,12 @@
 
 #pragma once
 
-#include "util/dense_map.h"
-#include "util/rational.h"
+#include <vector>
+
 #include "theory/arith/arithvar.h"
 #include "theory/arith/matrix.h"
-#include <vector>
+#include "util/dense_map.h"
+#include "util/rational.h"
 
 namespace CVC4 {
 namespace theory {
@@ -161,4 +162,3 @@ private:
 }/* CVC4::theory::arith namespace */
 }/* CVC4::theory namespace */
 }/* CVC4 namespace */
-

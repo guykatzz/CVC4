@@ -1,13 +1,13 @@
 /*********************                                                        */
 /*! \file cnf_stream.h
  ** \verbatim
- ** Original author: Tim King
- ** Major contributors: Morgan Deters, Dejan Jovanovic
- ** Minor contributors (to current version): Clark Barrett, Liana Hadarean, Christopher L. Conway, Andrew Reynolds
+ ** Top contributors (to current version):
+ **   Dejan Jovanovic, Morgan Deters, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief This class transforms a sequence of formulas into clauses.
  **
@@ -25,16 +25,20 @@
 #ifndef __CVC4__PROP__CNF_STREAM_H
 #define __CVC4__PROP__CNF_STREAM_H
 
-#include "expr/node.h"
-#include "prop/theory_proxy.h"
-#include "prop/registrar.h"
-#include "proof/proof_manager.h"
-#include "context/cdlist.h"
-#include "context/cdinsert_hashmap.h"
-
 #include <ext/hash_map>
 
+#include "context/cdinsert_hashmap.h"
+#include "context/cdlist.h"
+#include "expr/node.h"
+#include "proof/proof_manager.h"
+#include "prop/registrar.h"
+#include "prop/theory_proxy.h"
+#include "smt_util/lemma_channels.h"
+
 namespace CVC4 {
+
+class LemmaProofRecipe;
+
 namespace prop {
 
 class PropEngine;
@@ -83,8 +87,11 @@ protected:
   /** The "registrar" for pre-registration of terms */
   Registrar* d_registrar;
 
-  /** A table of assertions, used for regenerating proofs. */
-  context::CDList<Node> d_assertionTable;
+  /** The name of this CNF stream*/
+  std::string d_name;
+
+  /** Pointer to the proof corresponding to this CnfStream */
+  CnfProof* d_cnfProof;
 
   /**
    * How many literals were already mapped at the top-level when we
@@ -113,14 +120,6 @@ protected:
   }
 
   /**
-   * A reference into the assertion table, used to map clauses back to
-   * their "original" input assertion/lemma.  This variable is manipulated
-   * by the top-level convertAndAssert().  This is needed in proofs-enabled
-   * runs, to justify where the SAT solver's clauses came from.
-   */
-  uint64_t d_proofId;
-
-  /**
    * Are we asserting a removable clause (true) or a permanent clause (false).
    * This is set at the beginning of convertAndAssert so that it doesn't
    * need to be passed on over the stack.  Only pure clauses can be asserted
@@ -133,14 +132,14 @@ protected:
    * @param node the node giving rise to this clause
    * @param clause the clause to assert
    */
-  void assertClause(TNode node, SatClause& clause, ProofRule proof_id);
+  void assertClause(TNode node, SatClause& clause);
 
   /**
    * Asserts the unit clause to the sat solver.
    * @param node the node giving rise to this clause
    * @param a the unit literal of the clause
    */
-  void assertClause(TNode node, SatLiteral a, ProofRule proof_id);
+  void assertClause(TNode node, SatLiteral a);
 
   /**
    * Asserts the binary clause to the sat solver.
@@ -148,7 +147,7 @@ protected:
    * @param a the first literal in the clause
    * @param b the second literal in the clause
    */
-  void assertClause(TNode node, SatLiteral a, SatLiteral b, ProofRule proof_id);
+  void assertClause(TNode node, SatLiteral a, SatLiteral b);
 
   /**
    * Asserts the ternary clause to the sat solver.
@@ -157,7 +156,7 @@ protected:
    * @param b the second literal in the clause
    * @param c the thirs literal in the clause
    */
-  void assertClause(TNode node, SatLiteral a, SatLiteral b, SatLiteral c, ProofRule proof_id);
+  void assertClause(TNode node, SatLiteral a, SatLiteral b, SatLiteral c);
 
   /**
    * Acquires a new variable from the SAT solver to represent the node
@@ -178,7 +177,7 @@ protected:
    * structure in this expression.  Assumed to not be in the
    * translation cache.
    */
-  SatLiteral convertAtom(TNode node);
+  SatLiteral convertAtom(TNode node, bool noPreprocessing = false);
 
 public:
 
@@ -189,9 +188,14 @@ public:
    * @param registrar the entity that takes care of preregistration of Nodes
    * @param context the context that the CNF should respect
    * @param fullLitToNodeMap maintain a full SAT-literal-to-Node mapping,
+   * @param name string identifier to distinguish between different instances
    * even for non-theory literals
    */
-  CnfStream(SatSolver* satSolver, Registrar* registrar, context::Context* context, bool fullLitToNodeMap = false);
+  CnfStream(SatSolver* satSolver,
+            Registrar* registrar,
+            context::Context* context,
+            bool fullLitToNodeMap = false,
+            std::string name="");
 
   /**
    * Destructs a CnfStream.  This implementation does nothing, but we
@@ -206,8 +210,9 @@ public:
    * @param node node to convert and assert
    * @param removable whether the sat solver can choose to remove the clauses
    * @param negated whether we are asserting the node negated
+   * @param proofRecipe contains the proof recipe for proving this node
    */
-  virtual void convertAndAssert(TNode node, bool removable, bool negated, ProofRule proof_id, TNode from = TNode::null()) = 0;
+  virtual void convertAndAssert(TNode node, bool removable, bool negated, ProofRule proof_id, TNode from = TNode::null(), LemmaProofRecipe* proofRecipe = NULL) = 0;
 
   /**
    * Get the node that is represented by the given SatLiteral.
@@ -229,7 +234,7 @@ public:
    * this is like a "convert-but-don't-assert" version of
    * convertAndAssert().
    */
-  virtual void ensureLiteral(TNode n) = 0;
+  virtual void ensureLiteral(TNode n, bool noPreregistration = false) = 0;
 
   /**
    * Returns the literal that represents the given node in the SAT CNF
@@ -238,13 +243,6 @@ public:
    * node? E.g., it needs to be a boolean? -Chris]
    */
   SatLiteral getLiteral(TNode node);
-
-  /**
-   * Get the assertion with a given ID.  (Used for reconstructing proofs.)
-   */
-  TNode getAssertion(uint64_t id) {
-    return d_assertionTable[id];
-  }
 
   /**
    * Returns the Boolean variables from the input problem.
@@ -259,6 +257,7 @@ public:
     return d_literalToNodeMap;
   }
 
+  void setProof(CnfProof* proof);
 };/* class CnfStream */
 
 
@@ -282,7 +281,9 @@ public:
    * @param removable is this something that can be erased
    * @param negated true if negated
    */
-  void convertAndAssert(TNode node, bool removable, bool negated, ProofRule proof_id, TNode from = TNode::null());
+  void convertAndAssert(TNode node, bool removable,
+                        bool negated, ProofRule rule, TNode from = TNode::null(),
+                        LemmaProofRecipe* proofRecipe = NULL);
 
   /**
    * Constructs the stream to use the given sat solver.
@@ -291,14 +292,16 @@ public:
    * @param fullLitToNodeMap maintain a full SAT-literal-to-Node mapping,
    * even for non-theory literals
    */
-  TseitinCnfStream(SatSolver* satSolver, Registrar* registrar, context::Context* context, bool fullLitToNodeMap = false);
+  TseitinCnfStream(SatSolver* satSolver, Registrar* registrar,
+                   context::Context* context, bool fullLitToNodeMap = false,
+                   std::string name = "");
 
 private:
 
   /**
    * Same as above, except that removable is remembered.
    */
-  void convertAndAssert(TNode node, bool negated, ProofRule proof_id);
+  void convertAndAssert(TNode node, bool negated);
 
   // Each of these formulas handles takes care of a Node of each Kind.
   //
@@ -318,12 +321,12 @@ private:
   SatLiteral handleAnd(TNode node);
   SatLiteral handleOr(TNode node);
 
-  void convertAndAssertAnd(TNode node, bool negated, ProofRule proof_id);
-  void convertAndAssertOr(TNode node, bool negated, ProofRule proof_id);
-  void convertAndAssertXor(TNode node, bool negated, ProofRule proof_id);
-  void convertAndAssertIff(TNode node, bool negated, ProofRule proof_id);
-  void convertAndAssertImplies(TNode node, bool negated, ProofRule proof_id);
-  void convertAndAssertIte(TNode node, bool negated, ProofRule proof_id);
+  void convertAndAssertAnd(TNode node, bool negated);
+  void convertAndAssertOr(TNode node, bool negated);
+  void convertAndAssertXor(TNode node, bool negated);
+  void convertAndAssertIff(TNode node, bool negated);
+  void convertAndAssertImplies(TNode node, bool negated);
+  void convertAndAssertIte(TNode node, bool negated);
 
   /**
    * Transforms the node into CNF recursively.
@@ -333,7 +336,7 @@ private:
    */
   SatLiteral toCNF(TNode node, bool negated = false);
 
-  void ensureLiteral(TNode n);
+  void ensureLiteral(TNode n, bool noPreregistration = false);
 
 };/* class TseitinCnfStream */
 

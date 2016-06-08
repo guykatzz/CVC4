@@ -1,13 +1,13 @@
 /* *******************                                                        */
 /*! \file Smt1.g
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Dejan Jovanovic, Christopher L. Conway
- ** Minor contributors (to current version): Andrew Reynolds, Tim King
+ ** Top contributors (to current version):
+ **   Christopher L. Conway, Morgan Deters, Dejan Jovanovic
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Parser for SMT-LIB input language.
  **
@@ -39,6 +39,11 @@ options {
 }/* @header */
 
 @lexer::includes {
+
+// This should come immediately after #include <antlr3.h> in the generated
+// files. See the documentation in "parser/antlr_undefines.h" for more details.
+#include "parser/antlr_undefines.h"
+
 /** This suppresses warnings about the redefinition of token symbols between
   * different parsers. The redefinitions should be harmless as long as no
   * client: (a) #include's the lexer headers for two grammars AND (b) uses the
@@ -61,9 +66,13 @@ options {
 
 @parser::includes {
 
+// This should come immediately after #include <antlr3.h> in the generated
+// files. See the documentation in "parser/antlr_undefines.h" for more details.
+#include "parser/antlr_undefines.h"
+
 #include <stdint.h>
 
-#include "expr/command.h"
+#include "smt/command.h"
 #include "parser/parser.h"
 #include "parser/antlr_tracing.h"
 
@@ -101,6 +110,9 @@ namespace CVC4 {
 
 @parser::postinclude {
 
+#include <vector>
+
+#include "base/output.h"
 #include "expr/expr.h"
 #include "expr/kind.h"
 #include "expr/type.h"
@@ -108,9 +120,7 @@ namespace CVC4 {
 #include "parser/parser.h"
 #include "parser/smt1/smt1.h"
 #include "util/integer.h"
-#include "util/output.h"
 #include "util/rational.h"
-#include <vector>
 
 using namespace CVC4;
 using namespace CVC4::parser;
@@ -573,7 +583,7 @@ annotation[CVC4::Command*& smt_command]
     annotatedFormulas[pats,pat] '}'
   | attribute[key]
     ( userValue[value]
-      { smt_command = new SetInfoCommand(key.c_str() + 1, value); }
+      { smt_command = new SetInfoCommand(key.c_str() + 1, SExpr(value)); }
     | { smt_command = new EmptyCommand(std::string("annotation: ") + key); }
     )
   ;

@@ -17,21 +17,25 @@
  **/
 
 #include "prop/bvminisat/bvminisat.h"
+
 #include "prop/bvminisat/simp/SimpSolver.h"
+#include "proof/clause_id.h"
+#include "proof/sat_proof.h"
+#include "util/statistics_registry.h"
 
-using namespace CVC4;
-using namespace prop;
+namespace CVC4 {
+namespace prop {
 
-BVMinisatSatSolver::BVMinisatSatSolver(context::Context* mainSatContext, const std::string& name)
+BVMinisatSatSolver::BVMinisatSatSolver(StatisticsRegistry* registry, context::Context* mainSatContext, const std::string& name)
 : context::ContextNotifyObj(mainSatContext, false),
   d_minisat(new BVMinisat::SimpSolver(mainSatContext)),
   d_minisatNotify(0),
   d_assertionsCount(0),
   d_assertionsRealCount(mainSatContext, 0),
   d_lastPropagation(mainSatContext, 0),
-  d_statistics(name)
+  d_statistics(registry, name)
 {
-  d_statistics.init(d_minisat); 
+  d_statistics.init(d_minisat);
 }
 
 
@@ -45,14 +49,18 @@ void BVMinisatSatSolver::setNotify(Notify* notify) {
   d_minisat->setNotify(d_minisatNotify);
 }
 
-void BVMinisatSatSolver::addClause(SatClause& clause, bool removable, uint64_t proof_id) {
+ClauseId BVMinisatSatSolver::addClause(SatClause& clause,
+                                       bool removable) {
   Debug("sat::minisat") << "Add clause " << clause <<"\n";
   BVMinisat::vec<BVMinisat::Lit> minisat_clause;
   toMinisatClause(clause, minisat_clause);
   // for(unsigned i = 0; i < minisat_clause.size(); ++i) {
   //   d_minisat->setFrozen(BVMinisat::var(minisat_clause[i]), true);
   // }
-  d_minisat->addClause(minisat_clause);
+  ClauseId clause_id = ClauseIdError;
+  d_minisat->addClause(minisat_clause, clause_id);
+  THEORY_PROOF(Assert (clause_id != ClauseIdError););
+  return clause_id;
 }
 
 SatValue BVMinisatSatSolver::propagate() {
@@ -89,6 +97,10 @@ void BVMinisatSatSolver::popAssumption() {
   d_minisat->popAssumption();
 }
 
+void BVMinisatSatSolver::setProofLog( BitVectorProof * bvp ) {
+  d_minisat->setProofLog( bvp );
+}
+
 SatVariable BVMinisatSatSolver::newVar(bool isTheoryAtom, bool preRegister, bool canErase){
   return d_minisat->newVar(true, true, !canErase);
 }
@@ -122,6 +134,10 @@ SatValue BVMinisatSatSolver::solve(long unsigned int& resource){
   resource = d_minisat->conflicts - conflictsBefore;
   Trace("limit") << "<MinisatSatSolver::solve(): it took " << resource << " conflicts" << std::endl;
   return result;
+}
+
+bool BVMinisatSatSolver::ok() const {
+  return d_minisat->okay(); 
 }
 
 void BVMinisatSatSolver::getUnsatCore(SatClause& unsatCore) {
@@ -197,8 +213,8 @@ void BVMinisatSatSolver::toMinisatClause(SatClause& clause,
   Assert(clause.size() == (unsigned)minisat_clause.size());
 }
 
-void BVMinisatSatSolver::toSatClause(BVMinisat::vec<BVMinisat::Lit>& clause,
-                                       SatClause& sat_clause) {
+void BVMinisatSatSolver::toSatClause(const BVMinisat::Clause& clause,
+                                     SatClause& sat_clause) {
   for (int i = 0; i < clause.size(); ++i) {
     sat_clause.push_back(toSatLiteral(clause[i]));
   }
@@ -208,59 +224,63 @@ void BVMinisatSatSolver::toSatClause(BVMinisat::vec<BVMinisat::Lit>& clause,
 
 // Satistics for BVMinisatSatSolver
 
-BVMinisatSatSolver::Statistics::Statistics(const std::string& prefix) :
-  d_statStarts("theory::bv::"+prefix+"bvminisat::starts"),
-  d_statDecisions("theory::bv::"+prefix+"bvminisat::decisions"),
-  d_statRndDecisions("theory::bv::"+prefix+"bvminisat::rnd_decisions"),
-  d_statPropagations("theory::bv::"+prefix+"bvminisat::propagations"),
-  d_statConflicts("theory::bv::"+prefix+"bvminisat::conflicts"),
-  d_statClausesLiterals("theory::bv::"+prefix+"bvminisat::clauses_literals"),
-  d_statLearntsLiterals("theory::bv::"+prefix+"bvminisat::learnts_literals"),
-  d_statMaxLiterals("theory::bv::"+prefix+"bvminisat::max_literals"),
-  d_statTotLiterals("theory::bv::"+prefix+"bvminisat::tot_literals"),
-  d_statEliminatedVars("theory::bv::"+prefix+"bvminisat::eliminated_vars"),
-  d_statCallsToSolve("theory::bv::"+prefix+"bvminisat::calls_to_solve", 0),
-  d_statSolveTime("theory::bv::"+prefix+"bvminisat::solve_time", 0),
-  d_registerStats(!prefix.empty())
+BVMinisatSatSolver::Statistics::Statistics(StatisticsRegistry* registry, const std::string& prefix)
+    : d_registry(registry),
+      d_statStarts("theory::bv::"+prefix+"bvminisat::starts"),
+      d_statDecisions("theory::bv::"+prefix+"bvminisat::decisions"),
+      d_statRndDecisions("theory::bv::"+prefix+"bvminisat::rnd_decisions"),
+      d_statPropagations("theory::bv::"+prefix+"bvminisat::propagations"),
+      d_statConflicts("theory::bv::"+prefix+"bvminisat::conflicts"),
+      d_statClausesLiterals("theory::bv::"+prefix+"bvminisat::clauses_literals"),
+      d_statLearntsLiterals("theory::bv::"+prefix+"bvminisat::learnts_literals"),
+      d_statMaxLiterals("theory::bv::"+prefix+"bvminisat::max_literals"),
+      d_statTotLiterals("theory::bv::"+prefix+"bvminisat::tot_literals"),
+      d_statEliminatedVars("theory::bv::"+prefix+"bvminisat::eliminated_vars"),
+      d_statCallsToSolve("theory::bv::"+prefix+"bvminisat::calls_to_solve", 0),
+      d_statSolveTime("theory::bv::"+prefix+"bvminisat::solve_time", 0),
+      d_registerStats(!prefix.empty())
 {
-  if (!d_registerStats)
+  if (!d_registerStats){
     return;
+  }
 
-  StatisticsRegistry::registerStat(&d_statStarts);
-  StatisticsRegistry::registerStat(&d_statDecisions);
-  StatisticsRegistry::registerStat(&d_statRndDecisions);
-  StatisticsRegistry::registerStat(&d_statPropagations);
-  StatisticsRegistry::registerStat(&d_statConflicts);
-  StatisticsRegistry::registerStat(&d_statClausesLiterals);
-  StatisticsRegistry::registerStat(&d_statLearntsLiterals);
-  StatisticsRegistry::registerStat(&d_statMaxLiterals);
-  StatisticsRegistry::registerStat(&d_statTotLiterals);
-  StatisticsRegistry::registerStat(&d_statEliminatedVars);
-  StatisticsRegistry::registerStat(&d_statCallsToSolve);
-  StatisticsRegistry::registerStat(&d_statSolveTime);
+  d_registry->registerStat(&d_statStarts);
+  d_registry->registerStat(&d_statDecisions);
+  d_registry->registerStat(&d_statRndDecisions);
+  d_registry->registerStat(&d_statPropagations);
+  d_registry->registerStat(&d_statConflicts);
+  d_registry->registerStat(&d_statClausesLiterals);
+  d_registry->registerStat(&d_statLearntsLiterals);
+  d_registry->registerStat(&d_statMaxLiterals);
+  d_registry->registerStat(&d_statTotLiterals);
+  d_registry->registerStat(&d_statEliminatedVars);
+  d_registry->registerStat(&d_statCallsToSolve);
+  d_registry->registerStat(&d_statSolveTime);
 }
 
 BVMinisatSatSolver::Statistics::~Statistics() {
-  if (!d_registerStats)
+  if (!d_registerStats){
     return;
-  StatisticsRegistry::unregisterStat(&d_statStarts);
-  StatisticsRegistry::unregisterStat(&d_statDecisions);
-  StatisticsRegistry::unregisterStat(&d_statRndDecisions);
-  StatisticsRegistry::unregisterStat(&d_statPropagations);
-  StatisticsRegistry::unregisterStat(&d_statConflicts);
-  StatisticsRegistry::unregisterStat(&d_statClausesLiterals);
-  StatisticsRegistry::unregisterStat(&d_statLearntsLiterals);
-  StatisticsRegistry::unregisterStat(&d_statMaxLiterals);
-  StatisticsRegistry::unregisterStat(&d_statTotLiterals);
-  StatisticsRegistry::unregisterStat(&d_statEliminatedVars);
-  StatisticsRegistry::unregisterStat(&d_statCallsToSolve);
-  StatisticsRegistry::unregisterStat(&d_statSolveTime);
+  }
+  d_registry->unregisterStat(&d_statStarts);
+  d_registry->unregisterStat(&d_statDecisions);
+  d_registry->unregisterStat(&d_statRndDecisions);
+  d_registry->unregisterStat(&d_statPropagations);
+  d_registry->unregisterStat(&d_statConflicts);
+  d_registry->unregisterStat(&d_statClausesLiterals);
+  d_registry->unregisterStat(&d_statLearntsLiterals);
+  d_registry->unregisterStat(&d_statMaxLiterals);
+  d_registry->unregisterStat(&d_statTotLiterals);
+  d_registry->unregisterStat(&d_statEliminatedVars);
+  d_registry->unregisterStat(&d_statCallsToSolve);
+  d_registry->unregisterStat(&d_statSolveTime);
 }
 
 void BVMinisatSatSolver::Statistics::init(BVMinisat::SimpSolver* minisat){
-  if (!d_registerStats)
+  if (!d_registerStats){
     return;
-  
+  }
+
   d_statStarts.setData(minisat->starts);
   d_statDecisions.setData(minisat->decisions);
   d_statRndDecisions.setData(minisat->rnd_decisions);
@@ -272,3 +292,22 @@ void BVMinisatSatSolver::Statistics::init(BVMinisat::SimpSolver* minisat){
   d_statTotLiterals.setData(minisat->tot_literals);
   d_statEliminatedVars.setData(minisat->eliminated_vars);
 }
+
+} /* namespace CVC4::prop */
+} /* namespace CVC4 */
+
+namespace CVC4 {
+template<>
+prop::SatLiteral toSatLiteral< BVMinisat::Solver>(BVMinisat::Solver::TLit lit) {
+  return prop::BVMinisatSatSolver::toSatLiteral(lit);
+} 
+
+template<>
+void toSatClause< BVMinisat::Solver> (const BVMinisat::Solver::TClause& minisat_cl,
+                                        prop::SatClause& sat_cl) {
+  prop::BVMinisatSatSolver::toSatClause(minisat_cl, sat_cl);
+}
+
+}
+
+

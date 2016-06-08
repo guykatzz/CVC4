@@ -1,30 +1,31 @@
 /*********************                                                        */
 /*! \file theory_quantifiers.cpp
  ** \verbatim
- ** Original author: Morgan Deters
- ** Major contributors: Andrew Reynolds
- ** Minor contributors (to current version): Dejan Jovanovic
+ ** Top contributors (to current version):
+ **   Morgan Deters, Andrew Reynolds, Tim King
  ** This file is part of the CVC4 project.
- ** Copyright (c) 2009-2014  New York University and The University of Iowa
- ** See the file COPYING in the top-level source directory for licensing
- ** information.\endverbatim
+ ** Copyright (c) 2009-2016 by the authors listed in the file AUTHORS
+ ** in the top-level source directory) and their institutional affiliations.
+ ** All rights reserved.  See the file COPYING in the top-level source
+ ** directory for licensing information.\endverbatim
  **
  ** \brief Implementation of the theory of quantifiers
  **
  ** Implementation of the theory of quantifiers.
  **/
 
-
 #include "theory/quantifiers/theory_quantifiers.h"
-#include "theory/valuation.h"
-#include "theory/quantifiers_engine.h"
+
+
+#include "base/cvc4_assert.h"
+#include "expr/kind.h"
+#include "options/quantifiers_options.h"
 #include "theory/quantifiers/instantiation_engine.h"
 #include "theory/quantifiers/model_engine.h"
-#include "expr/kind.h"
-#include "util/cvc4_assert.h"
-#include "theory/quantifiers/options.h"
-#include "theory/quantifiers/term_database.h"
 #include "theory/quantifiers/quantifiers_attributes.h"
+#include "theory/quantifiers/term_database.h"
+#include "theory/quantifiers_engine.h"
+#include "theory/valuation.h"
 
 using namespace std;
 using namespace CVC4;
@@ -34,7 +35,7 @@ using namespace CVC4::theory;
 using namespace CVC4::theory::quantifiers;
 
 TheoryQuantifiers::TheoryQuantifiers(Context* c, context::UserContext* u, OutputChannel& out, Valuation valuation, const LogicInfo& logicInfo) :
-  Theory(THEORY_QUANTIFIERS, c, u, out, valuation, logicInfo),
+    Theory(THEORY_QUANTIFIERS, c, u, out, valuation, logicInfo),
   d_masterEqualityEngine(0)
 {
   d_numInstantiations = 0;
@@ -46,6 +47,8 @@ TheoryQuantifiers::TheoryQuantifiers(Context* c, context::UserContext* u, Output
   out.handleUserAttribute( "synthesis", this );
   out.handleUserAttribute( "quant-inst-max-level", this );
   out.handleUserAttribute( "rr-priority", this );
+  out.handleUserAttribute( "quant-elim", this );
+  out.handleUserAttribute( "quant-elim-partial", this );
 }
 
 TheoryQuantifiers::~TheoryQuantifiers() {
@@ -69,14 +72,20 @@ void TheoryQuantifiers::notifyEq(TNode lhs, TNode rhs) {
 
 void TheoryQuantifiers::preRegisterTerm(TNode n) {
   Debug("quantifiers-prereg") << "TheoryQuantifiers::preRegisterTerm() " << n << endl;
-  if( n.getKind()==FORALL && !TermDb::hasInstConstAttr(n) ){
-    getQuantifiersEngine()->registerQuantifier( n );
+  if( n.getKind()==FORALL ){
+    if( !options::cbqi() || options::recurseCbqi() || !TermDb::hasInstConstAttr(n) ){
+      getQuantifiersEngine()->registerQuantifier( n );
+      Debug("quantifiers-prereg") << "TheoryQuantifiers::preRegisterTerm() done " << n << endl;
+    }
   }
 }
 
 
 void TheoryQuantifiers::presolve() {
   Debug("quantifiers-presolve") << "TheoryQuantifiers::presolve()" << endl;
+  if( getQuantifiersEngine() ){
+    getQuantifiersEngine()->presolve();
+  }
 }
 
 Node TheoryQuantifiers::getValue(TNode n) {
@@ -169,7 +178,7 @@ Node TheoryQuantifiers::getNextDecisionRequest(){
 
 void TheoryQuantifiers::assertUniversal( Node n ){
   Assert( n.getKind()==FORALL );
-  if( options::recurseCbqi() || !TermDb::hasInstConstAttr(n) ){
+  if( !options::cbqi() || options::recurseCbqi() || !TermDb::hasInstConstAttr(n) ){
     getQuantifiersEngine()->assertQuantifier( n, true );
   }
 }
