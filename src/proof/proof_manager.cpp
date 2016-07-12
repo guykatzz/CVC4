@@ -276,6 +276,10 @@ void ProofManager::traceUnsatCore() {
   IdToSatClause used_inputs;
   d_satProof->collectClausesUsed(used_inputs,
                                  used_lemmas);
+
+  if (options::dumpUsedInstLemmas())
+    dumpUsedInstLemmas(used_lemmas);
+
   IdToSatClause::const_iterator it = used_inputs.begin();
   for(; it != used_inputs.end(); ++it) {
     Node node = d_cnfProof->getAssertionForClause(it->first);
@@ -289,6 +293,36 @@ void ProofManager::traceUnsatCore() {
       // (this adds them to the unsat core)
       traceDeps(node);
     }
+  }
+}
+
+void ProofManager::dumpUsedInstLemmas(IdToSatClause used_lemmas) {
+  IdToSatClause::const_iterator it;
+
+  Debug("dump-used-insts") << std::endl << "Dumping used instantiated lemmas:" << std::endl;
+  for (it = used_lemmas.begin(); it != used_lemmas.end(); ++it) {
+
+    std::set<Node> lemma;
+    for(unsigned i = 0; i < it->second->size(); ++i) {
+      prop::SatLiteral lit = (*(it->second))[i];
+      Node node = ProofManager::getCnfProof()->getAtom(lit.getSatVariable());
+      Expr atom = node.toExpr();
+      if (atom.isConst()) {
+        Assert (atom == utils::mkTrue());
+        continue;
+      }
+      lemma.insert(lit.isNegated() ? node.notNode() : node);
+    }
+
+    std::set<Node>::iterator lemmaIt;
+    if (d_instantiatedLemmas.find(lemma) != d_instantiatedLemmas.end()) {
+      Debug("dump-used-insts") << "\t";
+      for (lemmaIt = lemma.begin(); lemmaIt != lemma.end(); ++lemmaIt) {
+        Debug("dump-used-insts") << *lemmaIt << " ";
+      }
+      Debug("dump-used-insts") << std::endl;
+    }
+    Debug("dump-used-insts") << std::endl << std::endl << std::endl;
   }
 }
 
@@ -737,6 +771,22 @@ void ProofManager::printGlobalLetMap(std::set<Node>& atoms,
   }
 
   out << std::endl << std::endl;
+}
+
+void ProofManager::markInstantiatedLemma(Node lemma) {
+  Debug("pf::pm") << "ProofManager::markInstantiatedLemma( " << lemma << " )" << std::endl;
+
+  std::set<Node> lemmaConjunction;
+
+  if (lemma.getKind() == kind::OR) {
+    for (unsigned i = 0; i < lemma.getNumChildren(); ++i) {
+      lemmaConjunction.insert(lemma[i]);
+    }
+  } else {
+    lemmaConjunction.insert(lemma);
+  }
+
+  currentPM()->d_instantiatedLemmas.insert(lemmaConjunction);
 }
 
 } /* CVC4  namespace */

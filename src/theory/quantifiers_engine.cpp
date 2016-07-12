@@ -14,6 +14,7 @@
 
 #include "theory/quantifiers_engine.h"
 
+#include "options/proof_options.h"
 #include "options/quantifiers_options.h"
 #include "options/uf_options.h"
 #include "smt/smt_statistics_registry.h"
@@ -391,10 +392,10 @@ void QuantifiersEngine::check( Theory::Effort e ){
       //remove explicitly recorded instantiations
       for( unsigned i=0; i<d_recorded_inst.size(); i++ ){
         removeInstantiationInternal( d_recorded_inst[i].first, d_recorded_inst[i].second );
-      } 
+      }
       d_recorded_inst.clear();
     }
-    
+
     double clSet = 0;
     if( Trace.isOn("quant-engine") ){
       clSet = double(clock())/double(CLOCKS_PER_SEC);
@@ -557,7 +558,7 @@ void QuantifiersEngine::check( Theory::Effort e ){
       Trace("quant-engine") << ", added lemma = " << d_hasAddedLemma;
       Trace("quant-engine") << std::endl;
     }
-    
+
     Trace("quant-engine-debug2") << "Finished quantifiers engine check." << std::endl;
   }else{
     Trace("quant-engine-debug2") << "Quantifiers Engine does not need check." << std::endl;
@@ -1125,6 +1126,10 @@ bool QuantifiersEngine::addInstantiation( Node q, std::vector< Node >& terms, bo
 
   //check for lemma duplication
   if( addLemma( lem, true, false ) ){
+    PROOF({
+        if (options::dumpUsedInstLemmas())
+          ProofManager::markInstantiatedLemma(lem);
+      });
     d_total_inst_debug[q]++;
     d_temp_inst_debug[q]++;
     d_total_inst_count_debug++;
@@ -1251,7 +1256,7 @@ void QuantifiersEngine::flushLemmas(){
       unsigned prev_lem_sz = d_lemmas_waiting.size();
       for( unsigned j=0; j<d_inst_notify.size(); j++ ){
         d_inst_notify[j]->filterInstantiations();
-      }  
+      }
       if( prev_lem_sz!=d_lemmas_waiting.size() ){
         Trace("quant-engine") << "...filtered instances : " << d_lemmas_waiting.size() << " / " << prev_lem_sz << std::endl;
       }

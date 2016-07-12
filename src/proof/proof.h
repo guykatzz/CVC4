@@ -20,6 +20,7 @@
 #define __CVC4__PROOF__PROOF_H
 
 #include "options/smt_options.h"
+#include "options/proof_options.h"
 
 
 /* Do NOT use #ifdef CVC4_PROOF to check if proofs are enabled.
@@ -46,9 +47,9 @@
  */
 
 #ifdef CVC4_PROOF
-#  define PROOF(x) if(CVC4::options::proof() || CVC4::options::unsatCores()) { x; }
-#  define NULLPROOF(x) (CVC4::options::proof() || CVC4::options::unsatCores()) ? x : NULL
-#  define PROOF_ON() (CVC4::options::proof() || CVC4::options::unsatCores())
+#  define PROOF(x) if(CVC4::options::proof() || CVC4::options::unsatCores() || CVC4::options::dumpUsedInstLemmas()) { x; }
+#  define NULLPROOF(x) (CVC4::options::proof() || CVC4::options::unsatCores() || CVC4::options::dumpUsedInstLemmas()) ? x : NULL
+#  define PROOF_ON() (CVC4::options::proof() || CVC4::options::unsatCores() || CVC4::options::dumpUsedInstLemmas())
 #  define THEORY_PROOF(x) if(CVC4::options::proof()) { x; }
 #  define THEORY_NULLPROOF(x) CVC4::options::proof() ? x : NULL
 #  define THEORY_PROOF_ON() CVC4::options::proof()
@@ -56,7 +57,7 @@
 #  define PROOF(x)
 #  define NULLPROOF(x) NULL
 #  define PROOF_ON() false
-#  define THEORY_PROOF(x) 
+#  define THEORY_PROOF(x)
 #  define THEORY_NULLPROOF(x) NULL
 #  define THEORY_PROOF_ON() false
 #endif /* CVC4_PROOF */

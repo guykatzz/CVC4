@@ -8,4 +8,7 @@ module PROOF "options/proof_options.h" Proof
 option lfscLetification --lfsc-letification bool :default true
  turns on global letification in LFSC proofs
 
+option dumpUsedInstLemmas --dump-used-inst-lemmas bool :default false
+ dump the instantiations of quantified lemmas that were used in deriving UNSAT
+
 endmodule

@@ -167,6 +167,7 @@ class ProofManager {
 
   std::vector<RewriteLogEntry> d_rewriteLog;
 
+  std::set< std::set<Node> > d_instantiatedLemmas;
 protected:
   LogicInfo d_logic;
 
@@ -242,6 +243,7 @@ public:
   void addUnsatCore(Expr formula);
 
   void traceUnsatCore();
+  void dumpUsedInstLemmas(IdToSatClause used_lemmas);
   assertions_iterator begin_unsat_core() const { return d_outputCoreFormulas.begin(); }
   assertions_iterator end_unsat_core() const { return d_outputCoreFormulas.end(); }
   size_t size_unsat_core() const { return d_outputCoreFormulas.size(); }
@@ -260,6 +262,8 @@ public:
 
   static void registerRewrite(unsigned ruleId, Node original, Node result);
   static void clearRewriteLog();
+
+  static void markInstantiatedLemma(Node lemma);
 
   std::vector<RewriteLogEntry> getRewriteLog();
   void dumpRewriteLog() const;
