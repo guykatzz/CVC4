@@ -94,6 +94,7 @@
 #include "theory/quantifiers/quantifiers_rewriter.h"
 #include "theory/sort_inference.h"
 #include "theory/strings/theory_strings.h"
+#include "theory/sep/theory_sep.h"
 #include "theory/substitutions.h"
 #include "theory/theory_engine.h"
 #include "theory/theory_model.h"
@@ -1082,7 +1083,9 @@ SmtEngine::SmtEngine(ExprManager* em) throw() :
   for(TheoryId id = theory::THEORY_FIRST; id < theory::THEORY_LAST; ++id) {
     TheoryConstructor::addTheory(d_theoryEngine, id);
     //register with proof engine if applicable
-    THEORY_PROOF(ProofManager::currentPM()->getTheoryProofEngine()->registerTheory(d_theoryEngine->theoryOf(id)); );
+#ifdef CVC4_PROOF
+    ProofManager::currentPM()->getTheoryProofEngine()->registerTheory(d_theoryEngine->theoryOf(id));
+#endif
   }
 
   d_private->addUseTheoryListListener(d_theoryEngine);
@@ -1151,6 +1154,13 @@ void SmtEngine::finishInit() {
   d_dumpCommands.clear();
 
   PROOF( ProofManager::currentPM()->setLogic(d_logic); );
+  PROOF({
+      for(TheoryId id = theory::THEORY_FIRST; id < theory::THEORY_LAST; ++id) {
+        ProofManager::currentPM()->getTheoryProofEngine()->
+          finishRegisterTheory(d_theoryEngine->theoryOf(id));
+      }
+    });
+
   Trace("smt-debug") << "SmtEngine::finishInit done" << std::endl;
 }
 
@@ -1844,8 +1854,8 @@ void SmtEngine::setDefaults() {
     }
   }
   //counterexample-guided instantiation for non-sygus
-  // enable if any quantifiers with arithmetic or datatypes
-  if( ( d_logic.isQuantified() && ( d_logic.isTheoryEnabled(THEORY_ARITH) || d_logic.isTheoryEnabled(THEORY_DATATYPES) ) ) ||
+  // enable if any possible quantifiers with arithmetic, datatypes or bitvectors
+  if( ( d_logic.isQuantified() && ( d_logic.isTheoryEnabled(THEORY_ARITH) || d_logic.isTheoryEnabled(THEORY_DATATYPES) || d_logic.isTheoryEnabled(THEORY_BV) ) ) ||
       options::cbqiAll() ){
     if( !options::cbqi.wasSetByUser() ){
       options::cbqi.set( true );
@@ -3976,14 +3986,9 @@ void SmtEnginePrivate::processAssertions() {
     dumpAssertions("post-bv-to-bool", d_assertions);
     Trace("smt") << "POST bvToBool" << endl;
   }
-  if( d_smt.d_logic.isTheoryEnabled(THEORY_STRINGS) ) {
-    Trace("smt-proc") << "SmtEnginePrivate::processAssertions() : pre-strings-preprocess" << endl;
-    dumpAssertions("pre-strings-pp", d_assertions);
-    if( !options::stringLazyPreproc() ){
-      ((theory::strings::TheoryStrings*)d_smt.d_theoryEngine->theoryOf(THEORY_STRINGS))->getPreprocess()->simplify( d_assertions.ref() );
-    }
-    Trace("smt-proc") << "SmtEnginePrivate::processAssertions() : post-strings-preprocess" << endl;
-    dumpAssertions("post-strings-pp", d_assertions);
+  if( d_smt.d_logic.isTheoryEnabled(THEORY_SEP) ) {
+    //separation logic solver needs to register the entire input
+    ((theory::sep::TheorySep*)d_smt.d_theoryEngine->theoryOf(THEORY_SEP))->processAssertions( d_assertions.ref() );
   }
   if( d_smt.d_logic.isQuantified() ){
     Trace("smt-proc") << "SmtEnginePrivate::processAssertions() : pre-quant-preprocess" << endl;

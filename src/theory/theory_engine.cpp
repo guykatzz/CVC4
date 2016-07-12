@@ -156,6 +156,14 @@ void TheoryEngine::EngineOutputChannel::conflict(TNode conflictNode, Proof* pf)
 void TheoryEngine::finishInit() {
   // initialize the quantifiers engine
   d_quantEngine = new QuantifiersEngine(d_context, d_userContext, this);
+  
+  //initialize the model
+  if( d_logicInfo.isQuantified() ) {
+    d_curr_model = d_quantEngine->getModel();
+  } else {
+    d_curr_model = new theory::TheoryModel(d_userContext, "DefaultModel", true);
+    d_aloc_curr_model = true;
+  }
 
   if (d_logicInfo.isQuantified()) {
     d_quantEngine->finishInit();
@@ -217,6 +225,7 @@ TheoryEngine::TheoryEngine(context::Context* context,
   d_masterEENotify(*this),
   d_quantEngine(NULL),
   d_curr_model(NULL),
+  d_aloc_curr_model(false),
   d_curr_model_builder(NULL),
   d_ppCache(),
   d_possiblePropagations(context),
@@ -254,14 +263,15 @@ TheoryEngine::TheoryEngine(context::Context* context,
   }
 
   // build model information if applicable
-  d_curr_model = new theory::TheoryModel(userContext, "DefaultModel", true);
   d_curr_model_builder = new theory::TheoryEngineModelBuilder(this);
 
   smtStatisticsRegistry()->registerStat(&d_combineTheoriesTime);
   d_true = NodeManager::currentNM()->mkConst<bool>(true);
   d_false = NodeManager::currentNM()->mkConst<bool>(false);
 
-  PROOF (ProofManager::currentPM()->initTheoryProofEngine(); );
+#ifdef CVC4_PROOF
+  ProofManager::currentPM()->initTheoryProofEngine();
+#endif
 
   d_iteUtilities = new ITEUtilities(d_iteRemover.getContainsVisitor());
 
@@ -279,7 +289,9 @@ TheoryEngine::~TheoryEngine() {
   }
 
   delete d_curr_model_builder;
-  delete d_curr_model;
+  if( d_aloc_curr_model ){
+    delete d_curr_model;
+  }
 
   delete d_quantEngine;
 
@@ -516,18 +528,35 @@ void TheoryEngine::check(Theory::Effort effort) {
 
     // Must consult quantifiers theory for last call to ensure sat, or otherwise add a lemma
     if( effort == Theory::EFFORT_FULL && ! d_inConflict && ! needCheck() ) {
-      //d_theoryTable[THEORY_STRINGS]->check(Theory::EFFORT_LAST_CALL);
-      if(d_logicInfo.isQuantified()) {
-        // quantifiers engine must pass effort last call check
-        d_quantEngine->check(Theory::EFFORT_LAST_CALL);
-        // if returning incomplete or SAT, we have ensured that the model in the quantifiers engine has been built
-      } else if(options::produceModels()) {
-        // must build model at this point
-        d_curr_model_builder->buildModel(d_curr_model, true);
+      //checks for theories requiring the model go at last call
+      bool builtModel = false;
+      for (TheoryId theoryId = THEORY_FIRST; theoryId < THEORY_LAST; ++theoryId) {
+        if( theoryId!=THEORY_QUANTIFIERS ){
+          Theory* theory = d_theoryTable[theoryId];
+          if (theory && d_logicInfo.isTheoryEnabled(theoryId)) {
+            if( theory->needsCheckLastEffort() ){
+              if( !builtModel ){
+                builtModel = true;
+                d_curr_model_builder->buildModel(d_curr_model, false);
+              }
+              theory->check(Theory::EFFORT_LAST_CALL);
+            }
+          }
+        }
       }
-      Trace("theory::assertions-model") << endl;
-      if (Trace.isOn("theory::assertions-model")) {
-        printAssertions("theory::assertions-model");
+      if( ! d_inConflict && ! needCheck() ){
+        if(d_logicInfo.isQuantified()) {
+          // quantifiers engine must pass effort last call check
+          d_quantEngine->check(Theory::EFFORT_LAST_CALL);
+          // if returning incomplete or SAT, we have ensured that d_curr_model has been built with fullModel=true
+        } else if(options::produceModels()) {
+          // must build model at this point
+          d_curr_model_builder->buildModel(d_curr_model, true);
+        }
+        Trace("theory::assertions-model") << endl;
+        if (Trace.isOn("theory::assertions-model")) {
+          printAssertions("theory::assertions-model");
+        }
       }
     }
 
@@ -767,16 +796,18 @@ void TheoryEngine::collectModelInfo( theory::TheoryModel* m, bool fullModel ){
   }
 }
 
+void TheoryEngine::collectModelComments( theory::TheoryModel* m ){
+  for(TheoryId theoryId = theory::THEORY_FIRST; theoryId < theory::THEORY_LAST; ++theoryId) {
+    if(d_logicInfo.isTheoryEnabled(theoryId)) {
+      Trace("model-builder-debug") << "  CollectModelComments on theory: " << theoryId << endl;
+      d_theoryTable[theoryId]->collectModelComments( m );
+    }
+  }
+}
+
 /* get model */
 TheoryModel* TheoryEngine::getModel() {
-  Debug("model") << "TheoryEngine::getModel()" << endl;
-  if( d_logicInfo.isQuantified() ) {
-    Debug("model") << "Get model from quantifiers engine." << endl;
-    return d_quantEngine->getModel();
-  } else {
-    Debug("model") << "Get default model." << endl;
-    return d_curr_model;
-  }
+  return d_curr_model;
 }
 
 bool TheoryEngine::presolve() {
