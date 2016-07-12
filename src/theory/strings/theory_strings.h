@@ -262,7 +262,7 @@ private:
   Node checkCycles( Node eqc, std::vector< Node >& curr, std::vector< Node >& exp );
   //normal forms check
   void checkNormalForms();
-  bool normalizeEquivalenceClass( Node n, std::vector< Node > & nf, std::vector< Node > & nf_exp );
+  bool normalizeEquivalenceClass( Node n );
   bool getNormalForms( Node &eqc, std::vector< std::vector< Node > > &normal_forms, std::vector< Node > &normal_form_src,
                        std::vector< std::vector< Node > > &normal_forms_exp, std::vector< std::map< Node, std::map< bool, int > > >& normal_forms_exp_depend);
   bool detectLoop(std::vector< std::vector< Node > > &normal_forms,
@@ -289,8 +289,6 @@ private:
                                       std::vector< std::vector< Node > > &normal_forms_exp, std::vector< std::map< Node, std::map< bool, int > > >& normal_forms_exp_depend,
                                       unsigned i, unsigned j, int index, bool isRev, std::vector< Node >& curr_exp );
 
-  //check for extended functions
-  void checkExtendedFuncs();
   //check membership constraints
   Node mkRegExpAntec(Node atom, Node ant);
   Node normalizeRegexp(Node r);
@@ -322,6 +320,8 @@ public:
   Node expandDefinition(LogicRequest &logicRequest, Node n);
   /** Check at effort e */
   void check(Effort e);
+  /** needs check last effort */
+  bool needsCheckLastEffort();
   /** Conflict when merging two constants */
   void conflict(TNode a, TNode b);
   /** called when a new equivalence class is created */
@@ -394,11 +394,6 @@ protected:
 
   void inferSubstitutionProxyVars( Node n, std::vector< Node >& vars, std::vector< Node >& subs, std::vector< Node >& unproc );
 private:
-
-  // Special String Functions
-  NodeSet d_neg_ctn_eqlen;
-  NodeSet d_neg_ctn_ulen;
-  NodeSet d_neg_ctn_cached;
   //extended string terms and whether they have been reduced
   NodeBoolMap d_ext_func_terms;
   std::map< Node, std::map< Node, std::vector< Node > > > d_extf_vars;
@@ -444,7 +439,6 @@ private:
 
   CVC4::String getHeadConst( Node x );
   bool deriveRegExp( Node x, Node r, Node ant );
-  bool addMembershipLength(Node atom);
   void addMembership(Node assertion);
   Node getNormalString(Node x, std::vector<Node> &nf_exp);
   Node getNormalSymRegExp(Node r, std::vector<Node> &nf_exp);
@@ -459,7 +453,8 @@ private:
 public:
   //for finite model finding
   Node getNextDecisionRequest();
-
+  //ppRewrite
+  Node ppRewrite(TNode atom);
 public:
 /** statistics class */
   class Statistics {

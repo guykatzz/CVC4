@@ -375,15 +375,20 @@ bool Trigger::isRelationalTriggerKind( Kind k ) {
 }
   
 bool Trigger::isCbqiKind( Kind k ) {
-  return quantifiers::TermDb::isBoolConnective( k ) || k==PLUS || k==GEQ || k==EQUAL || k==MULT ||
-         k==APPLY_CONSTRUCTOR || k==APPLY_SELECTOR_TOTAL || k==APPLY_TESTER;
+  if( quantifiers::TermDb::isBoolConnective( k ) || k==PLUS || k==GEQ || k==EQUAL || k==MULT ){
+    return true;
+  }else{
+    //CBQI typically works for satisfaction-complete theories
+    TheoryId t = kindToTheoryId( k );
+    return t==THEORY_BV || t==THEORY_DATATYPES;
+  }
 }
 
 bool Trigger::isSimpleTrigger( Node n ){
   Node t = n.getKind()==NOT ? n[0] : n;
-  if( n.getKind()==IFF || n.getKind()==EQUAL ){
-    if( !quantifiers::TermDb::hasInstConstAttr( n[1] ) ){
-      t = n[0];
+  if( t.getKind()==IFF || t.getKind()==EQUAL ){
+    if( !quantifiers::TermDb::hasInstConstAttr( t[1] ) ){
+      t = t[0];
     }
   }
   if( isAtomicTrigger( t ) ){
@@ -735,6 +740,10 @@ InstMatchGenerator* Trigger::getInstMatchGenerator( Node q, Node n ) {
       }
     }
   }
+}
+
+int Trigger::getActiveScore() {
+  return d_mg->getActiveScore( d_quantEngine );
 }
 
 Trigger* TriggerTrie::getTrigger2( std::vector< Node >& nodes ){

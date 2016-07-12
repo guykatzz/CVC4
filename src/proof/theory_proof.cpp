@@ -19,6 +19,7 @@
 #include "base/cvc4_assert.h"
 #include "context/context.h"
 #include "options/bv_options.h"
+#include "options/proof_options.h"
 #include "proof/arith_proof.h"
 #include "proof/array_proof.h"
 #include "proof/bitvector_proof.h"
@@ -79,7 +80,6 @@ void TheoryProofEngine::registerTheory(theory::Theory* th) {
       if (id == theory::THEORY_BV) {
         BitVectorProof * bvp = new LFSCBitVectorProof((theory::bv::TheoryBV*)th, this);
         d_theoryProofTable[id] = bvp;
-        ((theory::bv::TheoryBV*)th)->setProofLog( bvp );
         return;
       }
 
@@ -94,6 +94,19 @@ void TheoryProofEngine::registerTheory(theory::Theory* th) {
       }
 
       // TODO other theories
+    }
+  }
+}
+
+void TheoryProofEngine::finishRegisterTheory(theory::Theory* th) {
+  if (th) {
+    theory::TheoryId id = th->getId();
+    if (id == theory::THEORY_BV) {
+      Assert(d_theoryProofTable.find(id) != d_theoryProofTable.end());
+
+      BitVectorProof *bvp = (BitVectorProof *)d_theoryProofTable[id];
+      ((theory::bv::TheoryBV*)th)->setProofLog( bvp );
+      return;
     }
   }
 }
@@ -122,17 +135,17 @@ void TheoryProofEngine::printConstantDisequalityProof(std::ostream& os, Expr c1,
 }
 
 void TheoryProofEngine::registerTerm(Expr term) {
-  Debug("pf::tp") << "TheoryProofEngine::registerTerm: registering term: " << term << std::endl;
+  Debug("pf::tp::register") << "TheoryProofEngine::registerTerm: registering term: " << term << std::endl;
 
   if (d_registrationCache.count(term)) {
     return;
   }
 
-  Debug("pf::tp") << "TheoryProofEngine::registerTerm: registering NEW term: " << term << std::endl;
+  Debug("pf::tp::register") << "TheoryProofEngine::registerTerm: registering NEW term: " << term << std::endl;
 
   theory::TheoryId theory_id = theory::Theory::theoryOf(term);
 
-  Debug("pf::tp") << "Term's theory( " << term << " ) = " << theory_id << std::endl;
+  Debug("pf::tp::register") << "Term's theory( " << term << " ) = " << theory_id << std::endl;
 
   // don't need to register boolean terms
   if (theory_id == theory::THEORY_BUILTIN ||
@@ -152,7 +165,7 @@ void TheoryProofEngine::registerTerm(Expr term) {
   // A special case: the array theory needs to know of every skolem, even if
   // it belongs to another theory (e.g., a BV skolem)
   if (ProofManager::getSkolemizationManager()->isSkolem(term) && theory_id != theory::THEORY_ARRAY) {
-    Debug("pf::tp") << "TheoryProofEngine::registerTerm: Special case: registering a non-array skolem: " << term << std::endl;
+    Debug("pf::tp::register") << "TheoryProofEngine::registerTerm: registering a non-array skolem: " << term << std::endl;
     getTheoryProof(theory::THEORY_ARRAY)->registerTerm(term);
   }
 
@@ -341,7 +354,8 @@ void LFSCTheoryProofEngine::printLemmaRewrites(NodePairSet& rewrites,
 
     Node n1 = it->first;
     Node n2 = it->second;
-    Assert(theory::Theory::theoryOf(n1) == theory::Theory::theoryOf(n2));
+    Assert(n1.toExpr() == utils::mkFalse() ||
+           theory::Theory::theoryOf(n1) == theory::Theory::theoryOf(n2));
 
     std::ostringstream rewriteRule;
     rewriteRule << ".lrr" << d_assertionToRewrite.size();
@@ -608,7 +622,7 @@ void LFSCTheoryProofEngine::printTheoryLemmas(const IdToSatClause& lemmas,
           }
         }
 
-        Assert(found);
+        AlwaysAssert(found);
         Debug("pf::tp") << "Replacing theory assertion "
                         << clause_expr[k]
                         << " with "
@@ -618,15 +632,27 @@ void LFSCTheoryProofEngine::printTheoryLemmas(const IdToSatClause& lemmas,
         clause_expr[k] = missingAssertion->toExpr();
 
         std::ostringstream rewritten;
-        rewritten << "(or_elim_1 _ _ ";
-        rewritten << "(not_not_intro _ ";
-        rewritten << pm->getLitName(explanation);
-        rewritten << ") (iff_elim_1 _ _ ";
-        rewritten << d_assertionToRewrite[missingAssertion->negate()];
-        rewritten << "))";
+
+        if (missingAssertion->getKind() == kind::NOT && (*missingAssertion)[0].toExpr() == utils::mkFalse()) {
+          rewritten << "(or_elim_2 _ _ ";
+          rewritten << "(not_not_intro _ ";
+          rewritten << pm->getLitName(explanation);
+          rewritten << ") (iff_elim_2 _ _ ";
+          rewritten << d_assertionToRewrite[missingAssertion->negate()];
+          rewritten << "))";
+        }
+        else {
+          rewritten << "(or_elim_1 _ _ ";
+          rewritten << "(not_not_intro _ ";
+          rewritten << pm->getLitName(explanation);
+          rewritten << ") (iff_elim_1 _ _ ";
+          rewritten << d_assertionToRewrite[missingAssertion->negate()];
+          rewritten << "))";
+        }
 
         Debug("pf::tp") << "Setting a rewrite filter for this proof: " << std::endl
                         << pm->getLitName(*missingAssertion) << " --> " << rewritten.str()
+                        << ", explanation = " << explanation
                         << std::endl << std::endl;
 
         pm->addRewriteFilter(pm->getLitName(*missingAssertion), rewritten.str());
@@ -717,7 +743,7 @@ void LFSCTheoryProofEngine::printTheoryLemmas(const IdToSatClause& lemmas,
             }
           }
 
-          Assert(found);
+          AlwaysAssert(found);
 
           Debug("pf::tp") << "Replacing theory assertion "
                           << currentClauseExpr[k]
@@ -728,15 +754,27 @@ void LFSCTheoryProofEngine::printTheoryLemmas(const IdToSatClause& lemmas,
           currentClauseExpr[k] = missingAssertion->toExpr();
 
           std::ostringstream rewritten;
-          rewritten << "(or_elim_1 _ _ ";
-          rewritten << "(not_not_intro _ ";
-          rewritten << pm->getLitName(explanation);
-          rewritten << ") (iff_elim_1 _ _ ";
-          rewritten << d_assertionToRewrite[missingAssertion->negate()];
-          rewritten << "))";
+
+          if (missingAssertion->getKind() == kind::NOT && (*missingAssertion)[0].toExpr() == utils::mkFalse()) {
+            rewritten << "(or_elim_2 _ _ ";
+            rewritten << "(not_not_intro _ ";
+            rewritten << pm->getLitName(explanation);
+            rewritten << ") (iff_elim_2 _ _ ";
+            rewritten << d_assertionToRewrite[missingAssertion->negate()];
+            rewritten << "))";
+          }
+          else {
+            rewritten << "(or_elim_1 _ _ ";
+            rewritten << "(not_not_intro _ ";
+            rewritten << pm->getLitName(explanation);
+            rewritten << ") (iff_elim_1 _ _ ";
+            rewritten << d_assertionToRewrite[missingAssertion->negate()];
+            rewritten << "))";
+          }
 
           Debug("pf::tp") << "Setting a rewrite filter for this proof: " << std::endl
                           << pm->getLitName(*missingAssertion) << " --> " << rewritten.str()
+                          << "explanation = " << explanation
                           << std::endl << std::endl;
 
           pm->addRewriteFilter(pm->getLitName(*missingAssertion), rewritten.str());
@@ -789,6 +827,7 @@ void LFSCTheoryProofEngine::printBoundTerm(Expr term, std::ostream& os, const Pr
   if (it != map.end()) {
     unsigned id = it->second.id;
     unsigned count = it->second.count;
+
     if (count > LET_COUNT) {
       os << "let" << id;
       return;
@@ -933,11 +972,15 @@ void TheoryProof::printTheoryLemmaProof(std::vector<Expr>& lemma,
   Debug("pf::tp") << "TheoryProof::printTheoryLemmaProof - th->ProduceProofs() DONE" << std::endl;
 
   MyPreRegisterVisitor preRegVisitor(th);
-  for( unsigned i=0; i<lemma.size(); i++ ){
-    Node lit = Node::fromExpr( lemma[i] ).negate();
-    Trace("pf::tp") << "; preregistering and asserting " << lit << std::endl;
-    NodeVisitor<MyPreRegisterVisitor>::run(preRegVisitor, lit);
-    th->assertFact(lit, false);
+  for (unsigned i=0; i<lemma.size(); i++) {
+    Node strippedLit = (lemma[i].getKind() == kind::NOT) ? lemma[i][0] : lemma[i];
+    if (strippedLit.getKind() == kind::EQUAL ||
+        d_theory->getId() == theory::Theory::theoryOf(strippedLit)) {
+      Node lit = Node::fromExpr( lemma[i] ).negate();
+      Trace("pf::tp") << "; preregistering and asserting " << lit << std::endl;
+      NodeVisitor<MyPreRegisterVisitor>::run(preRegVisitor, lit);
+      th->assertFact(lit, false);
+    }
   }
 
   Debug("pf::tp") << "TheoryProof::printTheoryLemmaProof - calling th->check()" << std::endl;
@@ -1032,6 +1075,32 @@ void LFSCBooleanProof::printOwnedTerm(Expr term, std::ostream& os, const ProofLe
   switch(k) {
   case kind::OR:
   case kind::AND:
+    if (options::lfscLetification() && term.getNumChildren() > 2) {
+      // If letification is on, the entire term is probably a let expression.
+      // However, we need to transform it from (and a b c) into (and a (and b c)) form first.
+      Node currentExpression = term[term.getNumChildren() - 1];
+      for (int i = term.getNumChildren() - 2; i >= 0; --i) {
+        NodeBuilder<> builder(k);
+        builder << term[i];
+        builder << currentExpression.toExpr();
+        currentExpression = builder;
+      }
+
+      // The let map should already have the current expression.
+      ProofLetMap::const_iterator it = map.find(term);
+      if (it != map.end()) {
+        unsigned id = it->second.id;
+        unsigned count = it->second.count;
+
+        if (count > LET_COUNT) {
+          os << "let" << id;
+          break;
+        }
+      }
+    }
+
+    // If letification is off or there were 2 children, same treatment as the other cases.
+    // (No break is intentional).
   case kind::XOR:
   case kind::IFF:
   case kind::IMPLIES:

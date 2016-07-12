@@ -565,7 +565,11 @@ public:
    * - or call get() until done() is true.
    */
   virtual void check(Effort level = EFFORT_FULL) { }
-
+  
+  /**
+   * Needs last effort check?
+   */ 
+  virtual bool needsCheckLastEffort() { return false; }
   /**
    * T-propagate new literal assignments in the current context.
    */
@@ -589,7 +593,9 @@ public:
    * class.
    */
   virtual void collectModelInfo( TheoryModel* m, bool fullModel ){ }
-
+  /** if theories want to print something as a comment before model printing, do it here */
+  virtual void collectModelComments( TheoryModel* m ){ }
+  
   /**
    * Return a decision request, if the theory has one, or the NULL node
    * otherwise.
@@ -780,6 +786,14 @@ public:
    */
   assertions_iterator facts_end() const {
     return d_facts.end();
+  }
+  /**
+   * Whether facts have been asserted to this theory.
+   *
+   * @return true iff facts have been asserted to this theory.
+   */
+  bool hasFacts() { 
+    return !d_facts.empty(); 
   }
 
   typedef context::CDList<TNode>::const_iterator shared_terms_iterator;

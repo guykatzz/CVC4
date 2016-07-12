@@ -62,10 +62,10 @@ ProofManager::ProofManager(ProofFormat format):
 }
 
 ProofManager::~ProofManager() {
-  delete d_satProof;
-  delete d_cnfProof;
-  delete d_theoryProof;
-  delete d_fullProof;
+  if (d_satProof) delete d_satProof;
+  if (d_cnfProof) delete d_cnfProof;
+  if (d_theoryProof) delete d_theoryProof;
+  if (d_fullProof) delete d_fullProof;
 }
 
 ProofManager* ProofManager::currentPM() {
@@ -96,7 +96,6 @@ CnfProof* ProofManager::getCnfProof() {
 }
 
 TheoryProofEngine* ProofManager::getTheoryProofEngine() {
-  Assert (options::proof());
   Assert (currentPM()->d_theoryProof != NULL);
   return currentPM()->d_theoryProof;
 }
@@ -690,10 +689,24 @@ void bind(Expr term, ProofLetMap& map, Bindings& letOrder) {
   for (unsigned i = 0; i < term.getNumChildren(); ++i)
     bind(term[i], map, letOrder);
 
-  unsigned newId = ProofLetCount::newId();
-  ProofLetCount letCount(newId);
-  map[term] = letCount;
-  letOrder.push_back(LetOrderElement(term, newId));
+  // Special case: chain operators. If we have and(a,b,c), it will be prineted as and(a,and(b,c)).
+  // The subterm and(b,c) may repeat elsewhere, so we need to bind it, too.
+  Kind k = term.getKind();
+  if (((k == kind::OR) || (k == kind::AND)) && term.getNumChildren() > 2) {
+    Node currentExpression = term[term.getNumChildren() - 1];
+    for (int i = term.getNumChildren() - 2; i >= 0; --i) {
+      NodeBuilder<> builder(k);
+      builder << term[i];
+      builder << currentExpression.toExpr();
+      currentExpression = builder;
+      bind(currentExpression.toExpr(), map, letOrder);
+    }
+  } else {
+    unsigned newId = ProofLetCount::newId();
+    ProofLetCount letCount(newId);
+    map[term] = letCount;
+    letOrder.push_back(LetOrderElement(term, newId));
+  }
 }
 
 void ProofManager::printGlobalLetMap(std::set<Node>& atoms,
@@ -709,7 +722,6 @@ void ProofManager::printGlobalLetMap(std::set<Node>& atoms,
   // TODO: give each theory a chance to add atoms. For now, just query BV directly...
   const std::set<Node>* additionalAtoms = ProofManager::getBitVectorProof()->getAtomsInBitblastingProof();
   for (atom = additionalAtoms->begin(); atom != additionalAtoms->end(); ++atom) {
-    Debug("gk::temp") << "Binding additional atom: " << *atom << std::endl;
     bind(atom->toExpr(), letMap, letOrder);
   }
 
