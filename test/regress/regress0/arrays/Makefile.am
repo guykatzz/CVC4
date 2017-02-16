@@ -48,7 +48,8 @@ TESTS =	\
 	constarr.cvc \
 	constarr2.cvc \
 	constarr3.cvc \
-	parsing_ringer.cvc
+	parsing_ringer.cvc \
+	bug637.delta.smt2
 
 EXTRA_DIST = $(TESTS)
 
@@ -67,5 +68,5 @@ EXTRA_DIST = $(TESTS)
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

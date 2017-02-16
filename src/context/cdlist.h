@@ -238,26 +238,9 @@ public:
   }
 
   /**
-   * Main constructor: d_list starts as NULL, size is 0
-   */
-  CDList(bool allocatedInCMM,
-            Context* context,
-            bool callDestructor = true,
-            const CleanUp& cleanup = CleanUp(),
-            const Allocator& alloc = Allocator()) :
-    ContextObj(allocatedInCMM, context),
-    d_list(NULL),
-    d_size(0),
-    d_callDestructor(callDestructor),
-    d_sizeAlloc(0),
-    d_cleanUp(cleanup),
-    d_allocator(alloc) {
-  }
-
-  /**
    * Destructor: delete the list
    */
-  ~CDList() throw(AssertionException) {
+  ~CDList() {
     this->destroy();
 
     if(this->d_callDestructor) {

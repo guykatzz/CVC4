@@ -45,7 +45,8 @@ BUG_TESTS = \
   bug674.smt2 \
   inc-double-u.smt2 \
   fmf-fun-dbu.smt2 \
-  inc-define.smt2
+  inc-define.smt2 \
+  bug765.smt2
 
 TESTS =	$(SMT_TESTS) $(SMT2_TESTS) $(CVC_TESTS) $(BUG_TESTS)
 
@@ -58,5 +59,5 @@ EXTRA_DIST = $(TESTS) \
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

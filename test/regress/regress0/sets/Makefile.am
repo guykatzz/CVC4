@@ -50,7 +50,6 @@ TESTS =	\
 	fuzz15201.smt2 \
 	fuzz31811.smt2 \
 	rec_copy_loop_check_heap_access_43_4.smt2 \
-	sets-disequal.smt2 \
 	sets-equal.smt2 \
 	sets-inter.smt2 \
 	sets-sample.smt2 \
@@ -62,7 +61,18 @@ TESTS =	\
 	union-1a.smt2 \
 	union-1b-flip.smt2 \
 	union-1b.smt2 \
-	union-2.smt2
+	union-2.smt2 \
+	dt-simp-mem.smt2 \
+	card3-ground.smt2 \
+	card-3sets.cvc \
+	card.smt2 \
+	card-2.smt2 \
+	card-3.smt2 \
+	card-4.smt2 \
+	card-5.smt2 \
+	card-6.smt2 \
+	card-7.smt2
+
 
 EXTRA_DIST = $(TESTS)
 
@@ -82,5 +92,5 @@ EXTRA_DIST += \
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

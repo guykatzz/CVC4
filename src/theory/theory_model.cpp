@@ -56,6 +56,9 @@ TheoryModel::~TheoryModel() throw() {
 
 void TheoryModel::reset(){
   d_modelCache.clear();
+  d_comment_str.clear();
+  d_sep_heap = Node::null();
+  d_sep_nil_eq = Node::null();
   d_reps.clear();
   d_rep_set.clear();
   d_uf_terms.clear();
@@ -67,6 +70,21 @@ void TheoryModel::reset(){
 void TheoryModel::getComments(std::ostream& out) const {
   Trace("model-builder") << "get comments..." << std::endl;
   out << d_comment_str.str();
+}
+
+void TheoryModel::setHeapModel( Node h, Node neq ) { 
+  d_sep_heap = h;
+  d_sep_nil_eq = neq;
+}
+
+bool TheoryModel::getHeapModel( Expr& h, Expr& neq ) const {
+  if( d_sep_heap.isNull() || d_sep_nil_eq.isNull() ){
+    return false;
+  }else{
+    h = d_sep_heap.toExpr();
+    neq = d_sep_nil_eq.toExpr();
+    return true;
+  }
 }
 
 Node TheoryModel::getValue(TNode n, bool useDontCares) const {
@@ -357,6 +375,11 @@ void TheoryModel::assertEqualityEngine(const eq::EqualityEngine* ee, set<Node>* 
       } else {
         if (first) {
           rep = (*eqc_i);
+          //add the term (this is specifically for the case of singleton equivalence classes)
+          if( !rep.getType().isRegExp() ){
+            d_equalityEngine->addTerm( rep );
+            Trace("model-builder-debug") << "Add term to ee within assertEqualityEngine: " << rep << std::endl;
+          }
           first = false;
         }
         else {
@@ -579,7 +602,6 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
   // model-builder specific initialization
   preProcessBuildModel(tm, fullModel);
 
-
   // Loop through all terms and make sure that assignable sub-terms are in the equality engine
   // Also, record #eqc per type (for finite model finding)
   std::map< TypeNode, unsigned > eqc_usort_count;
@@ -656,7 +678,8 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
     // Assign representative for this EC
     if (!const_rep.isNull()) {
       // Theories should not specify a rep if there is already a constant in the EC
-      Assert(rep.isNull() || rep == const_rep);
+      //AJR: I believe this assertion is too strict, eqc with asserted reps may merge with constant eqc
+      //Assert(rep.isNull() || rep == const_rep);
       assignConstantRep( tm, constantReps, eqc, const_rep, fullModel );
       typeConstSet.add(eqct.getBaseType(), const_rep);
     }
@@ -794,14 +817,16 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
       
       //get properties of this type
       bool isCorecursive = false;
-      bool isUSortFiniteRestricted = false;
       if( t.isDatatype() ){
         const Datatype& dt = ((DatatypeType)(t).toType()).getDatatype();
-        isCorecursive = dt.isCodatatype() && ( !dt.isFinite() || dt.isRecursiveSingleton() );
+        isCorecursive = dt.isCodatatype() && ( !dt.isFinite( t.toType() ) || dt.isRecursiveSingleton( t.toType() ) );
       }
+#ifdef CVC4_ASSERTIONS
+      bool isUSortFiniteRestricted = false;
       if( options::finiteModelFind() ){
         isUSortFiniteRestricted = !t.isSort() && involvesUSort( t );
       }
+#endif
       
       set<Node>* repSet = typeRepSet.getSet(t);
       TypeNode tb = t.getBaseType();
@@ -846,8 +871,8 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
               Assert( !n.isNull() );
               success = true;
               Trace("model-builder-debug") << "Check if excluded : " << n << std::endl;
-              if( isUSortFiniteRestricted ){
 #ifdef CVC4_ASSERTIONS
+              if( isUSortFiniteRestricted ){
                 //must not involve uninterpreted constants beyond cardinality bound (which assumed to coincide with #eqc)
                 //this is just an assertion now, since TypeEnumeratorProperties should ensure that only legal values are enumerated wrt this constraint.
                 std::map< Node, bool > visited;
@@ -856,8 +881,8 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
                   Trace("model-builder") << "Excluded value for " << t << " : " << n << " due to out of range uninterpreted constant." << std::endl;
                 }
                 Assert( success );
-#endif
               }
+#endif
               if( success && isCorecursive ){
                 if (repSet != NULL && !repSet->empty()) {
                   // in the case of codatatypes, check if it is in the set of values that we cannot assign
@@ -934,18 +959,15 @@ void TheoryEngineModelBuilder::buildModel(Model* m, bool fullModel)
         tm->d_rep_set.add((*i).getType(), *i);
       }
     }
-    for( std::map< TypeNode, std::vector< Node > >::iterator it = tm->d_rep_set.d_type_reps.begin(); it != tm->d_rep_set.d_type_reps.end(); ++it ){
-      tm->d_rep_set.d_type_rlv_rep[it->first] = (int)it->second.size();
-    }
   }
 
   //modelBuilder-specific initialization
   processBuildModel( tm, fullModel );
 
-  // Collect model comments from the theories
+  // Do post-processing of model from the theories (used for THEORY_SEP to construct heap model)
   if( fullModel ){
-    Trace("model-builder") << "TheoryEngineModelBuilder: Collect model comments..." << std::endl;
-    d_te->collectModelComments(tm);
+    Trace("model-builder") << "TheoryEngineModelBuilder: Post-process model..." << std::endl;
+    d_te->postProcessModel(tm);
   }
   
 #ifdef CVC4_ASSERTIONS
@@ -1026,7 +1048,7 @@ Node TheoryEngineModelBuilder::normalize(TheoryModel* m, TNode r, std::map< Node
     retNode = NodeManager::currentNM()->mkNode( r.getKind(), children );
     if (childrenConst) {
       retNode = Rewriter::rewrite(retNode);
-      Assert(retNode.getKind()==kind::APPLY_UF || retNode.getKind()==kind::REGEXP_RANGE || retNode.isConst());
+      Assert(retNode.getKind()==kind::APPLY_UF || retNode.getType().isRegExp() || retNode.isConst());
     }
   }
   d_normalizedCache[r] = retNode;

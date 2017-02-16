@@ -72,9 +72,10 @@ bool TypeNode::isInterpretedFinite() const {
     if( options::finiteModelFind() ){
       if( isSort() ){
         return true;
-      }else if( isDatatype() || isParametricDatatype() ){
+      }else if( isDatatype() ){
+        TypeNode tn = *this;
         const Datatype& dt = getDatatype();
-        return dt.isInterpretedFinite();
+        return dt.isInterpretedFinite( tn.toType() );
       }else if( isArray() ){
         return getArrayIndexType().isInterpretedFinite() && getArrayConstituentType().isInterpretedFinite();
       }else if( isSet() ) {
@@ -275,14 +276,14 @@ bool TypeNode::isRecord() const {
 
 size_t TypeNode::getTupleLength() const {
   Assert(isTuple());
-  const Datatype& dt = getConst<Datatype>();
+  const Datatype& dt = getDatatype();
   Assert(dt.getNumConstructors()==1);
   return dt[0].getNumArgs();
 }
 
 vector<TypeNode> TypeNode::getTupleTypes() const {
   Assert(isTuple());
-  const Datatype& dt = getConst<Datatype>();
+  const Datatype& dt = getDatatype();
   Assert(dt.getNumConstructors()==1);
   vector<TypeNode> types;
   for(unsigned i = 0; i < dt[0].getNumArgs(); ++i) {
@@ -315,7 +316,7 @@ bool TypeNode::isInstantiatedDatatype() const {
   if(getKind() != kind::PARAMETRIC_DATATYPE) {
     return false;
   }
-  const Datatype& dt = (*this)[0].getConst<Datatype>();
+  const Datatype& dt = (*this)[0].getDatatype();
   unsigned n = dt.getNumParameters();
   Assert(n < getNumChildren());
   for(unsigned i = 0; i < n; ++i) {
@@ -329,7 +330,7 @@ bool TypeNode::isInstantiatedDatatype() const {
 /** Is this an instantiated datatype parameter */
 bool TypeNode::isParameterInstantiatedDatatype(unsigned n) const {
   AssertArgument(getKind() == kind::PARAMETRIC_DATATYPE, *this);
-  const Datatype& dt = (*this)[0].getConst<Datatype>();
+  const Datatype& dt = (*this)[0].getDatatype();
   AssertArgument(n < dt.getNumParameters(), *this);
   return TypeNode::fromType(dt.getParameter(n)) != (*this)[n + 1];
 }

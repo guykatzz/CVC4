@@ -190,7 +190,7 @@ Expr *Expr::clone() {
     }
   }
   }
-  return 0; // should never be reached
+  std::abort();  // should never be reached
 }
 
 
@@ -205,13 +205,12 @@ Expr* Expr::build_app(Expr *hd, const std::vector<Expr *> &args, int start) {
     return hd;
   else
   {
-    CExpr *ret = new CExpr( APP );
-    ret->kids = new Expr* [args.size()-start+2];
-    ret->kids[0] = hd;
+    Expr **kids = new Expr *[args.size() - start + 2];
+    kids[0] = hd;
     for (int i = start, iend = args.size(); i < iend; i++)
-        ret->kids[i-start+1] = args[i];
-    ret->kids[args.size()-start+1] = NULL;
-    return ret;
+      kids[i - start + 1] = args[i];
+    kids[args.size() - start + 1] = NULL;
+    return new CExpr(APP, true /* dummy */, kids);
   }
 #endif
 }
@@ -229,16 +228,16 @@ Expr* Expr::make_app(Expr* e1, Expr* e2 )
       while( ((CExpr*)e1)->kids[counter] ){
          counter++;
       }
-      ret = new CExpr( APP );
-      ret->kids = new Expr* [counter+2];
+      Expr **kids = new Expr *[counter + 2];
       counter = 0;
       while( ((CExpr*)e1)->kids[counter] ){
-         ret->kids[counter] = ((CExpr*)e1)->kids[counter];
-         ret->kids[counter]->inc();
-         counter++;
+        kids[counter] = ((CExpr *)e1)->kids[counter];
+        kids[counter]->inc();
+        counter++;
       }
-      ret->kids[counter] = e2;
-      ret->kids[counter+1] = NULL;
+      kids[counter] = e2;
+      kids[counter + 1] = NULL;
+      ret = new CExpr(APP, true /* dummy */, kids);
    }else{
       ret = new CExpr( APP, e1, e2 );
    }
@@ -282,7 +281,7 @@ Expr *Expr::collect_args(std::vector<Expr *> &args, bool follow_defs) {
 #endif
 }
 
-Expr *Expr::get_head(bool follow_defs) {
+Expr *Expr::get_head(bool follow_defs) const {
   CExpr *e = (CExpr *)this;
   while( e->getop() == APP ) {
     e = (CExpr *)e->kids[0];
@@ -292,7 +291,7 @@ Expr *Expr::get_head(bool follow_defs) {
   return e;
 }
 
-Expr *Expr::get_body(int op, bool follow_defs) {
+Expr *Expr::get_body(int op, bool follow_defs) const {
   CExpr *e = (CExpr *)this;
   while( e->getop() == op ) {
     e = (CExpr *)e->kids[2];
@@ -369,14 +368,13 @@ Expr* CExpr::convert_to_flat_app( Expr* e )
   {
     std::vector< Expr* > args;
     Expr* hd = ((CExpr*)e)->collect_args( args );
-    CExpr* nce = new CExpr( APP );
-    nce->kids = new Expr *[(int)args.size()+2];
-    nce->kids[0] = hd;
-    for( int a=0; a<(int)args.size(); a++ )
-    {
-      nce->kids[a+1] = convert_to_flat_app( args[a] );
+    Expr **kids = new Expr *[args.size() + 2];
+    kids[0] = hd;
+    for (size_t a = 0; a < args.size(); a++) {
+      kids[a + 1] = convert_to_flat_app(args[a]);
     }
-    nce->kids[(int)args.size()+1] = 0;
+    kids[args.size() + 1] = 0;
+    CExpr *nce = new CExpr(APP, true /* dummy */, kids);
     nce->inc();
     return nce;
   }
@@ -387,7 +385,6 @@ Expr* CExpr::convert_to_flat_app( Expr* e )
 }
 
 bool Expr::defeq(Expr *e) {
-
   /* we handle a few special cases up front, where this Expr might
      equal e, even though they have different opclass (i.e., different
      structure). */
@@ -577,8 +574,26 @@ bool Expr::defeq(Expr *e) {
     {
       int counter = 0;
       while( e1->kids[counter] ){
-         if( !e2->kids[counter] || !e1->kids[counter]->defeq( e2->kids[counter] ) )
-            return false;
+         if( e1->kids[counter]!=e2->kids[counter] ){
+           if( !e2->kids[counter] || !e1->kids[counter]->defeq( e2->kids[counter] ) )
+              return false;
+           //--- optimization : replace child with equivalent pointer if was defeq
+           // Heuristic: prefer symbolic kids because they may be cheaper to
+           // deal with (e.g. in free_in()).
+           if (e2->kids[counter]->isSymbolic() ||
+               (!e1->kids[counter]->isSymbolic() &&
+                e1->kids[counter]->getrefcnt() <
+                    e2->kids[counter]->getrefcnt())) {
+             e1->kids[counter]->dec();
+             e2->kids[counter]->inc();
+             e1->kids[counter] = e2->kids[counter];
+           }else{
+             e2->kids[counter]->dec();
+             e1->kids[counter]->inc();
+             e2->kids[counter] = e1->kids[counter];
+           }
+         }
+         //---
          counter++;
       }
       return e2->kids[counter]==NULL;
@@ -590,33 +605,36 @@ bool Expr::defeq(Expr *e) {
     // already checked that both exprs have the same opclass.
     return true;
   } // switch(op1)
-  
-  return false; // never reached.
+
+  std::abort();  // never reached.
 }
 
 int Expr::fiCounter = 0;
 
-bool Expr::free_in(Expr *x) {
-   //fiCounter++;
-   //if( fiCounter%1==0 )
-   //   std::cout << fiCounter << std::endl;
-   switch(getop()) {
-   case NOT_CEXPR:
+bool Expr::_free_in(Expr *x, expr_ptr_set_t *visited) {
+  // fiCounter++;
+  // if( fiCounter%1==0 )
+  //   std::cout << fiCounter << std::endl;
+  if (visited->find(this) != visited->end()) {
+    return false;
+  }
+
+  switch (getop()) {
+    case NOT_CEXPR:
       switch (getclass()) {
       case HOLE_EXPR: {
          HoleExpr *h = (HoleExpr *)this;
-         if (h->val)
-	         return h->val->free_in(x);
+         if (h->val) return h->val->_free_in(x, visited);
          return (h == x);
       }
       case SYMS_EXPR: 
       case SYM_EXPR: {
          SymExpr *s = (SymExpr *)this;
          if (s->val && s->val->getclass() == HOLE_EXPR)
-	   /* we do not need to follow the "val" pointer except in this
-	      one case, when x is a hole (which we do not bother to check
-	      here) */
-	         return s->val->free_in(x);
+           /* we do not need to follow the "val" pointer except in this
+             one case, when x is a hole (which we do not bother to check
+             here) */
+           return s->val->_free_in(x, visited);
          return (s == x);
       }
       case INT_EXPR:
@@ -630,16 +648,17 @@ bool Expr::free_in(Expr *x) {
       // fall through
    default: {
       // must be a CExpr
+      assert(this->getclass() == CEXPR);
       CExpr *e = (CExpr *)this;
       Expr *tmp;
       Expr **cur = e->kids;
+      visited->insert(this);
       while ((tmp = *cur++))
-         if (tmp->free_in(x))
-	         return true;
+        if (tmp->_free_in(x, visited)) return true;
       return false;
    }
    }
-   return false; // should not be reached
+   std::abort();  // should not be reached
 }
 
 void Expr::calc_free_in(){

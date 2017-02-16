@@ -250,7 +250,7 @@ bool Type::isFloatingPoint() const {
 /** Is this a datatype type? */
 bool Type::isDatatype() const {
   NodeManagerScope nms(d_nodeManager);
-  return d_typeNode->isDatatype() || d_typeNode->isParametricDatatype();
+  return d_typeNode->isDatatype();
 }
 
 /** Is this the Constructor type? */
@@ -564,13 +564,7 @@ std::vector<Type> ConstructorType::getArgTypes() const {
 
 const Datatype& DatatypeType::getDatatype() const {
   NodeManagerScope nms(d_nodeManager);
-  if( d_typeNode->isParametricDatatype() ) {
-    PrettyCheckArgument( (*d_typeNode)[0].getKind() == kind::DATATYPE_TYPE, this);
-    const Datatype& dt = (*d_typeNode)[0].getConst<Datatype>();
-    return dt;
-  } else {
-    return d_typeNode->getDatatype();
-  }
+  return d_typeNode->getDatatype();
 }
 
 bool DatatypeType::isParametric() const {
@@ -608,7 +602,7 @@ std::vector<Type> DatatypeType::getParamTypes() const {
 
 DatatypeType DatatypeType::instantiate(const std::vector<Type>& params) const {
   NodeManagerScope nms(d_nodeManager);
-  TypeNode cons = d_nodeManager->mkTypeConst( getDatatype() );
+  TypeNode cons = d_nodeManager->mkTypeConst( (*d_typeNode)[0].getConst<DatatypeIndexConstant>() );
   vector<TypeNode> paramsNodes;
   paramsNodes.push_back( cons );
   for(vector<Type>::const_iterator i = params.begin(),

@@ -64,13 +64,14 @@ TESTS =	\
 	cdt-non-canon-stream.smt2 \
 	stream-singleton.smt2 \
 	is_test.smt2 \
-	manos-model.smt2 \
 	bug625.smt2 \
 	cdt-model-cade15.smt2 \
 	sc-cdt1.smt2  \
 	conqueue-dt-enum-iloop.smt2 \
 	coda_simp_model.smt2 \
-	Test1-tup-mp.cvc
+	Test1-tup-mp.cvc \
+	dt-param-card4-unsat.smt2 \
+	dt-param-card4-bool-sat.smt2
 
 FAILING_TESTS = \
 	datatype-dump.cvc
@@ -95,5 +96,5 @@ EXTRA_DIST += \
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

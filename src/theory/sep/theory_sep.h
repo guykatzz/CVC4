@@ -44,6 +44,8 @@ class TheorySep : public Theory {
   /////////////////////////////////////////////////////////////////////////////
 
   private:
+  /** all lemmas sent */
+  NodeSet d_lemmas_produced_c;
 
   /** True node for predicates = true */
   Node d_true;
@@ -51,11 +53,14 @@ class TheorySep : public Theory {
   /** True node for predicates = false */
   Node d_false;
   
-  std::vector< Node > d_pp_nils;
+  //whether bounds have been initialized
+  bool d_bounds_init;
 
   Node mkAnd( std::vector< TNode >& assumptions );
 
-  void processAssertion( Node n, std::map< Node, bool >& visited );
+  int processAssertion( Node n, std::map< int, std::map< Node, int > >& visited, 
+                        std::map< int, std::map< Node, std::vector< Node > > >& references, std::map< int, std::map< Node, bool > >& references_strict,
+                        bool pol, bool hasPol, bool underSpatial );
 
   public:
 
@@ -75,7 +80,7 @@ class TheorySep : public Theory {
   PPAssertStatus ppAssert(TNode in, SubstitutionMap& outSubstitutions);
   Node ppRewrite(TNode atom);
   
-  void processAssertions( std::vector< Node >& assertions );
+  void ppNotifyAssertions( std::vector< Node >& assertions );
   /////////////////////////////////////////////////////////////////////////////
   // T-PROPAGATION / REGISTRATION
   /////////////////////////////////////////////////////////////////////////////
@@ -88,10 +93,8 @@ class TheorySep : public Theory {
   /** Explain why this literal is true by adding assumptions */
   void explain(TNode literal, std::vector<TNode>& assumptions);
 
-  void preRegisterTermRec(TNode t, std::map< TNode, bool >& visited );
   public:
 
-  void preRegisterTerm(TNode t);
   void propagate(Effort e);
   Node explain(TNode n);
 
@@ -108,7 +111,7 @@ class TheorySep : public Theory {
   public:
 
   void collectModelInfo(TheoryModel* m, bool fullModel);
-  void collectModelComments(TheoryModel* m);
+  void postProcessModel(TheoryModel* m);
 
   /////////////////////////////////////////////////////////////////////////////
   // NOTIFICATIONS
@@ -117,7 +120,7 @@ class TheorySep : public Theory {
   private:
   public:
 
-  Node getNextDecisionRequest();
+  Node getNextDecisionRequest( unsigned& priority );
 
   void presolve();
   void shutdown() { }
@@ -199,15 +202,14 @@ class TheorySep : public Theory {
   std::map< Node, std::map< Node, Node > > d_neg_guard;
   std::vector< Node > d_neg_guards;
   std::map< Node, Node > d_guard_to_assertion;
-  //cache for references
-  std::map< Node, std::map< int, TypeNode > > d_reference_type;
-  std::map< Node, std::map< int, int > > d_reference_type_card;
-  std::map< Node, std::map< int, std::vector< Node > > > d_references;
   /** inferences: maintained to ensure ref count for internally introduced nodes */
   NodeList d_infer;
   NodeList d_infer_exp;
   NodeList d_spatial_assertions;
 
+  //data,ref type (globally fixed)
+  TypeNode d_type_ref;
+  TypeNode d_type_data;
   //currently fix one data type for each location type, throw error if using more than one
   std::map< TypeNode, TypeNode > d_loc_to_data_type;
   //information about types
@@ -216,12 +218,20 @@ class TheorySep : public Theory {
   //reference bound
   std::map< TypeNode, Node > d_reference_bound;
   std::map< TypeNode, Node > d_reference_bound_max;
-  std::map< TypeNode, bool > d_reference_bound_invalid;
   std::map< TypeNode, std::vector< Node > > d_type_references;
+  //kind of bound for reference types
+  enum {
+    bound_strict,
+    bound_default,
+    bound_herbrand,
+    bound_invalid,
+  };
+  std::map< TypeNode, unsigned > d_bound_kind;
+  
+  std::map< TypeNode, std::vector< Node > > d_type_references_card;
+  std::map< Node, unsigned > d_type_ref_card_id;
   std::map< TypeNode, std::vector< Node > > d_type_references_all;
   std::map< TypeNode, unsigned > d_card_max;
-  //bounds for labels
-  std::map< Node, std::vector< Node > > d_lbl_reference_bound;
   //for empty argument
   std::map< TypeNode, Node > d_emp_arg;
   //map from ( atom, label, child index ) -> label
@@ -242,12 +252,15 @@ class TheorySep : public Theory {
   std::map< Node, HeapAssertInfo * > d_eqc_info;
   HeapAssertInfo * getOrMakeEqcInfo( Node n, bool doMake = false );
 
-  //calculate the element type of the heap for spatial assertions
-  TypeNode getReferenceType( Node atom, int& card, int index = -1 );
-  TypeNode getReferenceType2( Node atom, int& card, int index, Node n, std::map< Node, int >& visited);
+  //get global reference/data type
+  TypeNode getReferenceType( Node n );
+  TypeNode getDataType( Node n );
+  void registerRefDataTypes( TypeNode tn1, TypeNode tn2, Node atom );
+  //get location/data type
   //get the base label for the spatial assertion
   Node getBaseLabel( TypeNode tn );
   Node getNilRef( TypeNode tn );
+  void setNilRef( TypeNode tn, Node n );
   Node getLabel( Node atom, int child, Node lbl );
   Node applyLabel( Node n, Node lbl, std::map< Node, Node >& visited );
   void getLabelChildren( Node atom, Node lbl, std::vector< Node >& children, std::vector< Node >& labels );
@@ -264,13 +277,15 @@ class TheorySep : public Theory {
   };
   //heap info ( label -> HeapInfo )
   std::map< Node, HeapInfo > d_label_model;
+  // loc -> { data_1, ..., data_n } where (not (pto loc data_1))...(not (pto loc data_n))).
+  std::map< Node, std::vector< Node > > d_heap_locs_nptos;
 
   void debugPrintHeap( HeapInfo& heap, const char * c );
   void validatePto( HeapAssertInfo * ei, Node ei_n );
   void addPto( HeapAssertInfo * ei, Node ei_n, Node p, bool polarity );
   void mergePto( Node p1, Node p2 );
-  void computeLabelModel( Node lbl, std::map< Node, Node >& tmodel );
-  Node instantiateLabel( Node n, Node o_lbl, Node lbl, Node lbl_v, std::map< Node, Node >& visited, std::map< Node, Node >& pto_model, std::map< Node, Node >& tmodel, 
+  void computeLabelModel( Node lbl );
+  Node instantiateLabel( Node n, Node o_lbl, Node lbl, Node lbl_v, std::map< Node, Node >& visited, std::map< Node, Node >& pto_model, 
                          TypeNode rtn, std::map< Node, bool >& active_lbl, unsigned ind = 0 );
   void setInactiveAssertionRec( Node fact, std::map< Node, std::vector< Node > >& lbl_to_assertions, std::map< Node, bool >& assert_active );
 
@@ -290,6 +305,7 @@ public:
     return &d_equalityEngine;
   }
 
+  void initializeBounds();
 };/* class TheorySep */
 
 }/* CVC4::theory::sep namespace */

@@ -17,15 +17,19 @@ option miniscopeQuant --miniscope-quant bool :default true :read-write
 # ( forall x. P( x ) ) V Q
 option miniscopeQuantFreeVar --miniscope-quant-fv bool :default true :read-write
  miniscope quantifiers for ground subformulas
-option quantSplit --quant-split bool :default true
+option quantSplit --quant-split bool :default true :read-write
  apply splitting to quantified formulas based on variable disjoint disjuncts
-option prenexQuant --prenex-quant=MODE CVC4::theory::quantifiers::PrenexQuantMode :default CVC4::theory::quantifiers::PRENEX_NO_USER_PAT :include "options/quantifiers_modes.h" :read-write :handler stringToPrenexQuantMode
+option prenexQuant --prenex-quant=MODE CVC4::theory::quantifiers::PrenexQuantMode :default CVC4::theory::quantifiers::PRENEX_QUANT_SIMPLE :include "options/quantifiers_modes.h" :read-write :handler stringToPrenexQuantMode
  prenex mode for quantified formulas
+option prenexQuantUser --prenex-quant-user bool :default false :read-write
+ prenex quantified formulas with user patterns
 # Whether to variable-eliminate quantifiers.
 # For example, forall x y. ( P( x, y ) V x != c ) will be rewritten to
 #   forall y. P( c, y )
 option varElimQuant --var-elim-quant bool :default true
  enable simple variable elimination for quantified formulas
+option varIneqElimQuant --var-ineq-elim-quant bool :default true
+ enable variable elimination based on infinite projection of unbound arithmetic variables
 option dtVarExpandQuant --dt-var-exp-quant bool :default true
  expand datatype variables bound to one constructor in quantifiers
 #ite lift mode for quantified formulas
@@ -43,15 +47,13 @@ option iteDtTesterSplitQuant --ite-dtt-split-quant bool :read-write :default fal
 option preSkolemQuant --pre-skolem-quant bool :read-write :default false
  apply skolemization eagerly to bodies of quantified formulas
 option preSkolemQuantNested --pre-skolem-quant-nested bool :read-write :default true
- apply skolemization to nested quantified formulass
+ apply skolemization to nested quantified formulas
 option preSkolemQuantAgg --pre-skolem-quant-agg bool :read-write :default true
  apply skolemization to quantified formulas aggressively
 option aggressiveMiniscopeQuant --ag-miniscope-quant bool :default false
  perform aggressive miniscoping for quantifiers
 option elimTautQuant --elim-taut-quant bool :default true
  eliminate tautological disjuncts of quantified formulas
-option purifyQuant --purify-quant bool :default false
- purify quantified formulas
 option elimExtArithQuant --elim-ext-arith-quant bool :default true
  eliminate extended arithmetic symbols in quantified formulas
 option condRewriteQuant --cond-rewrite-quant bool :default true
@@ -116,10 +118,6 @@ option quantRepMode --quant-rep-mode=MODE  CVC4::theory::quantifiers::QuantRepMo
 option instRelevantCond --inst-rlv-cond bool :default false
  add relevancy conditions for instantiations
 
- 
-option eagerInstQuant --eager-inst-quant bool :default false
- apply quantifier instantiation eagerly
-
 option fullSaturateQuant --full-saturate-quant bool :default false :read-write
  when all other quantifier instantiation strategies fail, instantiate with ground terms from relevant domain, then arbitrary ground terms before answering unknown
 option fullSaturateQuantRd --full-saturate-quant-rd bool :default true
@@ -163,8 +161,12 @@ option fmfFmcSimple --fmf-fmc-simple bool :default true
  simple models in full model check for finite model finding
 option fmfBoundInt fmf-bound-int --fmf-bound-int bool :default false :read-write
  finite model finding on bounded integer quantification
-option fmfBoundIntLazy --fmf-bound-int-lazy bool :default false :read-write
- enforce bounds for bounded integer quantification lazily via use of proxy variables
+option fmfBound fmf-bound --fmf-bound bool :default false :read-write
+ finite model finding on bounded quantification
+option fmfBoundLazy --fmf-bound-lazy bool :default false :read-write
+ enforce bounds for bounded quantification lazily via use of proxy variables
+option fmfBoundMinMode --fmf-bound-min-mode=MODE CVC4::theory::quantifiers::FmfBoundMinMode :default CVC4::theory::quantifiers::FMF_BOUND_MIN_INT_RANGE :include "options/quantifiers_modes.h" :handler stringToFmfBoundMinMode
+ mode for which types of bounds to minimize via first decision heuristics
  
 ### conflict-based instantiation options 
  
@@ -182,8 +184,6 @@ option qcfNestedConflict --qcf-nested-conflict bool :default false
  consider conflicts for nested quantifiers
 option qcfVoExp --qcf-vo-exp bool :default false
  qcf experimental variable ordering
- 
- 
 
 option instNoEntail --inst-no-entail bool :read-write :default true
  do not consider instances of quantified formulas that are currently entailed
@@ -193,8 +193,11 @@ option instPropagate --inst-prop bool :read-write :default false
  
 option qcfEagerTest --qcf-eager-test bool :default true
  optimization, test qcf instances eagerly
+option qcfEagerCheckRd --qcf-eager-check-rd bool :default true
+ optimization, eagerly check relevant domain of matched position
 option qcfSkipRd --qcf-skip-rd bool :default false
  optimization, skip instances based on possibly irrelevant portions of quantified formulas
+ 
 ### rewrite rules options 
  
 option quantRewriteRules --rewrite-rules bool :default false
@@ -242,6 +245,10 @@ option cegqiSingleInvPartial --cegqi-si-partial bool :default false
   combined techniques for synthesis conjectures that are partially single invocation 
 option cegqiSingleInvReconstruct --cegqi-si-reconstruct bool :default true
   reconstruct solutions for single invocation conjectures in original grammar
+option cegqiSolMinCore --cegqi-si-sol-min-core bool :default false
+  minimize solutions for single invocation conjectures based on unsat core
+option cegqiSolMinInst --cegqi-si-sol-min-inst bool :default true
+  minimize individual instantiations for single invocation conjectures based on unsat core
 option cegqiSingleInvReconstructConst --cegqi-si-reconstruct-const bool :default true
   include constants when reconstruct solutions for single invocation conjectures in original grammar
 option cegqiSingleInvAbort --cegqi-si-abort bool :default false
@@ -267,8 +274,6 @@ option sygusDirectEval --sygus-direct-eval bool :default true
   direct unfolding of evaluation functions
   
 # approach applied to general quantified formulas
-option cbqiSplx --cbqi-splx bool :read-write :default false
- turns on old implementation of counterexample-based quantifier instantiation
 option cbqi --cbqi bool :read-write :default false
  turns on counterexample-based quantifier instantiation
 option recurseCbqi --cbqi-recurse bool :default true
@@ -287,14 +292,23 @@ option cbqiPreRegInst --cbqi-prereg-inst bool :read-write :default false
   preregister ground instantiations in counterexample-based quantifier instantiation
 option cbqiMinBounds --cbqi-min-bounds bool :default false
   use minimally constrained lower/upper bound for counterexample-based quantifier instantiation
-option cbqiSymLia --cbqi-sym-lia bool :default false
-  use symbolic integer division in substitutions for counterexample-based quantifier instantiation
 option cbqiRoundUpLowerLia --cbqi-round-up-lia bool :default false
   round up integer lower bounds in substitutions for counterexample-based quantifier instantiation
 option cbqiMidpoint --cbqi-midpoint bool :default false
   choose substitutions based on midpoints of lower and upper bounds for counterexample-based quantifier instantiation
 option cbqiNopt --cbqi-nopt bool :default true
   non-optimal bounds for counterexample-based quantifier instantiation
+option cbqiLitDepend --cbqi-lit-dep bool :default true
+  dependency lemmas for quantifier alternation in counterexample-based quantifier instantiation
+option cbqiInnermost --cbqi-innermost bool :read-write :default true
+ only process innermost quantified formulas in counterexample-based quantifier instantiation
+option cbqiNestedQE --cbqi-nested-qe bool :default false
+ process nested quantified formulas with quantifier elimination in counterexample-based quantifier instantiation
+ 
+option quantEpr --quant-epr bool :default false :read-write
+ infer whether in effectively propositional fragment, use for cbqi
+option quantEprMatching --quant-epr-match bool :default true
+ use matching heuristics for EPR instantiation
  
 ### local theory extensions options 
 
@@ -313,7 +327,7 @@ option macrosQuant --macros-quant bool :read-write :default false
  perform quantifiers macro expansion
 option macrosQuantMode --macros-quant-mode=MODE CVC4::theory::quantifiers::MacrosQuantMode :default CVC4::theory::quantifiers::MACROS_QUANT_MODE_GROUND_UF :include "options/quantifiers_modes.h" :handler stringToMacrosQuantMode
  mode for quantifiers macro expansion
-option quantDynamicSplit --quant-dsplit-mode=MODE CVC4::theory::quantifiers::QuantDSplitMode :read-write :default CVC4::theory::quantifiers::QUANT_DSPLIT_MODE_DEFAULT :include "options/quantifiers_modes.h" :handler stringToQuantDSplitMode
+option quantDynamicSplit --quant-dsplit-mode=MODE CVC4::theory::quantifiers::QuantDSplitMode :read-write :default CVC4::theory::quantifiers::QUANT_DSPLIT_MODE_NONE :include "options/quantifiers_modes.h" :handler stringToQuantDSplitMode
  mode for dynamic quantifiers splitting
 option quantAntiSkolem --quant-anti-skolem bool :read-write :default false
  perform anti-skolemization for quantified formulas
@@ -327,5 +341,10 @@ option quantAntiSkolem --quant-anti-skolem bool :read-write :default false
 
 option quantEqualityEngine --quant-ee bool :default false
   maintain congrunce closure over universal equalities
+ 
+### proof options
+
+option trackInstLemmas --track-inst-lemmas bool :read-write :default false
+  track instantiation lemmas (for proofs, unsat cores, qe and synthesis minimization)
  
 endmodule

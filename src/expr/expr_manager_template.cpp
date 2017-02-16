@@ -75,7 +75,7 @@ ExprManager::ExprManager() :
   for (unsigned i = 0; i < kind::LAST_KIND; ++ i) {
     d_exprStatistics[i] = NULL;
   }
-  for (unsigned i = 0; i < LAST_TYPE; ++ i) {
+  for (unsigned i = 0; i <= LAST_TYPE; ++ i) {
     d_exprStatisticsVars[i] = NULL;
   }
 #endif
@@ -84,7 +84,7 @@ ExprManager::ExprManager() :
 ExprManager::ExprManager(const Options& options) :
   d_nodeManager(new NodeManager(this, options)) {
 #ifdef CVC4_STATISTICS_ON
-  for (unsigned i = 0; i < LAST_TYPE; ++ i) {
+  for (unsigned i = 0; i <= LAST_TYPE; ++ i) {
     d_exprStatisticsVars[i] = NULL;
   }
   for (unsigned i = 0; i < kind::LAST_KIND; ++ i) {
@@ -106,7 +106,7 @@ ExprManager::~ExprManager() throw() {
         d_exprStatistics[i] = NULL;
       }
     }
-    for (unsigned i = 0; i < LAST_TYPE; ++ i) {
+    for (unsigned i = 0; i <= LAST_TYPE; ++ i) {
       if (d_exprStatisticsVars[i] != NULL) {
         d_nodeManager->getStatisticsRegistry()->unregisterStat(d_exprStatisticsVars[i]);
         delete d_exprStatisticsVars[i];
@@ -645,46 +645,51 @@ SetType ExprManager::mkSetType(Type elementType) const {
   return SetType(Type(d_nodeManager, new TypeNode(d_nodeManager->mkSetType(*elementType.d_typeNode))));
 }
 
-DatatypeType ExprManager::mkDatatypeType(const Datatype& datatype) {
+DatatypeType ExprManager::mkDatatypeType(Datatype& datatype) {
   // Not worth a special implementation; this doesn't need to be fast
   // code anyway.
   vector<Datatype> datatypes;
   datatypes.push_back(datatype);
-  vector<DatatypeType> result = mkMutualDatatypeTypes(datatypes);
+  std::vector<DatatypeType> result = mkMutualDatatypeTypes(datatypes);
   Assert(result.size() == 1);
   return result.front();
 }
 
-std::vector<DatatypeType>
-ExprManager::mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes) {
-  return mkMutualDatatypeTypes(datatypes, set<Type>());
+std::vector<DatatypeType> ExprManager::mkMutualDatatypeTypes(std::vector<Datatype>& datatypes) {
+  std::set<Type> unresolvedTypes;
+  return mkMutualDatatypeTypes(datatypes, unresolvedTypes);
 }
 
-std::vector<DatatypeType>
-ExprManager::mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes,
-                                   const std::set<Type>& unresolvedTypes) {
+std::vector<DatatypeType> ExprManager::mkMutualDatatypeTypes(std::vector<Datatype>& datatypes, std::set<Type>& unresolvedTypes) {
   NodeManagerScope nms(d_nodeManager);
   std::map<std::string, DatatypeType> nameResolutions;
   std::vector<DatatypeType> dtts;
 
+  //have to build deep copy so that datatypes will live in NodeManager
+  std::vector< Datatype* > dt_copies;
+  for(std::vector<Datatype>::iterator i = datatypes.begin(), i_end = datatypes.end(); i != i_end; ++i) {
+    dt_copies.push_back( new Datatype( *i ) );
+  }
+  
   // First do some sanity checks, set up the final Type to be used for
   // each datatype, and set up the "named resolutions" used to handle
   // simple self- and mutual-recursion, for example in the definition
   // "nat = succ(pred:nat) | zero", a named resolution can handle the
   // pred selector.
-  for(std::vector<Datatype>::const_iterator i = datatypes.begin(),
-        i_end = datatypes.end();
-      i != i_end;
-      ++i) {
+  for(std::vector<Datatype*>::iterator i = dt_copies.begin(), i_end = dt_copies.end(); i != i_end; ++i) {
     TypeNode* typeNode;
-    if( (*i).getNumParameters() == 0 ) {
-      typeNode = new TypeNode(d_nodeManager->mkTypeConst(*i));
+    if( (*i)->getNumParameters() == 0 ) {
+      unsigned index = d_nodeManager->registerDatatype( *i );
+      typeNode = new TypeNode(d_nodeManager->mkTypeConst(DatatypeIndexConstant(index)));
+      //typeNode = new TypeNode(d_nodeManager->mkTypeConst(*i));
     } else {
-      TypeNode cons = d_nodeManager->mkTypeConst(*i);
+      unsigned index = d_nodeManager->registerDatatype( *i );
+      TypeNode cons = d_nodeManager->mkTypeConst(DatatypeIndexConstant(index));
+      //TypeNode cons = d_nodeManager->mkTypeConst(*i);
       std::vector< TypeNode > params;
       params.push_back( cons );
-      for( unsigned int ip = 0; ip < (*i).getNumParameters(); ++ip ) {
-        params.push_back( TypeNode::fromType( (*i).getParameter( ip ) ) );
+      for( unsigned int ip = 0; ip < (*i)->getNumParameters(); ++ip ) {
+        params.push_back( TypeNode::fromType( (*i)->getParameter( ip ) ) );
       }
 
       typeNode = new TypeNode(d_nodeManager->mkTypeNode(kind::PARAMETRIC_DATATYPE, params));
@@ -692,13 +697,16 @@ ExprManager::mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes,
     Type type(d_nodeManager, typeNode);
     DatatypeType dtt(type);
     PrettyCheckArgument(
-        nameResolutions.find((*i).getName()) == nameResolutions.end(),
-        datatypes,
+        nameResolutions.find((*i)->getName()) == nameResolutions.end(),
+        dt_copies,
         "cannot construct two datatypes at the same time "
         "with the same name `%s'",
-        (*i).getName().c_str());
-    nameResolutions.insert(std::make_pair((*i).getName(), dtt));
+        (*i)->getName().c_str());
+    nameResolutions.insert(std::make_pair((*i)->getName(), dtt));
     dtts.push_back(dtt);
+    //d_keep_dtt.push_back(dtt);
+    //d_keep_dt.push_back(*i);
+    //Assert( dtt.getDatatype()==(*i) );
   }
 
   // Second, set up the type substitution map for complex type
@@ -714,10 +722,7 @@ ExprManager::mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes,
   std::vector< DatatypeType > paramReplacements;
   std::vector<Type> placeholders;// to hold the "unresolved placeholders"
   std::vector<Type> replacements;// to hold our final, resolved types
-  for(std::set<Type>::const_iterator i = unresolvedTypes.begin(),
-        i_end = unresolvedTypes.end();
-      i != i_end;
-      ++i) {
+  for(std::set<Type>::iterator i = unresolvedTypes.begin(), i_end = unresolvedTypes.end(); i != i_end; ++i) {
     std::string name;
     if( (*i).isSort() ) {
       name = SortType(*i).getName();
@@ -766,7 +771,7 @@ ExprManager::mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes,
   for(std::vector<NodeManagerListener*>::iterator i = d_nodeManager->d_listeners.begin(); i != d_nodeManager->d_listeners.end(); ++i) {
     (*i)->nmNotifyNewDatatypes(dtts);
   }
-
+  
   return dtts;
 }
 
@@ -941,9 +946,10 @@ Expr ExprManager::mkBoundVar(Type type) {
   return Expr(this, d_nodeManager->mkBoundVarPtr(*type.d_typeNode));
 }
 
-Expr ExprManager::mkSepNil(Type type) {
+Expr ExprManager::mkUniqueVar(Type type, Kind k){
   NodeManagerScope nms(d_nodeManager);
-  return Expr(this, d_nodeManager->mkSepNilPtr(*type.d_typeNode));
+  Node n = d_nodeManager->mkUniqueVar(*type.d_typeNode, k); 
+  return n.toExpr();
 }
 
 Expr ExprManager::mkAssociative(Kind kind,

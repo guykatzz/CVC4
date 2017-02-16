@@ -57,6 +57,7 @@
 #include "options/open_ostream.h"
 #include "options/option_exception.h"
 #include "options/printer_options.h"
+#include "options/proof_options.h"
 #include "options/prop_options.h"
 #include "options/quantifiers_options.h"
 #include "options/set_language.h"
@@ -94,7 +95,6 @@
 #include "theory/quantifiers/quantifiers_rewriter.h"
 #include "theory/sort_inference.h"
 #include "theory/strings/theory_strings.h"
-#include "theory/sep/theory_sep.h"
 #include "theory/substitutions.h"
 #include "theory/theory_engine.h"
 #include "theory/theory_model.h"
@@ -102,6 +102,7 @@
 #include "util/hash.h"
 #include "util/proof.h"
 #include "util/resource_manager.h"
+#include "options/sep_options.h"
 
 using namespace std;
 using namespace CVC4;
@@ -974,44 +975,6 @@ public:
     return d_managedReplayLog.getReplayLog();
   }
 
-  Node replaceQuantifiersWithInstantiations( Node n, std::map< Node, std::vector< Node > >& insts, std::map< Node, Node >& visited ){
-    std::map< Node, Node >::iterator itv = visited.find( n );
-    if( itv!=visited.end() ){
-      return itv->second;
-    }else{
-      Node ret = n;
-      if( n.getKind()==kind::FORALL ){
-        std::map< Node, std::vector< Node > >::iterator it = insts.find( n );
-        if( it==insts.end() ){
-          Trace("smt-qe-debug") << "* " << n << " has no instances" << std::endl;
-          ret = NodeManager::currentNM()->mkConst(true);
-        }else{
-          Trace("smt-qe-debug") << "* " << n << " has " << it->second.size() << " instances" << std::endl;
-          Node reti = it->second.empty() ? NodeManager::currentNM()->mkConst(true) : ( it->second.size()==1 ? it->second[0] : NodeManager::currentNM()->mkNode( kind::AND, it->second ) );
-          Trace("smt-qe-debug") << "   return : " << ret << std::endl;
-          //recursive (for nested quantification)
-          ret = replaceQuantifiersWithInstantiations( reti, insts, visited );
-        }
-      }else if( n.getNumChildren()>0 ){
-        bool childChanged = false;
-        std::vector< Node > children;
-        if( n.getMetaKind() == kind::metakind::PARAMETERIZED ){
-          children.push_back( n.getOperator() );
-        }
-        for( unsigned i=0; i<n.getNumChildren(); i++ ){
-          Node r = replaceQuantifiersWithInstantiations( n[i], insts, visited );
-          children.push_back( r );
-          childChanged = childChanged || r!=n[i];
-        }
-        if( childChanged ){
-          ret = NodeManager::currentNM()->mkNode( n.getKind(), children );
-        }
-      }
-      visited[n] = ret;
-      return ret;
-    }
-  }
-
 };/* class SmtEnginePrivate */
 
 }/* namespace CVC4::smt */
@@ -1027,8 +990,7 @@ SmtEngine::SmtEngine(ExprManager* em) throw() :
   d_propEngine(NULL),
   d_proofManager(NULL),
   d_definedFunctions(NULL),
-  d_fmfRecFunctionsAbs(NULL),
-  d_fmfRecFunctionsConcrete(NULL),
+  d_fmfRecFunctionsDefined(NULL),
   d_assertionList(NULL),
   d_assignments(NULL),
   d_modelGlobalCommands(),
@@ -1097,8 +1059,7 @@ SmtEngine::SmtEngine(ExprManager* em) throw() :
 
   d_definedFunctions = new(true) DefinedFunctionMap(d_userContext);
   if( options::fmfFunWellDefined() || options::fmfFunWellDefinedRelevant() ){
-    d_fmfRecFunctionsAbs = new(true) TypeNodeMap(d_userContext);
-    d_fmfRecFunctionsConcrete = new(true) NodeListMap(d_userContext);
+    d_fmfRecFunctionsDefined = new(true) NodeList(d_userContext);
   }
   d_modelCommands = new(true) smt::CommandList(d_userContext);
 }
@@ -1138,11 +1099,14 @@ void SmtEngine::finishInit() {
 
   // dump out a set-logic command
   if(Dump.isOn("benchmark")) {
-    // Dump("benchmark") << SetBenchmarkLogicCommand(logic.getLogicString());
-    LogicInfo everything;
-    everything.lock();
-    Dump("benchmark") << CommentCommand("CVC4 always dumps the most general, all-supported logic (below), as some internals might require the use of a logic more general than the input.")
-                      << SetBenchmarkLogicCommand(everything.getLogicString());
+    if (Dump.isOn("raw-benchmark")) {
+      Dump("raw-benchmark") << SetBenchmarkLogicCommand(d_logic.getLogicString());
+    } else {
+      LogicInfo everything;
+      everything.lock();
+      Dump("benchmark") << CommentCommand("CVC4 always dumps the most general, all-supported logic (below), as some internals might require the use of a logic more general than the input.")
+                        << SetBenchmarkLogicCommand(everything.getLogicString());
+    }
   }
 
   Trace("smt-debug") << "Dump declaration commands..." << std::endl;
@@ -1244,6 +1208,10 @@ SmtEngine::~SmtEngine() throw() {
 
     d_definedFunctions->deleteSelf();
 
+    if( d_fmfRecFunctionsDefined != NULL ){
+      d_fmfRecFunctionsDefined->deleteSelf();
+    }
+
     delete d_theoryEngine;
     d_theoryEngine = NULL;
     delete d_propEngine;
@@ -1326,7 +1294,8 @@ void SmtEngine::setDefaults() {
   }
   else if (options::solveIntAsBV() > 0) {
     d_logic = LogicInfo("QF_BV");
-  } else if (d_logic.getLogicString() == "QF_UFBV" &&
+  } else if ((d_logic.getLogicString() == "QF_UFBV" ||
+              d_logic.getLogicString() == "QF_ABV") &&
              options::bitblastMode() == theory::bv::BITBLAST_MODE_EAGER) {
     d_logic = LogicInfo("QF_BV");
   }
@@ -1349,8 +1318,8 @@ void SmtEngine::setDefaults() {
       Trace("smt") << "turning on quantifier logic, for strings-exp"
                    << std::endl;
     }
-    if(! options::fmfBoundInt.wasSetByUser()) {
-      options::fmfBoundInt.set( true );
+    if(! options::fmfBound.wasSetByUser()) {
+      options::fmfBound.set( true );
       Trace("smt") << "turning on fmf-bound-int, for strings-exp" << std::endl;
     }
     if(! options::fmfInstEngine.wasSetByUser()) {
@@ -1630,6 +1599,11 @@ void SmtEngine::setDefaults() {
     options::bvEagerExplanations.set(true);
   }
 
+  if( !options::bitvectorEqualitySolver() ){
+    Trace("smt") << "disabling bvLazyRewriteExtf since equality solver is disabled" << endl;
+    options::bvLazyRewriteExtf.set(false);
+  }
+
   // Turn on arith rewrite equalities only for pure arithmetic
   if(! options::arithRewriteEq.wasSetByUser()) {
     bool arithRewriteEq = d_logic.isPure(THEORY_ARITH) && !d_logic.isQuantified();
@@ -1674,7 +1648,7 @@ void SmtEngine::setDefaults() {
   // Set decision mode based on logic (if not set by user)
   if(!options::decisionMode.wasSetByUser()) {
     decision::DecisionMode decMode =
-      // ALL_SUPPORTED
+      // ALL
       d_logic.hasEverything() ? decision::DECISION_STRATEGY_JUSTIFICATION :
       ( // QF_BV
         (not d_logic.isQuantified() &&
@@ -1705,7 +1679,7 @@ void SmtEngine::setDefaults() {
       );
 
     bool stoponly =
-      // ALL_SUPPORTED
+      // ALL
       d_logic.hasEverything() || d_logic.isTheoryEnabled(THEORY_STRINGS) ? false :
       ( // QF_AUFLIA
         (not d_logic.isQuantified() &&
@@ -1728,6 +1702,7 @@ void SmtEngine::setDefaults() {
     //disable modes not supported by incremental
     options::sortInference.set( false );
     options::ufssFairnessMonotone.set( false );
+    options::quantEpr.set( false );
   }
   if( d_logic.hasCardinalityConstraints() ){
     //must have finite model finding on
@@ -1751,13 +1726,18 @@ void SmtEngine::setDefaults() {
     Notice() << "SmtEngine: turning off cbqi to support instMaxLevel" << endl;
     options::cbqi.set(false);
   }
+  //track instantiations?
+  if( options::cbqiNestedQE() || ( options::proof() && !options::trackInstLemmas.wasSetByUser() ) ){
+    options::trackInstLemmas.set( true );
+  }
 
-  if(options::fmfBoundIntLazy.wasSetByUser() && options::fmfBoundIntLazy()) {
-    options::fmfBoundInt.set( true );
+  if( ( options::fmfBoundLazy.wasSetByUser() && options::fmfBoundLazy() ) ||
+      ( options::fmfBoundInt.wasSetByUser() && options::fmfBoundInt() ) ) {
+    options::fmfBound.set( true );
   }
   //now have determined whether fmfBoundInt is on/off
   //apply fmfBoundInt options
-  if( options::fmfBoundInt() ){
+  if( options::fmfBound() ){
     //must have finite model finding on
     options::finiteModelFind.set( true );
     if( ! options::mbqiMode.wasSetByUser() ||
@@ -1768,7 +1748,7 @@ void SmtEngine::setDefaults() {
       options::mbqiMode.set( quantifiers::MBQI_NONE );
     }
     if( ! options::prenexQuant.wasSetByUser() ){
-      options::prenexQuant.set( quantifiers::PRENEX_NONE );
+      options::prenexQuant.set( quantifiers::PRENEX_QUANT_NONE );
     }
   }
   if( options::ufssSymBreak() ){
@@ -1784,10 +1764,20 @@ void SmtEngine::setDefaults() {
       options::finiteModelFind.set( true );
     }
   }
+  //EPR
+  if( options::quantEpr() ){
+    if( !options::preSkolemQuant.wasSetByUser() ){
+      options::preSkolemQuant.set( true );
+    }
+  }
 
   //now, have determined whether finite model find is on/off
   //apply finite model finding options
   if( options::finiteModelFind() ){
+    //apply conservative quantifiers splitting
+    if( !options::quantDynamicSplit.wasSetByUser() ){
+      options::quantDynamicSplit.set( quantifiers::QUANT_DSPLIT_MODE_DEFAULT );
+    }
     if( !options::eMatching.wasSetByUser() ){
       options::eMatching.set( options::fmfInstEngine() );
     }
@@ -1861,10 +1851,6 @@ void SmtEngine::setDefaults() {
       options::cbqi.set( true );
     }
   }
-  if( options::cbqiSplx() ){
-    //implies more general option
-    options::cbqi.set( true );
-  }
   if( options::cbqi() ){
     //must rewrite divk
     if( !options::rewriteDivk.wasSetByUser()) {
@@ -1880,9 +1866,7 @@ void SmtEngine::setDefaults() {
       }
       if( !options::instWhenMode.wasSetByUser() && options::cbqiModel() ){
         //only instantiation should happen at last call when model is avaiable
-        if( !options::instWhenMode.wasSetByUser() ){
-          options::instWhenMode.set( quantifiers::INST_WHEN_LAST_CALL );
-        }
+        options::instWhenMode.set( quantifiers::INST_WHEN_LAST_CALL );
       }
     }
   }
@@ -1894,6 +1878,16 @@ void SmtEngine::setDefaults() {
   }
   if( options::qcfMode.wasSetByUser() || options::qcfTConstraint() ){
     options::quantConflictFind.set( true );
+  }
+  if( options::cbqiNestedQE() ){
+    //only sound with prenex = disj_normal or normal
+    if( options::prenexQuant()<=quantifiers::PRENEX_QUANT_DISJ_NORMAL ){
+      options::prenexQuant.set( quantifiers::PRENEX_QUANT_DISJ_NORMAL );
+    }
+    options::prenexQuantUser.set( true );
+    if( !options::preSkolemQuant.wasSetByUser() ){
+      options::preSkolemQuant.set( true );
+    }
   }
   //for induction techniques
   if( options::quantInduction() ){
@@ -1952,7 +1946,8 @@ void SmtEngine::setDefaults() {
 
   //until bugs 371,431 are fixed
   if( ! options::minisatUseElim.wasSetByUser()){
-    if( d_logic.isQuantified() || options::produceModels() || options::produceAssignments() || options::checkModels() ){
+    //AJR: cannot use minisat elim for new implementation of sets TODO: why?
+    if( d_logic.isTheoryEnabled(THEORY_SETS) || d_logic.isQuantified() || options::produceModels() || options::produceAssignments() || options::checkModels() ){
       options::minisatUseElim.set( false );
     }
   }
@@ -2156,10 +2151,13 @@ CVC4::SExpr SmtEngine::getInfo(const std::string& key) const
                            "last result wasn't unknown!");
     }
   } else if(key == "assertion-stack-levels") {
-    return SExpr(d_userLevels.size());
+    AlwaysAssert(d_userLevels.size() <=
+                 std::numeric_limits<unsigned long int>::max());
+    return SExpr(static_cast<unsigned long int>(d_userLevels.size()));
   } else if(key == "all-options") {
     // get the options, like all-statistics
-    std::vector< std::vector<std::string> > current_options = Options::current()->getOptions();
+    std::vector< std::vector<std::string> > current_options =
+      Options::current()->getOptions();
     return SExpr::parseListOfListOfAtoms(current_options);
   } else {
     throw UnrecognizedOptionException();
@@ -2688,7 +2686,7 @@ bool SmtEnginePrivate::nonClausalSimplify() {
   spendResource(options::preprocessStep());
   d_smt.finalOptionsAreSet();
 
-  if(options::unsatCores()) {
+  if(options::unsatCores() || options::fewerPreprocessingHoles()) {
     return true;
   }
 
@@ -2726,7 +2724,7 @@ bool SmtEnginePrivate::nonClausalSimplify() {
     Trace("simplify") << "SmtEnginePrivate::nonClausalSimplify(): "
                       << "conflict in non-clausal propagation" << endl;
     Node falseNode = NodeManager::currentNM()->mkConst<bool>(false);
-    Assert(!options::unsatCores());
+    Assert(!options::unsatCores() && !options::fewerPreprocessingHoles());
     d_assertions.clear();
     addFormula(falseNode, false, false);
     d_propagatorNeedsFinish = true;
@@ -3888,7 +3886,8 @@ void SmtEnginePrivate::processAssertions() {
 
   if (options::bitblastMode() == theory::bv::BITBLAST_MODE_EAGER &&
       !d_smt.d_logic.isPure(THEORY_BV) &&
-      d_smt.d_logic.getLogicString() != "QF_UFBV") {
+      d_smt.d_logic.getLogicString() != "QF_UFBV" &&
+      d_smt.d_logic.getLogicString() != "QF_ABV") {
     throw ModalException("Eager bit-blasting does not currently support theory combination. "
                          "Note that in a QF_BV problem UF symbols can be introduced for division. "
                          "Try --bv-div-zero-const to interpret division by zero as a constant.");
@@ -3986,34 +3985,29 @@ void SmtEnginePrivate::processAssertions() {
     dumpAssertions("post-bv-to-bool", d_assertions);
     Trace("smt") << "POST bvToBool" << endl;
   }
-  if( d_smt.d_logic.isTheoryEnabled(THEORY_SEP) ) {
-    //separation logic solver needs to register the entire input
-    ((theory::sep::TheorySep*)d_smt.d_theoryEngine->theoryOf(THEORY_SEP))->processAssertions( d_assertions.ref() );
+  if(options::sepPreSkolemEmp()) {
+    for (unsigned i = 0; i < d_assertions.size(); ++ i) {
+      Node prev = d_assertions[i];
+      Node next = sep::TheorySepRewriter::preprocess( prev );
+      if( next!=prev ){
+        d_assertions.replace( i, Rewriter::rewrite( next ) );
+        Trace("sep-preprocess") << "*** Preprocess sep " << prev << endl;
+        Trace("sep-preprocess") << "   ...got " << d_assertions[i] << endl;
+      }
+    }
   }
   if( d_smt.d_logic.isQuantified() ){
     Trace("smt-proc") << "SmtEnginePrivate::processAssertions() : pre-quant-preprocess" << endl;
-    //remove rewrite rules
-    for( unsigned i=0; i < d_assertions.size(); i++ ) {
-      if( d_assertions[i].getKind() == kind::REWRITE_RULE ){
-        Node prev = d_assertions[i];
-        Trace("quantifiers-rewrite-debug") << "Rewrite rewrite rule " << prev << "..." << std::endl;
-        d_assertions.replace(i, Rewriter::rewrite( quantifiers::QuantifiersRewriter::rewriteRewriteRule( d_assertions[i] ) ) );
-        Trace("quantifiers-rewrite") << "*** rr-rewrite " << prev << endl;
-        Trace("quantifiers-rewrite") << "   ...got " << d_assertions[i] << endl;
-      }
-    }
 
     dumpAssertions("pre-skolem-quant", d_assertions);
-    if( options::preSkolemQuant() ){
-      //apply pre-skolemization to existential quantifiers
-      for (unsigned i = 0; i < d_assertions.size(); ++ i) {
-        Node prev = d_assertions[i];
-        Node next = quantifiers::QuantifiersRewriter::preprocess( prev );
-        if( next!=prev ){
-          d_assertions.replace(i, Rewriter::rewrite( next ));
-          Trace("quantifiers-preprocess") << "*** Pre-skolemize " << prev << endl;
-          Trace("quantifiers-preprocess") << "   ...got " << d_assertions[i] << endl;
-        }
+    //remove rewrite rules, apply pre-skolemization to existential quantifiers
+    for (unsigned i = 0; i < d_assertions.size(); ++ i) {
+      Node prev = d_assertions[i];
+      Node next = quantifiers::QuantifiersRewriter::preprocess( prev );
+      if( next!=prev ){
+        d_assertions.replace( i, Rewriter::rewrite( next ) );
+        Trace("quantifiers-preprocess") << "*** Pre-skolemize " << prev << endl;
+        Trace("quantifiers-preprocess") << "   ...got " << d_assertions[i] << endl;
       }
     }
     dumpAssertions("post-skolem-quant", d_assertions);
@@ -4032,27 +4026,28 @@ void SmtEnginePrivate::processAssertions() {
     if( options::fmfFunWellDefined() ){
       quantifiers::FunDefFmf fdf;
       //must carry over current definitions (for incremental)
-      for( SmtEngine::TypeNodeMap::const_iterator fit = d_smt.d_fmfRecFunctionsAbs->begin(); fit != d_smt.d_fmfRecFunctionsAbs->end(); ++fit ){
-        Node f = (*fit).first;
-        TypeNode ft = (*fit).second;
+      for( context::CDList<Node>::const_iterator fit = d_smt.d_fmfRecFunctionsDefined->begin();
+           fit != d_smt.d_fmfRecFunctionsDefined->end(); ++fit ) {
+        Node f = (*fit);
+        Assert( d_smt.d_fmfRecFunctionsAbs.find( f )!=d_smt.d_fmfRecFunctionsAbs.end() );
+        TypeNode ft = d_smt.d_fmfRecFunctionsAbs[f];
         fdf.d_sorts[f] = ft;
-        SmtEngine::NodeListMap::const_iterator fcit = d_smt.d_fmfRecFunctionsConcrete->find( f );
-        Assert( fcit!=d_smt.d_fmfRecFunctionsConcrete->end() );
-        SmtEngine::NodeList* cl = (*fcit).second;
-        for( SmtEngine::NodeList::const_iterator cit = cl->begin(); cit != cl->end(); ++cit ){
-          fdf.d_input_arg_inj[f].push_back( *cit );
+        std::map< Node, std::vector< Node > >::iterator fcit = d_smt.d_fmfRecFunctionsConcrete.find( f );
+        Assert( fcit!=d_smt.d_fmfRecFunctionsConcrete.end() );
+        for( unsigned j=0; j<fcit->second.size(); j++ ){
+          fdf.d_input_arg_inj[f].push_back( fcit->second[j] );
         }
       }
       fdf.simplify( d_assertions.ref() );
       //must store new definitions (for incremental)
       for( unsigned i=0; i<fdf.d_funcs.size(); i++ ){
         Node f = fdf.d_funcs[i];
-        d_smt.d_fmfRecFunctionsAbs->insert( f, fdf.d_sorts[f] );
-        SmtEngine::NodeList* cl = new(true) SmtEngine::NodeList( d_smt.d_userContext );
+        d_smt.d_fmfRecFunctionsAbs[f] = fdf.d_sorts[f];
+        d_smt.d_fmfRecFunctionsConcrete[f].clear();
         for( unsigned j=0; j<fdf.d_input_arg_inj[f].size(); j++ ){
-          cl->push_back( fdf.d_input_arg_inj[f][j] );
+          d_smt.d_fmfRecFunctionsConcrete[f].push_back( fdf.d_input_arg_inj[f][j] );
         }
-        d_smt.d_fmfRecFunctionsConcrete->insert( f, cl );
+        d_smt.d_fmfRecFunctionsDefined->push_back( f );
       }
     }
     Trace("smt-proc") << "SmtEnginePrivate::processAssertions() : post-quant-preprocess" << endl;
@@ -4232,6 +4227,9 @@ void SmtEnginePrivate::processAssertions() {
     }
   }
 
+  //notify theory engine new preprocessed assertions
+  d_smt.d_theoryEngine->notifyPreprocessedAssertions( d_assertions.ref() );
+
   // Push the formula to decision engine
   if(noConflict) {
     Chat() << "pushing to decision engine..." << endl;
@@ -4245,14 +4243,6 @@ void SmtEnginePrivate::processAssertions() {
 
   Trace("smt-proc") << "SmtEnginePrivate::processAssertions() end" << endl;
   dumpAssertions("post-everything", d_assertions);
-
-
-  //set instantiation level of everything to zero
-  if( options::instLevelInputOnly() && options::instMaxLevel()!=-1 ){
-    for( unsigned i=0; i < d_assertions.size(); i++ ) {
-      theory::QuantifiersEngine::setInstantiationLevelAttr( d_assertions[i], 0 );
-    }
-  }
 
   // Push the formula to SAT
   {
@@ -4283,8 +4273,10 @@ void SmtEnginePrivate::addFormula(TNode n, bool inUnsatCore, bool inInput)
   PROOF(
     if( inInput ){
       // n is an input assertion
-      if (inUnsatCore || options::dumpUnsatCores() || options::checkUnsatCores())
+      if (inUnsatCore || options::dumpUnsatCores() || options::checkUnsatCores() || options::fewerPreprocessingHoles()) {
+
         ProofManager::currentPM()->addCoreAssertion(n.toExpr());
+      }
     }else{
       // n is the result of an unknown preprocessing step, add it to dependency map to null
       ProofManager::currentPM()->addDependence(n, Node::null());
@@ -4514,6 +4506,10 @@ Result SmtEngine::assertFormula(const Expr& ex, bool inUnsatCore) throw(TypeChec
   doPendingPops();
 
   Trace("smt") << "SmtEngine::assertFormula(" << ex << ")" << endl;
+
+  if (Dump.isOn("raw-benchmark")) {
+    Dump("raw-benchmark") << AssertCommand(ex);
+  }
 
   // Substitute out any abstract values in ex
   Expr e = d_private->substituteAbstractValues(Node::fromExpr(ex)).toExpr();
@@ -5111,6 +5107,8 @@ void SmtEngine::printInstantiations( std::ostream& out ) {
   }
   if( d_theoryEngine ){
     d_theoryEngine->printInstantiations( out );
+  }else{
+    Assert( false );
   }
   if( options::instFormatMode()==INST_FORMAT_MODE_SZS ){
     out << "% SZS output end Proof for " << d_filename.c_str() << std::endl;
@@ -5121,6 +5119,8 @@ void SmtEngine::printSynthSolution( std::ostream& out ) {
   SmtScope smts(this);
   if( d_theoryEngine ){
     d_theoryEngine->printSynthSolution( out );
+  }else{
+    Assert( false );
   }
 }
 
@@ -5156,42 +5156,60 @@ Expr SmtEngine::doQuantifierElimination(const Expr& e, bool doFull, bool strict)
       ss << "While performing quantifier elimination, unexpected result : " << r << " for query.";
       InternalError(ss.str().c_str());
     }
-    //get the instantiations for all quantified formulas
-    std::map< Node, std::vector< Node > > insts;
-    d_theoryEngine->getInstantiations( insts );
-    //find the quantified formula that corresponds to the input
-    Node top_q;
-    for( std::map< Node, std::vector< Node > >::iterator it = insts.begin(); it != insts.end(); ++it ){
-      Trace("smt-qe-debug") << "* quantifier " << it->first << " had " << it->second.size() << " instances." << std::endl;
-      if( it->first.getNumChildren()==3 && it->first[2]==n_attr ){
-        top_q = it->first;
-      }
-    }
-    std::map< Node, Node > visited;
-    Node ret_n;
-    if( top_q.isNull() ){
-      //no instances needed
-      ret_n = NodeManager::currentNM()->mkConst(true);
-      visited[top_q] = ret_n;
-    }else{
-      //replace by a conjunction of instances
-      ret_n = d_private->replaceQuantifiersWithInstantiations( top_q, insts, visited );
-    }
 
-    //ensure all instantiations were accounted for
-    for( std::map< Node, std::vector< Node > >::iterator it = insts.begin(); it != insts.end(); ++it ){
-      if( !it->second.empty() && visited.find( it->first )==visited.end() ){
-        stringstream ss;
-        ss << "While performing quantifier elimination, processed a quantified formula : " << it->first;
-        ss << " that was not related to the query.  Try option --simplification=none.";
-        InternalError(ss.str().c_str());
-      }
-    }
+    Node top_q = Rewriter::rewrite( nn_e ).negate();
+    Assert( top_q.getKind()==kind::FORALL );
+    Trace("smt-qe") << "Get qe for " << top_q << std::endl;
+    Node ret_n = d_theoryEngine->getInstantiatedConjunction( top_q );
     Trace("smt-qe") << "Returned : " << ret_n << std::endl;
     ret_n = Rewriter::rewrite( ret_n.negate() );
     return ret_n.toExpr();
   }else {
     return NodeManager::currentNM()->mkConst(true).toExpr();
+  }
+}
+
+void SmtEngine::getInstantiatedQuantifiedFormulas( std::vector< Expr >& qs ) {
+  SmtScope smts(this);
+  if( d_theoryEngine ){
+    std::vector< Node > qs_n;
+    d_theoryEngine->getInstantiatedQuantifiedFormulas( qs_n );
+    for( unsigned i=0; i<qs_n.size(); i++ ){
+      qs.push_back( qs_n[i].toExpr() );
+    }
+  }else{
+    Assert( false );
+  }
+}
+
+void SmtEngine::getInstantiations( Expr q, std::vector< Expr >& insts ) {
+  SmtScope smts(this);
+  if( d_theoryEngine ){
+    std::vector< Node > insts_n;
+    d_theoryEngine->getInstantiations( Node::fromExpr( q ), insts_n );
+    for( unsigned i=0; i<insts_n.size(); i++ ){
+      insts.push_back( insts_n[i].toExpr() );
+    }
+  }else{
+    Assert( false );
+  }
+}
+
+void SmtEngine::getInstantiationTermVectors( Expr q, std::vector< std::vector< Expr > >& tvecs ) {
+  SmtScope smts(this);
+  Assert(options::trackInstLemmas());
+  if( d_theoryEngine ){
+    std::vector< std::vector< Node > > tvecs_n;
+    d_theoryEngine->getInstantiationTermVectors( Node::fromExpr( q ), tvecs_n );
+    for( unsigned i=0; i<tvecs_n.size(); i++ ){
+      std::vector< Expr > tvec;
+      for( unsigned j=0; j<tvecs_n[i].size(); j++ ){
+        tvec.push_back( tvecs_n[i][j].toExpr() );
+      }
+      tvecs.push_back( tvec );
+    }
+  }else{
+    Assert( false );
   }
 }
 

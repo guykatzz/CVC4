@@ -33,7 +33,6 @@ public:
   std::map< TypeNode, std::vector< Node > > d_type_reps;
   std::map< TypeNode, bool > d_type_complete;
   std::map< Node, int > d_tmap;
-  std::map< TypeNode, int > d_type_rlv_rep;
   // map from values to terms they were assigned for
   std::map< Node, Node > d_values_to_terms;
   /** clear the set */
@@ -50,8 +49,6 @@ public:
   int getIndexFor( Node n ) const;
   /** complete all values */
   bool complete( TypeNode t );
-  /** get number of relevant ground representatives for type */
-  int getNumRelevantGroundReps( TypeNode t );
   /** debug print */
   void toStream(std::ostream& out);
 };/* class RepSet */
@@ -59,18 +56,24 @@ public:
 //representative domain
 typedef std::vector< int > RepDomain;
 
+
+class RepBoundExt {
+ public:
+  virtual ~RepBoundExt() {}
+  virtual bool setBound( Node owner, int i, TypeNode tn, std::vector< Node >& elements ) = 0;
+};
+
 /** this class iterates over a RepSet */
 class RepSetIterator {
 public:
   enum {
-    ENUM_DOMAIN_ELEMENTS,
-    ENUM_INT_RANGE,
-    ENUM_SET_MEMBERS,
+    ENUM_DEFAULT,
+    ENUM_BOUND_INT,
   };
 private:
   QuantifiersEngine * d_qe;
   //initialize function
-  bool initialize();
+  bool initialize( RepBoundExt* rext = NULL );
   //for int ranges
   std::map< int, Node > d_lower_bounds;
   //for set ranges
@@ -104,9 +107,9 @@ public:
   RepSetIterator( QuantifiersEngine * qe, RepSet* rs );
   ~RepSetIterator(){}
   //set that this iterator will be iterating over instantiations for a quantifier
-  bool setQuantifier( Node f );
+  bool setQuantifier( Node f, RepBoundExt* rext = NULL );
   //set that this iterator will be iterating over the domain of a function
-  bool setFunctionDomain( Node op );
+  bool setFunctionDomain( Node op, RepBoundExt* rext = NULL );
 public:
   //pointer to model
   RepSet* d_rep_set;
@@ -117,9 +120,7 @@ public:
   //types we are considering
   std::vector< TypeNode > d_types;
   //domain we are considering
-  std::vector< RepDomain > d_domain;
-  //intervals
-  std::map< int, Node > d_bounds[2];
+  std::vector< std::vector< Node > > d_domain_elements;
 public:
   /** increment the iterator at index=counter */
   int increment2( int i );

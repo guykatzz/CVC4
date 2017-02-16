@@ -47,6 +47,7 @@ namespace quantifiers {
 class InstantiationNotify {
 public:
   InstantiationNotify(){}
+  virtual ~InstantiationNotify() {}
   virtual bool notifyInstantiation( unsigned quant_e, Node q, Node lem, std::vector< Node >& terms, Node body ) = 0;
   virtual void filterInstantiations() = 0;
 };
@@ -85,6 +86,7 @@ class EqualityQueryQuantifiersEngine;
 
 class QuantifiersEngine {
   friend class quantifiers::InstantiationEngine;
+  friend class quantifiers::InstStrategyCbqi;
   friend class quantifiers::InstStrategyCegqi;
   friend class quantifiers::ModelEngine;
   friend class quantifiers::RewriteEngine;
@@ -113,6 +115,9 @@ private:
   quantifiers::AlphaEquivalence * d_alpha_equiv;
   /** model builder */
   quantifiers::QModelBuilder* d_builder;
+  /** utility for effectively propositional logic */
+  QuantEPR * d_qepr;
+private:
   /** instantiation engine */
   quantifiers::InstantiationEngine* d_inst_engine;
   /** model engine */
@@ -225,6 +230,8 @@ public:
   QuantRelevance* getQuantifierRelevance() { return d_quant_rel; }
   /** get the model builder */
   quantifiers::QModelBuilder* getModelBuilder() { return d_builder; }
+  /** get utility for EPR */
+  QuantEPR* getQuantEPR() { return d_qepr; }
 public:  //modules
   /** get instantiation engine */
   quantifiers::InstantiationEngine* getInstantiationEngine() { return d_inst_engine; }
@@ -265,11 +272,15 @@ public:
   void setOwner( Node q, QuantifiersModule * m, int priority = 0 );
   /** considers */
   bool hasOwnership( Node q, QuantifiersModule * m = NULL );
+  /** is finite bound */
+  bool isFiniteBound( Node q, Node v );
 public:
   /** initialize */
   void finishInit();
   /** presolve */
   void presolve();
+  /** notify preprocessed assertion */
+  void ppNotifyAssertions( std::vector< Node >& assertions );
   /** check at level */
   void check( Theory::Effort e );
   /** notify that theories were combined */
@@ -283,7 +294,7 @@ public:
   /** propagate */
   void propagate( Theory::Effort level );
   /** get next decision request */
-  Node getNextDecisionRequest();
+  Node getNextDecisionRequest( unsigned& priority );
 private:
   /** reduceQuantifier, return true if reduced */
   bool reduceQuantifier( Node q );
@@ -322,6 +333,8 @@ public:
   bool addSplit( Node n, bool reqPhase = false, bool reqPhasePol = true );
   /** add split equality */
   bool addSplitEquality( Node n1, Node n2, bool reqPhase = false, bool reqPhasePol = true );
+  /** add EPR axiom */
+  bool addEPRAxiom( TypeNode tn );
   /** mark relevant quantified formula, this will indicate it should be checked before the others */
   void markRelevant( Node q );
   /** has added lemma */
@@ -361,28 +374,48 @@ public:
   void printInstantiations( std::ostream& out );
   /** print solution for synthesis conjectures */
   void printSynthSolution( std::ostream& out );
+  /** get list of quantified formulas that were instantiated */
+  void getInstantiatedQuantifiedFormulas( std::vector< Node >& qs );
   /** get instantiations */
+  void getInstantiations( Node q, std::vector< Node >& insts );
   void getInstantiations( std::map< Node, std::vector< Node > >& insts );
+  /** get instantiation term vectors */
+  void getInstantiationTermVectors( Node q, std::vector< std::vector< Node > >& tvecs );
+  void getInstantiationTermVectors( std::map< Node, std::vector< std::vector< Node > > >& insts );
+  /** get instantiated conjunction */
+  Node getInstantiatedConjunction( Node q );
+  /** get unsat core lemmas */
+  bool getUnsatCoreLemmas( std::vector< Node >& active_lemmas );
+  bool getUnsatCoreLemmas( std::vector< Node >& active_lemmas, std::map< Node, Node >& weak_imp );
+  /** get inst for lemmas */
+  void getExplanationForInstLemmas( std::vector< Node >& lems, std::map< Node, Node >& quant, std::map< Node, std::vector< Node > >& tvec ); 
   /** statistics class */
   class Statistics {
   public:
     TimerStat d_time;
+    TimerStat d_qcf_time;
+    TimerStat d_ematching_time;
     IntStat d_num_quant;
     IntStat d_instantiation_rounds;
     IntStat d_instantiation_rounds_lc;
     IntStat d_instantiations;
     IntStat d_inst_duplicate;
     IntStat d_inst_duplicate_eq;
+    IntStat d_inst_duplicate_ent;
     IntStat d_triggers;
     IntStat d_simple_triggers;
     IntStat d_multi_triggers;
     IntStat d_multi_trigger_instantiations;
     IntStat d_red_alpha_equiv;
-    IntStat d_red_lte_partial_inst;
     IntStat d_instantiations_user_patterns;
     IntStat d_instantiations_auto_gen;
     IntStat d_instantiations_guess;
-    IntStat d_instantiations_cbqi_arith;
+    IntStat d_instantiations_qcf;
+    IntStat d_instantiations_qcf_prop;
+    IntStat d_instantiations_fmf_exh;
+    IntStat d_instantiations_fmf_mbqi;
+    IntStat d_instantiations_cbqi;
+    IntStat d_instantiations_rr;
     Statistics();
     ~Statistics();
   };/* class QuantifiersEngine::Statistics */

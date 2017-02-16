@@ -63,7 +63,7 @@ ContextMemoryManager::ContextMemoryManager() : d_indexChunkList(0) {
 }
 
 
-ContextMemoryManager::~ContextMemoryManager() throw() {
+ContextMemoryManager::~ContextMemoryManager() {
   // Delete all chunks
   while(!d_chunkList.empty()) {
     free(d_chunkList.back());
@@ -104,6 +104,8 @@ void ContextMemoryManager::push() {
 
 
 void ContextMemoryManager::pop() {
+  Assert(d_nextFreeStack.size() > 0 && d_endChunkStack.size() > 0);
+
   // Restore state from stack
   d_nextFree = d_nextFreeStack.back();
   d_nextFreeStack.pop_back();

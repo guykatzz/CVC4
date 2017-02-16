@@ -26,6 +26,7 @@
 #include "options/language.h"
 #include "options/options.h"
 #include "parser/parser_builder.h"
+#include "smt/command.h"
 
 using namespace CVC4;
 using namespace std;
@@ -47,8 +48,12 @@ private:
   void countCommands(InteractiveShell& shell, 
                      int minCommands, 
                      int maxCommands) {
+    Command* cmd;
     int n = 0;
-    while( n <= maxCommands && shell.readCommand() != NULL ) { ++n; }
+    while( n <= maxCommands && (cmd = shell.readCommand()) != NULL ) {
+      ++n;
+      delete cmd;
+    }
     TS_ASSERT( n <= maxCommands );
     TS_ASSERT( n >= minCommands );
   }
@@ -93,9 +98,10 @@ private:
     InteractiveShell shell(*d_exprManager, d_options);
     /* readCommand may return a sequence, see above. */
     *d_sin << "x : REAL;\n" << flush;
-    shell.readCommand();
+    Command* tmp = shell.readCommand();
     *d_sin << "ASSERT x > 0;\n" << flush;
     countCommands( shell, 1, 1 );
+    delete tmp;
   }
 
   void testEmptyLine() {

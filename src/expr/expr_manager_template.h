@@ -57,7 +57,7 @@ private:
   NodeManager* d_nodeManager;
 
   /** Counts of expressions and variables created of a given kind */
-  IntStat* d_exprStatisticsVars[LAST_TYPE];
+  IntStat* d_exprStatisticsVars[LAST_TYPE + 1];
   IntStat* d_exprStatistics[kind::LAST_KIND];
 
   /**
@@ -86,6 +86,9 @@ private:
   // undefined, private copy constructor and assignment op (disallow copy)
   ExprManager(const ExprManager&) CVC4_UNDEFINED;
   ExprManager& operator=(const ExprManager&) CVC4_UNDEFINED;
+
+  std::vector<DatatypeType> d_keep_dtt;
+  std::vector<Datatype> d_keep_dt;
 
 public:
 
@@ -371,14 +374,13 @@ public:
   SetType mkSetType(Type elementType) const;
 
   /** Make a type representing the given datatype. */
-  DatatypeType mkDatatypeType(const Datatype& datatype);
+  DatatypeType mkDatatypeType(Datatype& datatype);
 
   /**
    * Make a set of types representing the given datatypes, which may be
    * mutually recursive.
    */
-  std::vector<DatatypeType>
-  mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes);
+  std::vector<DatatypeType> mkMutualDatatypeTypes(std::vector<Datatype>& datatypes);
 
   /**
    * Make a set of types representing the given datatypes, which may
@@ -409,9 +411,7 @@ public:
    * then no complicated Type needs to be created, and the above,
    * simpler form of mkMutualDatatypeTypes() is enough.
    */
-  std::vector<DatatypeType>
-  mkMutualDatatypeTypes(const std::vector<Datatype>& datatypes,
-                        const std::set<Type>& unresolvedTypes);
+  std::vector<DatatypeType> mkMutualDatatypeTypes(std::vector<Datatype>& datatypes, std::set<Type>& unresolvedTypes);
 
   /**
    * Make a type representing a constructor with the given parameterization.
@@ -547,9 +547,9 @@ public:
   Expr mkBoundVar(Type type);
   
   /**
-   * Create a (nameless) new nil reference for separation logic of type
+   * Create unique variable of type 
    */
-  Expr mkSepNil(Type type);
+  Expr mkUniqueVar( Type type, Kind k);
 
   /** Get a reference to the statistics registry for this ExprManager */
   Statistics getStatistics() const throw();

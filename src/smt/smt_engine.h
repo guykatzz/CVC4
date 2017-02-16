@@ -130,9 +130,7 @@ class CVC4_PUBLIC SmtEngine {
   /** The type of our internal assignment set */
   typedef context::CDHashSet<Node, NodeHashFunction> AssignmentSet;
   /** The types for the recursive function definitions */
-  typedef context::CDHashMap< Node, TypeNode, NodeHashFunction > TypeNodeMap;
   typedef context::CDList<Node> NodeList;
-  typedef context::CDHashMap<Node, NodeList*, NodeHashFunction> NodeListMap;
 
   /** Expr manager context */
   context::Context* d_context;
@@ -157,8 +155,9 @@ class CVC4_PUBLIC SmtEngine {
   /** An index of our defined functions */
   DefinedFunctionMap* d_definedFunctions;
   /** recursive function definition abstractions for --fmf-fun */
-  TypeNodeMap* d_fmfRecFunctionsAbs;
-  NodeListMap* d_fmfRecFunctionsConcrete;
+  std::map< Node, TypeNode > d_fmfRecFunctionsAbs;
+  std::map< Node, std::vector< Node > > d_fmfRecFunctionsConcrete;
+  NodeList* d_fmfRecFunctionsDefined;
 
   /**
    * The assertion list (before any conversion) for supporting
@@ -564,6 +563,17 @@ public:
    * Do quantifier elimination, doFull false means just output one disjunct, strict is whether to output warnings.
    */
   Expr doQuantifierElimination(const Expr& e, bool doFull, bool strict=true) throw(TypeCheckingException, ModalException, LogicException);
+
+  /**
+   * Get list of quantified formulas that were instantiated
+   */
+  void getInstantiatedQuantifiedFormulas( std::vector< Expr >& qs );
+   
+  /**
+   * Get instantiations
+   */
+  void getInstantiations( Expr q, std::vector< Expr >& insts );
+  void getInstantiationTermVectors( Expr q, std::vector< std::vector< Expr > >& tvecs );
 
   /**
    * Get an unsatisfiable core (only if immediately preceded by an

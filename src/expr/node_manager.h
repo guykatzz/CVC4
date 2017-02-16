@@ -58,20 +58,24 @@ namespace expr {
  * to NodeManager events via NodeManager::subscribeEvents(this).
  */
 class NodeManagerListener {
-public:
-  virtual ~NodeManagerListener() { }
-  virtual void nmNotifyNewSort(TypeNode tn, uint32_t flags) { }
-  virtual void nmNotifyNewSortConstructor(TypeNode tn) { }
-  virtual void nmNotifyInstantiateSortConstructor(TypeNode ctor, TypeNode sort, uint32_t flags) { }
-  virtual void nmNotifyNewDatatypes(const std::vector<DatatypeType>& datatypes) { }
-  virtual void nmNotifyNewVar(TNode n, uint32_t flags) { }
-  virtual void nmNotifyNewSkolem(TNode n, const std::string& comment, uint32_t flags) { }
+ public:
+  virtual ~NodeManagerListener() {}
+  virtual void nmNotifyNewSort(TypeNode tn, uint32_t flags) {}
+  virtual void nmNotifyNewSortConstructor(TypeNode tn) {}
+  virtual void nmNotifyInstantiateSortConstructor(TypeNode ctor, TypeNode sort,
+                                                  uint32_t flags) {}
+  virtual void nmNotifyNewDatatypes(
+      const std::vector<DatatypeType>& datatypes) {}
+  virtual void nmNotifyNewVar(TNode n, uint32_t flags) {}
+  virtual void nmNotifyNewSkolem(TNode n, const std::string& comment,
+                                 uint32_t flags) {}
   /**
-   * Notify a listener of a Node that's being GCed.  If this function stores a reference
+   * Notify a listener of a Node that's being GCed.  If this function stores a
+   * reference
    * to the Node somewhere, very bad things will happen.
    */
-  virtual void nmNotifyDeleteNode(TNode n) { }
-};/* class NodeManagerListener */
+  virtual void nmNotifyDeleteNode(TNode n) {}
+}; /* class NodeManagerListener */
 
 class NodeManager {
   template <unsigned nchild_thresh> friend class CVC4::NodeBuilder;
@@ -84,7 +88,7 @@ class NodeManager {
   friend Expr ExprManager::mkVar(Type, uint32_t flags);
 
   // friend so it can access NodeManager's d_listeners and notify clients
-  friend std::vector<DatatypeType> ExprManager::mkMutualDatatypeTypes(const std::vector<Datatype>&, const std::set<Type>&);
+  friend std::vector<DatatypeType> ExprManager::mkMutualDatatypeTypes(std::vector<Datatype>&, std::set<Type>&);
 
   /** Predicate for use with STL algorithms */
   struct NodeValueReferenceCountNonZero {
@@ -96,7 +100,7 @@ class NodeManager {
                               expr::NodeValuePoolEq> NodeValuePool;
   typedef __gnu_cxx::hash_set<expr::NodeValue*,
                               expr::NodeValueIDHashFunction,
-                              expr::NodeValueEq> ZombieSet;
+                              expr::NodeValueIDEquality> NodeValueIDSet;
 
   static CVC4_THREADLOCAL(NodeManager*) s_current;
 
@@ -146,7 +150,13 @@ class NodeManager {
    * we might like to delete nodes in least-recently-used order.  But
    * we also need to avoid processing a zombie twice.
    */
-  ZombieSet d_zombies;
+  NodeValueIDSet d_zombies;
+
+  /**
+   * NodeValues with maxed out reference counts. These live as long as the
+   * NodeManager. They have a custom deallocation procedure at the very end.
+   */
+  std::vector<expr::NodeValue*> d_maxedOut;
 
   /**
    * A set of operator singletons (w.r.t.  to this NodeManager
@@ -158,10 +168,16 @@ class NodeManager {
    */
   Node d_operators[kind::LAST_KIND];
 
+  /** unique vars per (Kind,Type) */
+  std::map< Kind, std::map< TypeNode, Node > > d_unique_vars;
+
   /**
    * A list of subscribers for NodeManager events.
    */
   std::vector<NodeManagerListener*> d_listeners;
+
+  /** A list of datatypes owned by this node manager. */
+  std::vector<Datatype*> d_ownedDatatypes;
 
   /**
    * A map of tuple and record types to their corresponding datatype.
@@ -262,13 +278,26 @@ class NodeManager {
       Debug("gc") << (d_inReclaimZombies ? " [CURRENTLY-RECLAIMING]" : "")
                   << std::endl;
     }
-    d_zombies.insert(nv);// FIXME multithreading
+    d_zombies.insert(nv);  // FIXME multithreading
 
     if(safeToReclaimZombies()) {
       if(d_zombies.size() > 5000) {
         reclaimZombies();
       }
     }
+  }
+
+  /**
+   * Register a NodeValue as having a maxed out reference count. This NodeValue
+   * will live as long as its containing NodeManager.
+   */
+  inline void markRefCountMaxedOut(expr::NodeValue* nv) {
+    Assert(nv->HasMaximizedReferenceCount());
+    if(Debug.isOn("gc")) {
+      Debug("gc") << "marking node value " << nv
+                  << " [" << nv->d_id << "]: as maxed out" << std::endl;
+    }
+    d_maxedOut.push_back(nv);
   }
 
   /**
@@ -280,6 +309,14 @@ class NodeManager {
    * It is safe to collect zombies.
    */
   bool safeToReclaimZombies() const;
+
+  /**
+   * Returns a reverse topological sort of a list of NodeValues. The NodeValues
+   * must be valid and have ids. The NodeValues are not modified (including ref
+   * counts).
+   */
+  static std::vector<expr::NodeValue*> TopologicalSort(
+      const std::vector<expr::NodeValue*>& roots);
 
   /**
    * This template gives a mechanism to stack-allocate a NodeValue
@@ -374,6 +411,11 @@ public:
     Assert(elt != d_listeners.end(), "listener not subscribed");
     d_listeners.erase(elt);
   }
+  
+  /** register datatype */
+  unsigned registerDatatype(Datatype* dt);
+  /** get datatype for index */
+  const Datatype & getDatatypeForIndex( unsigned index ) const;
 
   /** Get a Kind from an operator expression */
   static inline Kind operatorToKind(TNode n);
@@ -486,13 +528,12 @@ public:
 
   /** Create a instantiation constant with the given type. */
   Node mkInstConstant(const TypeNode& type);
-  
-  /** Create nil reference for separation logic with the given type. */
-  Node mkSepNil(const TypeNode& type);
-  Node* mkSepNilPtr(const TypeNode& type);
 
   /** Make a new abstract value with the given type. */
   Node mkAbstractValue(const TypeNode& type);
+  
+  /** make unique (per Type,Kind) variable. */
+  Node mkUniqueVar(const TypeNode& type, Kind k);
 
   /**
    * Create a constant of type T.  It will have the appropriate

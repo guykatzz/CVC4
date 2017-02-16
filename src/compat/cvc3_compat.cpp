@@ -88,13 +88,25 @@ std::string int2string(int n) {
 }
 
 std::ostream& operator<<(std::ostream& out, CLFlagType clft) {
-  switch(clft) {
-  case CLFLAG_NULL: out << "CLFLAG_NULL";
-  case CLFLAG_BOOL: out << "CLFLAG_BOOL";
-  case CLFLAG_INT: out << "CLFLAG_INT";
-  case CLFLAG_STRING: out << "CLFLAG_STRING";
-  case CLFLAG_STRVEC: out << "CLFLAG_STRVEC";
-  default: out << "CLFlagType!UNKNOWN";
+  switch (clft) {
+    case CLFLAG_NULL:
+      out << "CLFLAG_NULL";
+      break;
+    case CLFLAG_BOOL:
+      out << "CLFLAG_BOOL";
+      break;
+    case CLFLAG_INT:
+      out << "CLFLAG_INT";
+      break;
+    case CLFLAG_STRING:
+      out << "CLFLAG_STRING";
+      break;
+    case CLFLAG_STRVEC:
+      out << "CLFLAG_STRVEC";
+      break;
+    default:
+      out << "CLFlagType!UNKNOWN";
+      break;
   }
 
   return out;
@@ -1413,9 +1425,7 @@ void ValidityChecker::dataType(const std::vector<std::string>& names,
     const CVC4::Datatype& dt = (*i).getDatatype();
     // ensure it's well-founded (the check is done here because
     // that's how it is in CVC3)
-    if(!dt.isWellFounded()) {
-      throw TypecheckException(d_em->mkConst(dt), "datatype is not well-founded");
-    }
+    CompatCheckArgument(dt.isWellFounded(), "datatype is not well-founded");
     for(CVC4::Datatype::const_iterator j = dt.begin(); j != dt.end(); ++j) {
       // For each constructor, register its name and its selectors names.
       CompatCheckArgument(

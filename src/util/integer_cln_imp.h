@@ -66,7 +66,9 @@ private:
   static signed long s_slowSignedIntMax; /*  std::numeric_limits<signed int>::max() */
   static signed long s_slowSignedIntMin; /*  std::numeric_limits<signed int>::min() */
   static unsigned long s_slowUnsignedIntMax; /*  std::numeric_limits<unsigned int>::max() */
-
+  static unsigned long s_signedLongMin;
+  static unsigned long s_signedLongMax;
+  static unsigned long s_unsignedLongMax;
 public:
 
   /** Constructs a rational with the value 0. */
@@ -319,16 +321,7 @@ public:
    *
    * @param exp the exponent
    */
-  Integer pow(unsigned long int exp) const {
-    if(exp > 0){
-      cln::cl_I result= cln::expt_pos(d_value,exp);
-      return Integer( result );
-    }else if(exp == 0){
-      return Integer( 1 );
-    }else{
-      throw Exception("Negative exponent in Integer::pow()");
-    }
-  }
+  Integer pow(unsigned long int exp) const;
 
   /**
    * Return the greatest common divisor of this integer with another.
@@ -424,6 +417,10 @@ public:
   int getSignedInt() const;
 
   unsigned int getUnsignedInt() const;
+
+  bool fitsSignedLong() const;
+
+  bool fitsUnsignedLong() const;
 
   long getLong() const {
     // ensure there isn't overflow

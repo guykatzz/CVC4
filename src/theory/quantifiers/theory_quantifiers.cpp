@@ -88,6 +88,13 @@ void TheoryQuantifiers::presolve() {
   }
 }
 
+void TheoryQuantifiers::ppNotifyAssertions( std::vector< Node >& assertions ) {
+  Trace("quantifiers-presolve") << "TheoryQuantifiers::ppNotifyAssertions" << std::endl;
+  if( getQuantifiersEngine() ){
+    getQuantifiersEngine()->ppNotifyAssertions( assertions );
+  }
+}
+
 Node TheoryQuantifiers::getValue(TNode n) {
   //NodeManager* nodeManager = NodeManager::currentNM();
   switch(n.getKind()) {
@@ -172,8 +179,8 @@ void TheoryQuantifiers::check(Effort e) {
   getQuantifiersEngine()->check( e );
 }
 
-Node TheoryQuantifiers::getNextDecisionRequest(){
-  return getQuantifiersEngine()->getNextDecisionRequest();
+Node TheoryQuantifiers::getNextDecisionRequest( unsigned& priority ){
+  return getQuantifiersEngine()->getNextDecisionRequest( priority );
 }
 
 void TheoryQuantifiers::assertUniversal( Node n ){

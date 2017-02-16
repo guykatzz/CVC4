@@ -67,7 +67,6 @@ TESTS = \
   bug612.smt2 \
   bug615.smt2 \
   kaluza-fl.smt2 \
-  norn-ab.smt2 \
   idof-rewrites.smt2 \
   bug682.smt2 \
   bug686dd.smt2 \
@@ -80,8 +79,14 @@ TESTS = \
   cmu-2db2-extf-reg.smt2 \
   norn-nel-bug-052116.smt2 \
   cmu-disagree-0707-dd.smt2 \
-  cmu-5042-0707-2.smt2 \
-  cmu-dis-0707-3.smt2  
+  nf-ff-contains-abs.smt2  \
+  csp-prefix-exp-bug.smt2 \
+  cmu-substr-rw.smt2 \
+  gm-inc-071516-2.smt2 \
+  cmu-inc-nlpp-071516.smt2 \
+  strings-index-empty.smt2 \
+  bug768.smt2 \
+  username_checker_min.smt2
 
 FAILING_TESTS =
 
@@ -91,11 +96,12 @@ EXTRA_DIST = $(TESTS)
 EXTRA_DIST +=
 
 #norn-dis-0707-3.smt2
+#norn-ab.smt2
 
 # synonyms for "check"
 .PHONY: regress regress0 test
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

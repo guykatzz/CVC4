@@ -35,7 +35,6 @@
 #include "theory/atom_requests.h"
 #include "theory/bv/bv_to_bool.h"
 #include "theory/interrupted.h"
-#include "theory/quantifiers/quant_conflict_find.h"
 #include "theory/rewriter.h"
 #include "theory/shared_terms_database.h"
 #include "theory/sort_inference.h"
@@ -280,10 +279,9 @@ class TheoryEngine {
                               ProofRule rule,
                               bool removable = false,
                               bool preprocess = false,
-                              bool sendAtoms = false)
-      throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException);
+                              bool sendAtoms = false);
 
-    theory::LemmaStatus splitLemma(TNode lemma, bool removable = false) throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException);
+    theory::LemmaStatus splitLemma(TNode lemma, bool removable = false);
 
     void demandRestart() throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) {
       NodeManager* curr = NodeManager::currentNM();
@@ -322,6 +320,13 @@ class TheoryEngine {
     void handleUserAttribute( const char* attr, theory::Theory* t ){
       d_engine->handleUserAttribute( attr, t );
     }
+
+  private:
+
+    /**
+     * A helper function for registering lemma recipes with the proof engine
+     */
+    void registerLemmaRecipe(Node lemma, Node originalLemma, bool preprocess, theory::TheoryId theoryId);
   };/* class TheoryEngine::EngineOutputChannel */
 
   /**
@@ -429,8 +434,7 @@ class TheoryEngine {
                             bool negated,
                             bool removable,
                             bool preprocess,
-                            theory::TheoryId atomsTo,
-                            LemmaProofRecipe* proofRecipe);
+                            theory::TheoryId atomsTo);
 
   /** Enusre that the given atoms are send to the given theory */
   void ensureLemmaAtoms(const std::vector<TNode>& atoms, theory::TheoryId theory);
@@ -599,6 +603,12 @@ public:
    */
   Node preprocess(TNode node);
 
+
+  /**
+   * Notify (preprocessed) assertions 
+   */
+  void notifyPreprocessedAssertions( std::vector< Node >& assertions );
+
   /**
    * Return whether or not we are incomplete (in the current context).
    */
@@ -711,7 +721,8 @@ public:
    * collect model info
    */
   void collectModelInfo( theory::TheoryModel* m, bool fullModel );
-  void collectModelComments( theory::TheoryModel* m );
+  /** post process model */
+  void postProcessModel( theory::TheoryModel* m );
 
   /**
    * Get the current model
@@ -774,9 +785,26 @@ public:
   void printSynthSolution( std::ostream& out );
 
   /**
-   * Get instantiations
+   * Get list of quantified formulas that were instantiated
    */
+  void getInstantiatedQuantifiedFormulas( std::vector< Node >& qs );
+
+  /**
+   * Get instantiation methods
+   *   first inputs forall x.q[x] and returns ( q[a], ..., q[z] )
+   *   second inputs forall x.q[x] and returns ( a, ..., z ) 
+   *   third and fourth return mappings e.g. forall x.q1[x] -> ( q1[a]...q1[z] ) , ... , forall x.qn[x] -> ( qn[a]...qn[z] )
+   */
+  void getInstantiations( Node q, std::vector< Node >& insts );
+  void getInstantiationTermVectors( Node q, std::vector< std::vector< Node > >& tvecs );
   void getInstantiations( std::map< Node, std::vector< Node > >& insts );
+  void getInstantiationTermVectors( std::map< Node, std::vector< std::vector< Node > > >& insts );
+  
+  /**
+   * Get instantiated conjunction, returns q[t1] ^ ... ^ q[tn] where t1...tn are current set of instantiations for q.
+   *   Can be used for quantifier elimination when satisfiable and q[t1] ^ ... ^ q[tn] |= q
+   */
+  Node getInstantiatedConjunction( Node q );
 
   /**
    * Forwards an entailment check according to the given theoryOfMode.

@@ -34,7 +34,6 @@ std::set<Node> LemmaProofRecipe::ProofStep::getAssertions() const {
 }
 
 void LemmaProofRecipe::addStep(ProofStep& proofStep) {
-  std::list<ProofStep>::iterator existingFirstStep = d_proofSteps.begin();
   d_proofSteps.push_front(proofStep);
 }
 
@@ -63,6 +62,10 @@ void LemmaProofRecipe::dump(const char *tag) const {
 
   if (d_proofSteps.size() == 1) {
     Debug(tag) << std::endl << "[Simple lemma]" << std::endl << std::endl;
+  }
+
+  if (d_originalLemma != Node()) {
+    Debug(tag) << std::endl << "Original lemma: " << d_originalLemma << std::endl << std::endl;
   }
 
   unsigned count = 1;
@@ -189,5 +192,14 @@ LemmaProofRecipe::ProofStep* LemmaProofRecipe::getStep(unsigned index) {
 unsigned LemmaProofRecipe::getNumSteps() const {
   return d_proofSteps.size();
 }
+
+void LemmaProofRecipe::setOriginalLemma(Node lemma) {
+  d_originalLemma = lemma;
+}
+
+Node LemmaProofRecipe::getOriginalLemma() const {
+  return d_originalLemma;
+}
+
 
 } /* namespace CVC4 */

@@ -25,6 +25,7 @@
 #include "expr/node_builder.h"
 #include "options/bv_options.h"
 #include "options/options.h"
+#include "options/proof_options.h"
 #include "options/quantifiers_options.h"
 #include "proof/cnf_proof.h"
 #include "proof/lemma_proof.h"
@@ -77,62 +78,115 @@ theory::LemmaStatus TheoryEngine::EngineOutputChannel::lemma(TNode lemma,
                                                              ProofRule rule,
                                                              bool removable,
                                                              bool preprocess,
-                                                             bool sendAtoms)
-  throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) {
-  Debug("theory::lemma") << "EngineOutputChannel<" << d_theory << ">::lemma(" << lemma << ")" << ", preprocess = " << preprocess << std::endl;
-  ++ d_statistics.lemmas;
+                                                             bool sendAtoms) {
+  Debug("theory::lemma") << "EngineOutputChannel<" << d_theory << ">::lemma("
+                         << lemma << ")"
+                         << ", preprocess = " << preprocess << std::endl;
+  ++d_statistics.lemmas;
   d_engine->d_outputChannelUsed = true;
 
-  LemmaProofRecipe* proofRecipe = NULL;
-  PROOF({
-      // Theory lemmas have one step that proves the empty clause
-      proofRecipe = new LemmaProofRecipe;
+  PROOF({ registerLemmaRecipe(lemma, lemma, preprocess, d_theory); });
 
-      Node emptyNode;
-      LemmaProofRecipe::ProofStep proofStep(d_theory, emptyNode);
-
-      Node rewritten;
-      if (lemma.getKind() == kind::OR) {
-        for (unsigned i = 0; i < lemma.getNumChildren(); ++i) {
-          rewritten = theory::Rewriter::rewrite(lemma[i]);
-          if (rewritten != lemma[i]) {
-            proofRecipe->addRewriteRule(lemma[i].negate(), rewritten.negate());
-          }
-          proofStep.addAssertion(lemma[i]);
-          proofRecipe->addBaseAssertion(rewritten);
-        }
-      } else {
-        rewritten = theory::Rewriter::rewrite(lemma);
-        if (rewritten != lemma) {
-          proofRecipe->addRewriteRule(lemma.negate(), rewritten.negate());
-        }
-        proofStep.addAssertion(lemma);
-        proofRecipe->addBaseAssertion(rewritten);
-      }
-      proofRecipe->addStep(proofStep);
-    });
-
-  theory::LemmaStatus result = d_engine->lemma(lemma,
-                                               rule,
-                                               false,
-                                               removable,
-                                               preprocess,
-                                               sendAtoms ? d_theory : theory::THEORY_LAST,
-                                               proofRecipe);
-  PROOF(delete proofRecipe;);
+  theory::LemmaStatus result =
+      d_engine->lemma(lemma, rule, false, removable, preprocess,
+                      sendAtoms ? d_theory : theory::THEORY_LAST);
   return result;
 }
 
-theory::LemmaStatus TheoryEngine::EngineOutputChannel::splitLemma(TNode lemma, bool removable)
-  throw(TypeCheckingExceptionPrivate, AssertionException, UnsafeInterruptException) {
-  Debug("theory::lemma") << "EngineOutputChannel<" << d_theory << ">::lemma(" << lemma << ")" << std::endl;
-  ++ d_statistics.lemmas;
+void TheoryEngine::EngineOutputChannel::registerLemmaRecipe(Node lemma, Node originalLemma, bool preprocess, theory::TheoryId theoryId) {
+  // During CNF conversion, conjunctions will be broken down into
+  // multiple lemmas. In order for the recipes to match, we have to do
+  // the same here.
+  NodeManager* nm = NodeManager::currentNM();
+
+  if (preprocess)
+    lemma = d_engine->preprocess(lemma);
+
+  bool negated = (lemma.getKind() == kind::NOT);
+  Node nnLemma = negated ? lemma[0] : lemma;
+
+  switch (nnLemma.getKind()) {
+
+  case kind::AND:
+    if (!negated) {
+      for (unsigned i = 0; i < nnLemma.getNumChildren(); ++i)
+        registerLemmaRecipe(nnLemma[i], originalLemma, false, theoryId);
+    } else {
+      NodeBuilder<> builder(kind::OR);
+      for (unsigned i = 0; i < nnLemma.getNumChildren(); ++i)
+        builder << nnLemma[i].negate();
+
+      Node disjunction = (builder.getNumChildren() == 1) ? builder[0] : builder;
+      registerLemmaRecipe(disjunction, originalLemma, false, theoryId);
+    }
+    break;
+
+  case kind::IFF:
+    if (!negated) {
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0], nnLemma[1].negate()), originalLemma, false, theoryId);
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0].negate(), nnLemma[1]), originalLemma, false, theoryId);
+    } else {
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0], nnLemma[1]), originalLemma, false, theoryId);
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0].negate(), nnLemma[1].negate()), originalLemma, false, theoryId);
+    }
+    break;
+
+  case kind::ITE:
+    if (!negated) {
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0].negate(), nnLemma[1]), originalLemma, false, theoryId);
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0], nnLemma[2]), originalLemma, false, theoryId);
+    } else {
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0].negate(), nnLemma[1].negate()), originalLemma, false, theoryId);
+      registerLemmaRecipe(nm->mkNode(kind::OR, nnLemma[0], nnLemma[2].negate()), originalLemma, false, theoryId);
+    }
+    break;
+
+  default:
+    break;
+  }
+
+  // Theory lemmas have one step that proves the empty clause
+  LemmaProofRecipe proofRecipe;
+  Node emptyNode;
+  LemmaProofRecipe::ProofStep proofStep(theoryId, emptyNode);
+
+  // Remember the original lemma, so we can report this later when asked to
+  proofRecipe.setOriginalLemma(originalLemma);
+
+  // Record the assertions and rewrites
+  Node rewritten;
+  if (lemma.getKind() == kind::OR) {
+    for (unsigned i = 0; i < lemma.getNumChildren(); ++i) {
+      rewritten = theory::Rewriter::rewrite(lemma[i]);
+      if (rewritten != lemma[i]) {
+        proofRecipe.addRewriteRule(lemma[i].negate(), rewritten.negate());
+      }
+      proofStep.addAssertion(lemma[i]);
+      proofRecipe.addBaseAssertion(rewritten);
+    }
+  } else {
+    rewritten = theory::Rewriter::rewrite(lemma);
+    if (rewritten != lemma) {
+      proofRecipe.addRewriteRule(lemma.negate(), rewritten.negate());
+    }
+    proofStep.addAssertion(lemma);
+    proofRecipe.addBaseAssertion(rewritten);
+  }
+  proofRecipe.addStep(proofStep);
+  ProofManager::getCnfProof()->setProofRecipe(&proofRecipe);
+}
+
+theory::LemmaStatus TheoryEngine::EngineOutputChannel::splitLemma(
+    TNode lemma, bool removable) {
+  Debug("theory::lemma") << "EngineOutputChannel<" << d_theory << ">::lemma("
+                         << lemma << ")" << std::endl;
+  ++d_statistics.lemmas;
   d_engine->d_outputChannelUsed = true;
 
-
-  LemmaProofRecipe* proofRecipe = NULL;
-  Debug("pf::explain") << "TheoryEngine::EngineOutputChannel::splitLemma( " << lemma << " )" << std::endl;
-  theory::LemmaStatus result = d_engine->lemma(lemma, RULE_SPLIT, false, removable, false, d_theory, proofRecipe);
+  Debug("pf::explain") << "TheoryEngine::EngineOutputChannel::splitLemma( "
+                       << lemma << " )" << std::endl;
+  theory::LemmaStatus result =
+      d_engine->lemma(lemma, RULE_SPLIT, false, removable, false, d_theory);
   return result;
 }
 
@@ -156,7 +210,7 @@ void TheoryEngine::EngineOutputChannel::conflict(TNode conflictNode, Proof* pf)
 void TheoryEngine::finishInit() {
   // initialize the quantifiers engine
   d_quantEngine = new QuantifiersEngine(d_context, d_userContext, this);
-  
+
   //initialize the model
   if( d_logicInfo.isQuantified() ) {
     d_curr_model = d_quantEngine->getModel();
@@ -528,6 +582,10 @@ void TheoryEngine::check(Theory::Effort effort) {
 
     // Must consult quantifiers theory for last call to ensure sat, or otherwise add a lemma
     if( effort == Theory::EFFORT_FULL && ! d_inConflict && ! needCheck() ) {
+      Trace("theory::assertions-model") << endl;
+      if (Trace.isOn("theory::assertions-model")) {
+        printAssertions("theory::assertions-model");
+      }
       //checks for theories requiring the model go at last call
       bool builtModel = false;
       for (TheoryId theoryId = THEORY_FIRST; theoryId < THEORY_LAST; ++theoryId) {
@@ -552,10 +610,6 @@ void TheoryEngine::check(Theory::Effort effort) {
         } else if(options::produceModels()) {
           // must build model at this point
           d_curr_model_builder->buildModel(d_curr_model, true);
-        }
-        Trace("theory::assertions-model") << endl;
-        if (Trace.isOn("theory::assertions-model")) {
-          printAssertions("theory::assertions-model");
         }
       }
     }
@@ -627,8 +681,7 @@ void TheoryEngine::combineTheories() {
     // We need to split on it
     Debug("combineTheories") << "TheoryEngine::combineTheories(): requesting a split " << endl;
 
-    LemmaProofRecipe* proofRecipe = NULL;
-    lemma(equality.orNode(equality.notNode()), RULE_INVALID, false, false, false, carePair.theory, proofRecipe);
+    lemma(equality.orNode(equality.notNode()), RULE_INVALID, false, false, false, carePair.theory);
 
     // This code is supposed to force preference to follow what the theory models already have
     // but it doesn't seem to make a big difference - need to explore more -Clark
@@ -686,21 +739,25 @@ void TheoryEngine::propagate(Theory::Effort effort) {
 
 Node TheoryEngine::getNextDecisionRequest() {
   // Definition of the statement that is to be run by every theory
+  unsigned min_priority = 0;
+  Node dec;
 #ifdef CVC4_FOR_EACH_THEORY_STATEMENT
 #undef CVC4_FOR_EACH_THEORY_STATEMENT
 #endif
 #define CVC4_FOR_EACH_THEORY_STATEMENT(THEORY) \
   if (theory::TheoryTraits<THEORY>::hasGetNextDecisionRequest && d_logicInfo.isTheoryEnabled(THEORY)) { \
-    Node n = theoryOf(THEORY)->getNextDecisionRequest(); \
-    if(! n.isNull()) { \
-      return n; \
+    unsigned priority; \
+    Node n = theoryOf(THEORY)->getNextDecisionRequest( priority ); \
+    if(! n.isNull() && ( dec.isNull() || priority<min_priority ) ) { \
+      dec = n; \
+      min_priority = priority; \
     } \
   }
 
   // Request decision from each theory using the statement above
   CVC4_FOR_EACH_THEORY;
 
-  return TNode();
+  return dec;
 }
 
 bool TheoryEngine::properConflict(TNode conflict) const {
@@ -796,11 +853,11 @@ void TheoryEngine::collectModelInfo( theory::TheoryModel* m, bool fullModel ){
   }
 }
 
-void TheoryEngine::collectModelComments( theory::TheoryModel* m ){
+void TheoryEngine::postProcessModel( theory::TheoryModel* m ){
   for(TheoryId theoryId = theory::THEORY_FIRST; theoryId < theory::THEORY_LAST; ++theoryId) {
     if(d_logicInfo.isTheoryEnabled(theoryId)) {
-      Trace("model-builder-debug") << "  CollectModelComments on theory: " << theoryId << endl;
-      d_theoryTable[theoryId]->collectModelComments( m );
+      Trace("model-builder-debug") << "  PostProcessModel on theory: " << theoryId << endl;
+      d_theoryTable[theoryId]->postProcessModel( m );
     }
   }
 }
@@ -1068,6 +1125,15 @@ Node TheoryEngine::preprocess(TNode assertion) {
 
   // Return the substituted version
   return d_ppCache[assertion];
+}
+
+void TheoryEngine::notifyPreprocessedAssertions( std::vector< Node >& assertions ){
+  // call all the theories
+  for(TheoryId theoryId = theory::THEORY_FIRST; theoryId < theory::THEORY_LAST; ++theoryId) {
+    if(d_theoryTable[theoryId]) {
+      theoryOf(theoryId)->ppNotifyAssertions( assertions );
+    }
+  }
 }
 
 bool TheoryEngine::markPropagation(TNode assertion, TNode originalAssertion, theory::TheoryId toTheoryId, theory::TheoryId fromTheoryId) {
@@ -1383,11 +1449,52 @@ void TheoryEngine::printSynthSolution( std::ostream& out ) {
   }
 }
 
+void TheoryEngine::getInstantiatedQuantifiedFormulas( std::vector< Node >& qs ) {
+  if( d_quantEngine ){
+    d_quantEngine->getInstantiatedQuantifiedFormulas( qs );
+  }else{
+    Assert( false );
+  }
+}
+
+void TheoryEngine::getInstantiations( Node q, std::vector< Node >& insts ) {
+  if( d_quantEngine ){
+    d_quantEngine->getInstantiations( q, insts );
+  }else{
+    Assert( false );
+  }
+}
+
+void TheoryEngine::getInstantiationTermVectors( Node q, std::vector< std::vector< Node > >& tvecs ) {
+  if( d_quantEngine ){
+    d_quantEngine->getInstantiationTermVectors( q, tvecs );
+  }else{
+    Assert( false );
+  }
+}
+
 void TheoryEngine::getInstantiations( std::map< Node, std::vector< Node > >& insts ) {
   if( d_quantEngine ){
     d_quantEngine->getInstantiations( insts );
   }else{
     Assert( false );
+  }
+}
+
+void TheoryEngine::getInstantiationTermVectors( std::map< Node, std::vector< std::vector< Node > > >& insts ) {
+  if( d_quantEngine ){
+    d_quantEngine->getInstantiationTermVectors( insts );
+  }else{
+    Assert( false );
+  }
+}
+
+Node TheoryEngine::getInstantiatedConjunction( Node q ) {
+  if( d_quantEngine ){
+    return d_quantEngine->getInstantiatedConjunction( q );
+  }else{
+    Assert( false );
+    return Node::null();
   }
 }
 
@@ -1614,8 +1721,7 @@ theory::LemmaStatus TheoryEngine::lemma(TNode node,
                                         bool negated,
                                         bool removable,
                                         bool preprocess,
-                                        theory::TheoryId atomsTo,
-                                        LemmaProofRecipe* proofRecipe) {
+                                        theory::TheoryId atomsTo) {
   // For resource-limiting (also does a time check).
   // spendResource();
 
@@ -1665,10 +1771,10 @@ theory::LemmaStatus TheoryEngine::lemma(TNode node,
   }
 
   // assert to prop engine
-  d_propEngine->assertLemma(additionalLemmas[0], negated, removable, rule, proofRecipe, node);
+  d_propEngine->assertLemma(additionalLemmas[0], negated, removable, rule, node);
   for (unsigned i = 1; i < additionalLemmas.size(); ++ i) {
     additionalLemmas[i] = theory::Rewriter::rewrite(additionalLemmas[i]);
-    d_propEngine->assertLemma(additionalLemmas[i], false, removable, rule, proofRecipe, node);
+    d_propEngine->assertLemma(additionalLemmas[i], false, removable, rule, node);
   }
 
   // WARNING: Below this point don't assume additionalLemmas[0] to be not negated.
@@ -1727,10 +1833,11 @@ void TheoryEngine::conflict(TNode conflict, TheoryId theoryId) {
 
     // Process the explanation
     getExplanation(explanationVector, proofRecipe);
+    PROOF(ProofManager::getCnfProof()->setProofRecipe(proofRecipe));
     Node fullConflict = mkExplanation(explanationVector);
     Debug("theory::conflict") << "TheoryEngine::conflict(" << conflict << ", " << theoryId << "): full = " << fullConflict << endl;
     Assert(properConflict(fullConflict));
-    lemma(fullConflict, RULE_CONFLICT, true, true, false, THEORY_LAST, proofRecipe);
+    lemma(fullConflict, RULE_CONFLICT, true, true, false, THEORY_LAST);
 
   } else {
     // When only one theory, the conflict should need no processing
@@ -1756,9 +1863,11 @@ void TheoryEngine::conflict(TNode conflict, TheoryId theoryId) {
           proofRecipe->getStep(0)->addAssertion(conflict.negate());
           proofRecipe->addBaseAssertion(conflict.negate());
         }
+
+        ProofManager::getCnfProof()->setProofRecipe(proofRecipe);
       });
 
-    lemma(conflict, RULE_CONFLICT, true, true, false, THEORY_LAST, proofRecipe);
+    lemma(conflict, RULE_CONFLICT, true, true, false, THEORY_LAST);
   }
 
   PROOF({
@@ -1837,7 +1946,7 @@ bool TheoryEngine::donePPSimpITE(std::vector<Node>& assertions){
   // This pass does not support dependency tracking yet
   // (learns substitutions from all assertions so just
   // adding addDependence is not enough)
-  if (options::unsatCores()) {
+  if (options::unsatCores() || options::fewerPreprocessingHoles()) {
     return true;
   }
   bool result = true;

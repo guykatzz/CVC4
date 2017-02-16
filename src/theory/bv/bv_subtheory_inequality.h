@@ -47,16 +47,16 @@ class InequalitySolver: public SubtheorySolver {
   InequalityGraph d_inequalityGraph;
   context::CDHashMap<Node, TNode, NodeHashFunction> d_explanations;
   context::CDO<bool> d_isComplete;
-  typedef __gnu_cxx::hash_set<TNode, TNodeHashFunction> TNodeSet;
-  TNodeSet d_ineqTerms;
+  typedef __gnu_cxx::hash_set<Node, NodeHashFunction> NodeSet;
+  NodeSet d_ineqTerms;
   bool isInequalityOnly(TNode node);
   bool addInequality(TNode a, TNode b, bool strict, TNode fact);
   Statistics d_statistics;
 public:
-  InequalitySolver(context::Context* c, TheoryBV* bv)
+  InequalitySolver(context::Context* c, context::Context* u, TheoryBV* bv)
     : SubtheorySolver(c, bv),
       d_assertionSet(c),
-      d_inequalityGraph(c),
+      d_inequalityGraph(c, u),
       d_explanations(c),
       d_isComplete(c, true),
       d_ineqTerms(),

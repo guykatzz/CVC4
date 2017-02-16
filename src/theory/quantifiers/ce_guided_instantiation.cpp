@@ -17,7 +17,6 @@
 #include "expr/datatype.h"
 #include "options/quantifiers_options.h"
 #include "smt/smt_statistics_registry.h"
-#include "theory/datatypes/datatypes_rewriter.h"
 #include "theory/quantifiers/first_order_model.h"
 #include "theory/quantifiers/term_database.h"
 #include "theory/theory_engine.h"
@@ -229,6 +228,10 @@ CegInstantiation::CegInstantiation( QuantifiersEngine * qe, context::Context* c 
   d_last_inst_si = false;
 }
 
+CegInstantiation::~CegInstantiation(){ 
+  delete d_conj;
+}
+
 bool CegInstantiation::needsCheck( Theory::Effort e ) {
   return e>=Theory::EFFORT_LAST_CALL;
 }
@@ -273,7 +276,7 @@ void CegInstantiation::preRegisterQuantifier( Node q ) {
       Node pat = q[2][0][0];
       if( pat.getKind()==APPLY_UF ){
         TypeNode tn = pat[0].getType();
-        if( datatypes::DatatypesRewriter::isTypeDatatype(tn) ){
+        if( tn.isDatatype() ){
           const Datatype& dt = ((DatatypeType)(tn).toType()).getDatatype();
           if( dt.isSygus() ){
             //do unfolding if it induces Boolean structure, 
@@ -345,7 +348,7 @@ void CegInstantiation::registerQuantifier( Node q ) {
 void CegInstantiation::assertNode( Node n ) {
 }
 
-Node CegInstantiation::getNextDecisionRequest() {
+Node CegInstantiation::getNextDecisionRequest( unsigned& priority ) {
   //enforce fairness
   if( d_conj->isAssigned() ){
     d_conj->initializeGuard( d_quantEngine );
@@ -363,6 +366,7 @@ Node CegInstantiation::getNextDecisionRequest() {
       bool value;
       if( !d_quantEngine->getValuation().hasSatValue( req_dec[i], value ) ) {
         Trace("cegqi-debug") << "CEGQI : Decide next on : " << req_dec[i] << "..." << std::endl;
+        priority = 0;
         return req_dec[i];
       }else{
         Trace("cegqi-debug2") << "CEGQI : " << req_dec[i] << " already has value " << value << std::endl;
@@ -377,10 +381,12 @@ Node CegInstantiation::getNextDecisionRequest() {
           d_conj->d_curr_lit.set( d_conj->d_curr_lit.get() + 1 );
           lit = d_conj->getLiteral( d_quantEngine, d_conj->d_curr_lit.get() );
           Trace("cegqi-debug") << "CEGQI : Decide on next lit : " << lit << "..." << std::endl;
+          priority = 1;
           return lit;
         }
       }else{
         Trace("cegqi-debug") << "CEGQI : Decide on current lit : " << lit << "..." << std::endl;
+        priority = 1;
         return lit;
       }
     }
@@ -689,7 +695,7 @@ Node CegInstantiation::getEagerUnfold( Node n, std::map< Node, Node >& visited )
     if( n.getKind()==APPLY_UF ){
       TypeNode tn = n[0].getType();
       Trace("cegqi-eager-debug") << "check " << n[0].getType() << std::endl;
-      if( datatypes::DatatypesRewriter::isTypeDatatype(tn) ){
+      if( tn.isDatatype() ){
         const Datatype& dt = ((DatatypeType)(tn).toType()).getDatatype();
         if( dt.isSygus() ){ 
           Trace("cegqi-eager") << "Unfold eager : " << n << std::endl;
@@ -762,12 +768,12 @@ void CegInstantiation::printSynthSolution( std::ostream& out ) {
       std::string f(ss.str());
       f.erase(f.begin());
       TypeNode tn = prog.getType();
-      Assert( datatypes::DatatypesRewriter::isTypeDatatype( tn ) );
+      Assert( tn.isDatatype() );
       const Datatype& dt = ((DatatypeType)(tn).toType()).getDatatype();
       Assert( dt.isSygus() );
       //get the solution
       Node sol;
-      int status;
+      int status = -1;
       if( d_last_inst_si ){
         Assert( d_conj->getCegConjectureSingleInv() != NULL );
         sol = d_conj->getSingleInvocationSolution( i, tn, status );
@@ -786,38 +792,44 @@ void CegInstantiation::printSynthSolution( std::ostream& out ) {
             for( unsigned j=0; j<svl.getNumChildren(); j++ ){
               subs.push_back( Node::fromExpr( svl[j] ) );
             }
+            bool templIsPost = false;
+            Node templ;
             if( options::sygusInvTemplMode() == SYGUS_INV_TEMPL_MODE_PRE ){
-              const CegConjectureSingleInv* ceg_si =
-                  d_conj->getCegConjectureSingleInv();
+              const CegConjectureSingleInv* ceg_si = d_conj->getCegConjectureSingleInv();
               if(ceg_si->d_trans_pre.find( prog ) != ceg_si->d_trans_pre.end()){
-                std::vector<Node>& templ_vars = d_conj->getProgTempVars(prog);
-                Assert(templ_vars.size() == subs.size());
-                Node pre = ceg_si->getTransPre(prog);
-                pre = pre.substitute( templ_vars.begin(), templ_vars.end(),
-                                      subs.begin(), subs.end() );
-                TermDbSygus* sygusDb = getTermDatabase()->getTermDatabaseSygus();
-                sol = sygusDb->sygusToBuiltin( sol, sol.getType() );
-                Trace("cegqi-inv") << "Builtin version of solution is : "
-                                   << sol << ", type : " << sol.getType()
-                                   << std::endl;
-                sol = NodeManager::currentNM()->mkNode( OR, sol, pre );
+                templ = ceg_si->getTransPre(prog);
+                templIsPost = false;
               }
             }else if(options::sygusInvTemplMode() == SYGUS_INV_TEMPL_MODE_POST){
-              const CegConjectureSingleInv* ceg_si =
-                  d_conj->getCegConjectureSingleInv();
+              const CegConjectureSingleInv* ceg_si = d_conj->getCegConjectureSingleInv();
               if(ceg_si->d_trans_post.find(prog) != ceg_si->d_trans_post.end()){
-                std::vector<Node>& templ_vars = d_conj->getProgTempVars(prog);
-                Assert( templ_vars.size()==subs.size() );
-                Node post = ceg_si->getTransPost(prog);
-                post = post.substitute( templ_vars.begin(), templ_vars.end(),
-                                        subs.begin(), subs.end() );
-                TermDbSygus* sygusDb = getTermDatabase()->getTermDatabaseSygus();
-                sol = sygusDb->sygusToBuiltin( sol, sol.getType() );
-                Trace("cegqi-inv") << "Builtin version of solution is : "
-                                   << sol << ", type : " << sol.getType()
-                                   << std::endl;
-                sol = NodeManager::currentNM()->mkNode( AND, sol, post );
+                templ = ceg_si->getTransPost(prog);
+                templIsPost = true;
               }
+            }
+            if( !templ.isNull() ){
+              std::vector<Node>& templ_vars = d_conj->getProgTempVars(prog);
+              
+              //take into consideration Boolean term conversion (this step can be eliminated when boolean term conversion is eliminated)
+              std::vector< Node > vars;
+              vars.insert( vars.end(), templ_vars.begin(), templ_vars.end() );
+              Node vl = Node::fromExpr( dt.getSygusVarList() );
+              Assert(vars.size() == subs.size());
+              for( unsigned j=0; j<templ_vars.size(); j++ ){
+                if( vl[j].getType().isBoolean() ){
+                  Node c = NodeManager::currentNM()->mkConst(BitVector(1u, 1u));
+                  vars[j] = vars[j].eqNode( c );
+                }
+                Assert( vars[j].getType()==subs[j].getType() );
+              }
+              
+              templ = templ.substitute( vars.begin(), vars.end(), subs.begin(), subs.end() );
+              TermDbSygus* sygusDb = getTermDatabase()->getTermDatabaseSygus();
+              sol = sygusDb->sygusToBuiltin( sol, sol.getType() );
+              Trace("cegqi-inv") << "Builtin version of solution is : "
+                                 << sol << ", type : " << sol.getType()
+                                 << std::endl;
+              sol = NodeManager::currentNM()->mkNode( templIsPost ? AND : OR, sol, templ );
             }
             if( sol==sygus_sol ){
               sol = sygus_sol;

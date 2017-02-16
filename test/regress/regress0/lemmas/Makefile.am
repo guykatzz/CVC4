@@ -25,11 +25,8 @@ MAKEFLAGS = -k
 SMT_TESTS = \
 	clocksynchro_5clocks.main_invar.base.model.smt \
 	sc_init_frame_gap.induction.smt \
-	clocksynchro_5clocks.main_invar.base.smt \
 	mode_cntrl.induction.smt \
-	fs_not_sc_seen.induction.smt \
-	pursuit-safety-8.smt \
-	simple_startup_9nodes.abstract.base.smt
+	fs_not_sc_seen.induction.smt
 
 TESTS =	$(SMT_TESTS) $(SMT2_TESTS) $(CVC_TESTS) $(BUG_TESTS)
 
@@ -40,5 +37,5 @@ EXTRA_DIST = $(TESTS)
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

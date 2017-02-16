@@ -163,7 +163,7 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       break;
 
     case kind::DATATYPE_TYPE: {
-      const Datatype& dt = n.getConst<Datatype>();
+      const Datatype& dt = (NodeManager::currentNM()->getDatatypeForIndex( n.getConst< DatatypeIndexConstant >().getIndex() ));
       if( dt.isTuple() ){
         out << '[';
         for (unsigned i = 0; i < dt[0].getNumArgs(); ++ i) {
@@ -333,15 +333,17 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       break;
 
     // DATATYPES
-    case kind::PARAMETRIC_DATATYPE:
-      out << n[0].getConst<Datatype>().getName() << '[';
-      for(unsigned i = 1; i < n.getNumChildren(); ++i) {
-        if(i > 1) {
-          out << ',';
+    case kind::PARAMETRIC_DATATYPE: {
+        const Datatype & dt = (NodeManager::currentNM()->getDatatypeForIndex( n[0].getConst< DatatypeIndexConstant >().getIndex() ));
+        out << dt.getName() << '[';
+        for(unsigned i = 1; i < n.getNumChildren(); ++i) {
+          if(i > 1) {
+            out << ',';
+          }
+          out << n[i];
         }
-        out << n[i];
+        out << ']';
       }
-      out << ']';
       return;
       break;
     case kind::APPLY_TYPE_ASCRIPTION: {
@@ -355,7 +357,9 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
     case kind::APPLY_CONSTRUCTOR: {
         TypeNode t = n.getType();
         if( t.isTuple() ){
-          //no-op
+          if( n.getNumChildren()==1 ){
+            out << "TUPLE";
+          }
         }else if( t.isRecord() ){
           const Record& rec = t.getRecord();
           out << "(# ";
@@ -394,8 +398,13 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
         }
       }
       break;
-    case kind::APPLY_TESTER:
-      toStream(op, n.getOperator(), depth, types, false);
+    case kind::APPLY_TESTER: {
+      Assert( !n.getType().isTuple() && !n.getType().isRecord() );
+      op << "is_";
+      unsigned cindex = Datatype::indexOf(n.getOperator().toExpr());
+      const Datatype& dt = Datatype::datatypeOf(n.getOperator().toExpr());
+      toStream(op, Node::fromExpr(dt[cindex].getConstructor()), depth, types, false);
+    }
       break;
     case kind::CONSTRUCTOR_TYPE:
     case kind::SELECTOR_TYPE:
@@ -498,14 +507,17 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       opType = PREFIX;
       break;
     case kind::DIVISION:
+    case kind::DIVISION_TOTAL:
       op << '/';
       opType = INFIX;
       break;
     case kind::INTS_DIVISION:
+    case kind::INTS_DIVISION_TOTAL:
       op << "DIV";
       opType = INFIX;
       break;
     case kind::INTS_MODULUS:
+    case kind::INTS_MODULUS_TOTAL:
       op << "MOD";
       opType = INFIX;
       break;
@@ -726,7 +738,7 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
     case kind::BITVECTOR_SIGN_EXTEND:
       out << "SX(";
       toStream(out, n[0], depth, types, false);
-      out << ", " << n.getOperator().getConst<BitVectorSignExtend>() << ')';
+      out << ", " << BitVectorType(n.getType().toType()).getSize() << ')';
       return;
       break;
     case kind::BITVECTOR_ROTATE_LEFT:
@@ -768,6 +780,22 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       op << "IS_IN";
       opType = INFIX;
       break;
+    case kind::PRODUCT:
+      op << "PRODUCT";
+      opType = INFIX;
+      break;
+    case kind::JOIN:
+      op << "JOIN";
+      opType = INFIX;
+      break;
+    case kind::TRANSPOSE:
+      op << "TRANSPOSE";
+      opType = PREFIX;
+      break;
+    case kind::TCLOSURE:
+      op << "TCLOSURE";
+      opType = PREFIX;
+      break;
     case kind::SINGLETON:
       out << "{";
       toStream(out, n[0], depth, types, false);
@@ -794,9 +822,9 @@ void CvcPrinter::toStream(std::ostream& out, TNode n, int depth, bool types, boo
       break;
     }
     case kind::CARD: {
-      out << "||";
+      out << "CARD(";
       toStream(out, n[0], depth, types, false);
-      out << "||";
+      out << ")";
       return;
       break;
     }
@@ -1228,58 +1256,61 @@ static void toStream(std::ostream& out, const GetOptionCommand* c, bool cvc3Mode
 
 static void toStream(std::ostream& out, const DatatypeDeclarationCommand* c, bool cvc3Mode) throw() {
   const vector<DatatypeType>& datatypes = c->getDatatypes();
-  out << "DATATYPE" << endl;
-  bool firstDatatype = true;
-  for(vector<DatatypeType>::const_iterator i = datatypes.begin(),
-        i_end = datatypes.end();
-      i != i_end;
-      ++i) {
-    if(! firstDatatype) {
-      out << ',' << endl;
-    }
-    const Datatype& dt = (*i).getDatatype();
-    out << "  " << dt.getName();
-    if(dt.isParametric()) {
-      out << '[';
-      for(size_t j = 0; j < dt.getNumParameters(); ++j) {
-        if(j > 0) {
-          out << ',';
-        }
-        out << dt.getParameter(j);
+  //do not print tuple/datatype internal declarations
+  if( datatypes.size()!=1 || ( !datatypes[0].getDatatype().isTuple() && !datatypes[0].getDatatype().isRecord() ) ){
+    out << "DATATYPE" << endl;
+    bool firstDatatype = true;
+    for(vector<DatatypeType>::const_iterator i = datatypes.begin(),
+          i_end = datatypes.end();
+        i != i_end;
+        ++i) {
+      if(! firstDatatype) {
+        out << ',' << endl;
       }
-      out << ']';
-    }
-    out << " = ";
-    bool firstConstructor = true;
-    for(Datatype::const_iterator j = dt.begin(); j != dt.end(); ++j) {
-      if(! firstConstructor) {
-        out << " | ";
-      }
-      firstConstructor = false;
-      const DatatypeConstructor& c = *j;
-      out << c.getName();
-      if(c.getNumArgs() > 0) {
-        out << '(';
-        bool firstSelector = true;
-        for(DatatypeConstructor::const_iterator k = c.begin(); k != c.end(); ++k) {
-          if(! firstSelector) {
-            out << ", ";
+      const Datatype& dt = (*i).getDatatype();
+      out << "  " << dt.getName();
+      if(dt.isParametric()) {
+        out << '[';
+        for(size_t j = 0; j < dt.getNumParameters(); ++j) {
+          if(j > 0) {
+            out << ',';
           }
-          firstSelector = false;
-          const DatatypeConstructorArg& selector = *k;
-          Type t = SelectorType(selector.getType()).getRangeType();
-          if( t.isDatatype() ){
-            const Datatype & sdt = ((DatatypeType)t).getDatatype();
-            out << selector.getName() << ": " << sdt.getName();
-          }else{
-            out << selector.getName() << ": " << t;
-          }
+          out << dt.getParameter(j);
         }
-        out << ')';
+        out << ']';
+      }
+      out << " = ";
+      bool firstConstructor = true;
+      for(Datatype::const_iterator j = dt.begin(); j != dt.end(); ++j) {
+        if(! firstConstructor) {
+          out << " | ";
+        }
+        firstConstructor = false;
+        const DatatypeConstructor& c = *j;
+        out << c.getName();
+        if(c.getNumArgs() > 0) {
+          out << '(';
+          bool firstSelector = true;
+          for(DatatypeConstructor::const_iterator k = c.begin(); k != c.end(); ++k) {
+            if(! firstSelector) {
+              out << ", ";
+            }
+            firstSelector = false;
+            const DatatypeConstructorArg& selector = *k;
+            Type t = SelectorType(selector.getType()).getRangeType();
+            if( t.isDatatype() ){
+              const Datatype & sdt = ((DatatypeType)t).getDatatype();
+              out << selector.getName() << ": " << sdt.getName();
+            }else{
+              out << selector.getName() << ": " << t;
+            }
+          }
+          out << ')';
+        }
       }
     }
+    out << endl << "END;";
   }
-  out << endl << "END;";
 }
 
 static void toStream(std::ostream& out, const CommentCommand* c, bool cvc3Mode) throw() {

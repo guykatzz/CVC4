@@ -78,7 +78,6 @@ SMT_TESTS = \
 	fuzz33.delta01.smt \
 	fuzz33.smt \
 	fuzz34.delta01.smt \
-	fuzz34.smt \
 	fuzz35.delta01.smt \
 	fuzz35.smt \
 	fuzz36.delta01.smt \
@@ -86,7 +85,6 @@ SMT_TESTS = \
 	fuzz37.delta01.smt \
 	fuzz37.smt \
 	fuzz38.delta01.smt \
-	fuzz38.smt \
 	fuzz39.delta01.smt \
 	fuzz39.smt \
 	fuzz40.delta01.smt \
@@ -96,7 +94,16 @@ SMT_TESTS = \
 	smtcompbug.smt \
 	unsound1.smt2 \
 	unsound1-reduced.smt2 \
-	bv-proof00.smt
+	bv2nat-ground.smt2 \
+	bv2nat-ground-c.smt2 \
+	cmu-rdk-3.smt2 \
+	bv2nat-simp-range.smt2 \
+	bv-int-collapse1.smt2 \
+	bv-int-collapse2.smt2 \
+	bv-int-collapse2-sat.smt2
+
+# This benchmark is currently disabled as it uses --check-proof
+# bench_38.delta.smt2
 
 # Regression tests for SMT2 inputs
 SMT2_TESTS = divtest.smt2
@@ -108,7 +115,9 @@ CVC_TESTS = bvsimple.cvc sizecheck.cvc
 BUG_TESTS = \
 	bug260a.smt \
 	bug260b.smt \
-	bug440.smt
+	bug440.smt \
+	bug734.smt2 \
+	bug_extract_mult_leading_bit.smt2
 
 TESTS =	$(SMT_TESTS) $(SMT2_TESTS) $(CVC_TESTS) $(BUG_TESTS)
 
@@ -121,5 +130,5 @@ EXTRA_DIST = $(TESTS) \
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

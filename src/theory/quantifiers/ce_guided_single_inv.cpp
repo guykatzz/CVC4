@@ -16,7 +16,6 @@
 
 #include "expr/datatype.h"
 #include "options/quantifiers_options.h"
-#include "theory/datatypes/datatypes_rewriter.h"
 #include "theory/quantifiers/ce_guided_instantiation.h"
 #include "theory/quantifiers/ce_guided_single_inv_ei.h"
 #include "theory/quantifiers/first_order_model.h"
@@ -45,27 +44,41 @@ bool CegqiOutputSingleInv::addLemma( Node n ) {
   return d_out->addLemma( n );
 }
 
+CegConjectureSingleInv::CegConjectureSingleInv(QuantifiersEngine* qe,
+                                               CegConjecture* p)
+    : d_qe(qe),
+      d_parent(p),
+      d_sip(new SingleInvocationPartition),
+      d_sol(new CegConjectureSingleInvSol(qe)),
+      d_ei(NULL),
+      d_cosi(new CegqiOutputSingleInv(this)),
+      d_cinst(NULL),
+      d_c_inst_match_trie(NULL),
+      d_has_ites(true) {
+  //  third and fourth arguments set to (false,false) until we have solution
+  //  reconstruction for delta and infinity
+  d_cinst = new CegInstantiator(d_qe, d_cosi, false, false);
 
-CegConjectureSingleInv::CegConjectureSingleInv( QuantifiersEngine * qe, CegConjecture * p ) : d_qe( qe ), d_parent( p ){
-  d_has_ites = true;
-  if( options::incrementalSolving() ){
-    d_c_inst_match_trie = new inst::CDInstMatchTrie( qe->getUserContext() );
-  }else{
-    d_c_inst_match_trie = NULL;
+  if (options::incrementalSolving()) {
+    d_c_inst_match_trie = new inst::CDInstMatchTrie(qe->getUserContext());
   }
-  d_cosi = new CegqiOutputSingleInv( this );
-  //  third and fourth arguments set to (false,false) until we have solution reconstruction for delta and infinity
-  d_cinst = new CegInstantiator( d_qe, d_cosi, false, false );
 
-  d_sol = new CegConjectureSingleInvSol( qe );
-
-  d_sip = new SingleInvocationPartition;
-
-  if( options::cegqiSingleInvPartial() ){
-    d_ei = new CegEntailmentInfer( qe, d_sip );
-  }else{
-    d_ei = NULL;
+  if (options::cegqiSingleInvPartial()) {
+    d_ei = new CegEntailmentInfer(qe, d_sip);
   }
+}
+
+CegConjectureSingleInv::~CegConjectureSingleInv() {
+  if (d_c_inst_match_trie) {
+    delete d_c_inst_match_trie;
+  }
+  delete d_cinst;
+  delete d_cosi;
+  if (d_ei) {
+    delete d_ei;
+  }
+  delete d_sol;  // (new CegConjectureSingleInvSol(qe)),
+  delete d_sip;  // d_sip(new SingleInvocationPartition),
 }
 
 void CegConjectureSingleInv::getInitialSingleInvLemma( std::vector< Node >& lems ) {
@@ -133,7 +146,7 @@ void CegConjectureSingleInv::initialize( Node q ) {
         d_has_ites = false;
       }
     }
-    Assert( datatypes::DatatypesRewriter::isTypeDatatype(tn) );
+    Assert( tn.isDatatype() );
     const Datatype& dt = ((DatatypeType)(tn).toType()).getDatatype();
     Assert( dt.isSygus() );
     if( !dt.getSygusAllowAll() ){
@@ -658,17 +671,22 @@ bool CegConjectureSingleInv::check( std::vector< Node >& lems ) {
   }
 }
 
-Node CegConjectureSingleInv::constructSolution( std::vector< unsigned >& indices, unsigned i, unsigned index ) {
+Node CegConjectureSingleInv::constructSolution( std::vector< unsigned >& indices, unsigned i, unsigned index, std::map< Node, Node >& weak_imp ) {
   Assert( index<d_inst.size() );
   Assert( i<d_inst[index].size() );
   unsigned uindex = indices[index];
-  if( index==d_inst.size()-1 ){
+  if( index==indices.size()-1 ){
     return d_inst[uindex][i];
   }else{
     Node cond = d_lemmas_produced[uindex];
+    //weaken based on unsat core
+    std::map< Node, Node >::iterator itw = weak_imp.find( cond );
+    if( itw!=weak_imp.end() ){
+      cond = itw->second;
+    }
     cond = TermDb::simpleNegate( cond );
     Node ite1 = d_inst[uindex][i];
-    Node ite2 = constructSolution( indices, i, index+1 );
+    Node ite2 = constructSolution( indices, i, index+1, weak_imp );
     return NodeManager::currentNM()->mkNode( ITE, cond, ite1, ite2 );
   }
 }
@@ -753,12 +771,35 @@ Node CegConjectureSingleInv::getSolution( unsigned sol_index, TypeNode stn, int&
 
     //construct the solution
     Trace("csi-sol") << "Sort solution return values " << sol_index << std::endl;
+    bool useUnsatCore = false;
+    std::vector< Node > active_lemmas;
+    //minimize based on unsat core, if possible
+    std::map< Node, Node > weak_imp;
+    if( options::cegqiSolMinCore() ){
+      if( options::cegqiSolMinInst() ){
+        if( d_qe->getUnsatCoreLemmas( active_lemmas, weak_imp ) ){
+          useUnsatCore = true;
+        }
+      }else{
+        if( d_qe->getUnsatCoreLemmas( active_lemmas ) ){
+          useUnsatCore = true;
+        }
+      }
+    } 
     Assert( d_lemmas_produced.size()==d_inst.size() );
     std::vector< unsigned > indices;
     for( unsigned i=0; i<d_lemmas_produced.size(); i++ ){
-      Assert( sol_index<d_inst[i].size() );
-      indices.push_back( i );
+      bool incl = true;
+      if( useUnsatCore ){
+        incl = std::find( active_lemmas.begin(), active_lemmas.end(), d_lemmas_produced[i] )!=active_lemmas.end();
+      }
+      if( incl ){
+        Assert( sol_index<d_inst[i].size() );
+        indices.push_back( i );
+      }
     }
+    Trace("csi-sol") << "...included " << indices.size() << " / " << d_lemmas_produced.size() << " instantiations." << std::endl;
+    Assert( !indices.empty() );
     //sort indices based on heuristic : currently, do all constant returns first (leads to simpler conditions)
     // TODO : to minimize solution size, put the largest term last
     sortSiInstanceIndices ssii;
@@ -766,7 +807,7 @@ Node CegConjectureSingleInv::getSolution( unsigned sol_index, TypeNode stn, int&
     ssii.d_i = sol_index;
     std::sort( indices.begin(), indices.end(), ssii );
     Trace("csi-sol") << "Construct solution" << std::endl;
-    s = constructSolution( indices, sol_index, 0 );
+    s = constructSolution( indices, sol_index, 0, weak_imp );
     Assert( vars.size()==d_sol->d_varList.size() );
     s = s.substitute( vars.begin(), vars.end(), d_sol->d_varList.begin(), d_sol->d_varList.end() );
   }

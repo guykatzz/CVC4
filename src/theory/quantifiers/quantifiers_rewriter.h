@@ -35,12 +35,9 @@ public:
   static bool isClause( Node n );
   static bool isLiteral( Node n );
   static bool isCube( Node n );
-  static int getPurifyId( Node n );
-  static int getPurifyIdLit( Node n );
 private:
   static bool addCheckElimChild( std::vector< Node >& children, Node c, Kind k, std::map< Node, bool >& lit_pol, bool& childrenChanged );
   static void addNodeToOrBuilder( Node n, NodeBuilder<>& t );
-  static Node mkForAll( std::vector< Node >& args, Node body, QAttributes& qa );
   static void computeArgs( std::vector< Node >& args, std::map< Node, bool >& activeMap, Node n, std::map< Node, bool >& visited );
   static void computeArgVec( std::vector< Node >& args, std::vector< Node >& activeArgs, Node n );
   static void computeArgVec2( std::vector< Node >& args, std::vector< Node >& activeArgs, Node n, Node ipl );
@@ -49,24 +46,23 @@ private:
                                     std::vector< Node >& new_vars, std::vector< Node >& new_conds );
   static void computeDtTesterIteSplit( Node n, std::map< Node, Node >& pcons, std::map< Node, std::map< int, Node > >& ncons, std::vector< Node >& conj );
   static bool isConditionalVariableElim( Node n, int pol=0 );
-  static bool isVariableElim( Node v, Node s, std::map< Node, std::vector< int > >& var_parent );
+  static bool isVariableElim( Node v, Node s );
+  static void isVariableBoundElig( Node n, std::map< Node, int >& exclude, std::map< Node, std::map< int, bool > >& visited, bool hasPol, bool pol, 
+                                   std::map< Node, bool >& elig_vars );
   static bool computeVariableElimLit( Node n, bool pol, std::vector< Node >& args, std::vector< Node >& var, std::vector< Node >& subs,
-                                      std::map< Node, std::vector< int > >& var_parent );
-  static Node computePurify2( Node body, std::vector< Node >& args, std::map< Node, Node >& visited, std::map< Node, Node >& var_to_term,
-                              std::map< Node, std::vector< int > >& var_parent, int parentId );
-  static Node computeVarElimination2( Node body, std::vector< Node >& args, QAttributes& qa, std::map< Node, std::vector< int > >& var_parent );
-private:
+                                      std::map< Node, std::map< bool, std::map< Node, bool > > >& num_bounds );
+  static Node computeVarElimination2( Node body, std::vector< Node >& args, QAttributes& qa );
+public:
   static Node computeElimSymbols( Node body );
   static Node computeMiniscoping( std::vector< Node >& args, Node body, QAttributes& qa );
   static Node computeAggressiveMiniscoping( std::vector< Node >& args, Node body );
   //cache is dependent upon currCond, icache is not, new_conds are negated conditions
   static Node computeProcessTerms( Node body, std::vector< Node >& new_vars, std::vector< Node >& new_conds, Node q, QAttributes& qa );
   static Node computeCondSplit( Node body, QAttributes& qa );
-  static Node computePrenex( Node body, std::vector< Node >& args, bool pol );
+  static Node computePrenex( Node body, std::vector< Node >& args, std::vector< Node >& nargs, bool pol, bool prenexAgg );
+  static Node computePrenexAgg( Node n, bool topLevel );
   static Node computeSplit( std::vector< Node >& args, Node body, QAttributes& qa );
   static Node computeVarElimination( Node body, std::vector< Node >& args, QAttributes& qa );
-  static Node computePurify( Node body, std::vector< Node >& args, std::map< Node, std::vector< int > >& var_parent );
-  static void computePurifyExpand( Node body, std::vector< Node >& conj, std::vector< Node >& args, QAttributes& qa );
 private:
   enum{
     COMPUTE_ELIM_SYMBOLS = 0,
@@ -76,7 +72,6 @@ private:
     COMPUTE_PRENEX,
     COMPUTE_VAR_ELIMINATION,
     COMPUTE_COND_SPLIT,
-    COMPUTE_PURIFY_EXPAND,
     //COMPUTE_FLATTEN_ARGS_UF,
     //COMPUTE_CNF,
     COMPUTE_LAST
@@ -94,8 +89,11 @@ private:
   static Node preSkolemizeQuantifiers(Node n, bool polarity, std::vector< TypeNode >& fvTypes, std::vector<TNode>& fvs);
 public:
   static Node rewriteRewriteRule( Node r );
-  static bool containsQuantifiers(Node n);
+  static bool containsQuantifiers( Node n );
+  static bool isPrenexNormalForm( Node n );
   static Node preprocess( Node n, bool isInst = false );
+  static Node mkForAll( std::vector< Node >& args, Node body, QAttributes& qa );
+  static Node mkForall( std::vector< Node >& args, Node body, bool marked = false );
 };/* class QuantifiersRewriter */
 
 }/* CVC4::theory::quantifiers namespace */

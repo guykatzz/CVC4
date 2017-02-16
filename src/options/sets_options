@@ -5,24 +5,13 @@
 
 module SETS "options/sets_options.h" Sets
 
-option setsPropagate --sets-propagate bool :default true
- determines whether to propagate learnt facts to Theory Engine / SAT solver
+option setsProxyLemmas --sets-proxy-lemmas bool :default false
+ introduce proxy variables eagerly to shorten lemmas
 
-option setsEagerLemmas --sets-eager-lemmas bool :default true
- add lemmas even at regular effort
-
-expert-option setsCare1 --sets-care1 bool :default false
- generate one lemma at a time for care graph
-
-option setsPropFull --sets-prop-full bool :default true
- additional propagation at full effort
-
-option setsAggRewrite --sets-agg-rewrite bool :default false
- aggressive sets rewriting
-
-option setsGuessEmpty --sets-guess-empty int :default 0
- when to guess leaf nodes being empty (0...2 : most aggressive..least aggressive)
-
-option setsSlowLemmas --sets-slow-lemmas bool :default true
-
+option setsInferAsLemmas --sets-infer-as-lemmas bool :default true
+ send inferences as lemmas
+ 
+option setsRelEager --sets-rel-eager bool :default true
+ standard effort checks for relations
+ 
 endmodule

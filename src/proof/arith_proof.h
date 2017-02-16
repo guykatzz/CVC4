@@ -53,7 +53,7 @@ protected:
   // std::map<Expr, std::string> d_constRationalString; // all the variable/function declarations
 
   //   TypeSet d_sorts;        // all the uninterpreted sorts in this theory
-  // ExprSet d_declarations; // all the variable/function declarations
+  ExprSet d_declarations; // all the variable/function declarations
 
   bool d_realMode;
 
@@ -74,7 +74,7 @@ public:
   virtual void printSortDeclarations(std::ostream& os, std::ostream& paren);
   virtual void printTermDeclarations(std::ostream& os, std::ostream& paren);
   virtual void printDeferredDeclarations(std::ostream& os, std::ostream& paren);
-  virtual void printAliasingDeclarations(std::ostream& os, std::ostream& paren);
+  virtual void printAliasingDeclarations(std::ostream& os, std::ostream& paren, const ProofLetMap &globalLetMap);
 };
 
 

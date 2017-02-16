@@ -284,7 +284,10 @@ void Smt2Printer::toStream(std::ostream& out, TNode n,
       break;
 
     case kind::DATATYPE_TYPE:
-      out << maybeQuoteSymbol(n.getConst<Datatype>().getName());
+      {
+        const Datatype & dt = (NodeManager::currentNM()->getDatatypeForIndex( n.getConst< DatatypeIndexConstant >().getIndex() ));
+        out << maybeQuoteSymbol(dt.getName());
+      }
       break;
 
     case kind::UNINTERPRETED_CONSTANT: {
@@ -665,6 +668,11 @@ void Smt2Printer::toStream(std::ostream& out, TNode n,
            tmp.replace(pos, 8, "::");
         }
         out << tmp;
+      }else if( n.getKind()==kind::APPLY_TESTER ){
+        unsigned cindex = Datatype::indexOf(n.getOperator().toExpr());
+        const Datatype& dt = Datatype::datatypeOf(n.getOperator().toExpr());
+        out << "is-";
+        toStream(out, Node::fromExpr(dt[cindex].getConstructor()), toDepth < 0 ? toDepth : toDepth - 1, types);
       }else{
         toStream(out, n.getOperator(), toDepth < 0 ? toDepth : toDepth - 1, types);
       }
@@ -1072,6 +1080,15 @@ void Smt2Printer::toStream(std::ostream& out, const Model& m) const throw() {
   out << "(model" << endl;
   this->Printer::toStream(out, m);
   out << ")" << endl;
+  //print the heap model, if it exists
+  Expr h, neq;
+  if( m.getHeapModel( h, neq ) ){
+    // description of the heap+what nil is equal to fully describes model
+    out << "(heap" << endl;
+    out << h << endl;
+    out << neq << endl;
+    out << ")" << std::endl;
+  }
 }
 
 

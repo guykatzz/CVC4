@@ -42,6 +42,8 @@ namespace CVC4 {
 
 CVC4_THREADLOCAL(NodeManager*) NodeManager::s_current = NULL;
 
+namespace {
+
 /**
  * This class sets it reference argument to true and ensures that it gets set
  * to false on destruction. This can be used to make sure a flag gets toggled
@@ -81,6 +83,9 @@ struct NVReclaim {
     d_deletionField = NULL;
   }
 };
+
+} // namespace
+
 
 NodeManager::NodeManager(ExprManager* exprManager) :
   d_options(new Options()),
@@ -170,13 +175,43 @@ NodeManager::~NodeManager() {
     d_operators[i] = Node::null();
   }
 
-  //d_tupleAndRecordTypes.clear();
+  d_unique_vars.clear();
+
+  TypeNode dummy;
   d_tt_cache.d_children.clear();
+  d_tt_cache.d_data = dummy;
   d_rt_cache.d_children.clear();
+  d_rt_cache.d_data = dummy;
+
+  for (std::vector<Datatype*>::iterator
+           datatype_iter = d_ownedDatatypes.begin(),
+           datatype_end = d_ownedDatatypes.end();
+       datatype_iter != datatype_end; ++datatype_iter) {
+    Datatype* datatype = *datatype_iter;
+    delete datatype;
+  }
+  d_ownedDatatypes.clear();
 
   Assert(!d_attrManager->inGarbageCollection() );
-  while(!d_zombies.empty()) {
-    reclaimZombies();
+
+  std::vector<NodeValue*> order = TopologicalSort(d_maxedOut);
+  d_maxedOut.clear();
+
+  while (!d_zombies.empty() || !order.empty()) {
+    if (d_zombies.empty()) {
+      // Delete the maxed out nodes in toplogical order once we know
+      // there are no additional zombies, or other nodes to worry about.
+      Assert(!order.empty());
+      // We process these in reverse to reverse the topological order.
+      NodeValue* greatest_maxed_out = order.back();
+      order.pop_back();
+      Assert(greatest_maxed_out->HasMaximizedReferenceCount());
+      Debug("gc") << "Force zombify " << greatest_maxed_out << std::endl;
+      greatest_maxed_out->d_rc = 0;
+      markForDeletion(greatest_maxed_out);
+    } else {
+      reclaimZombies();
+    }
   }
 
   poolRemove( &expr::NodeValue::null() );
@@ -206,6 +241,17 @@ NodeManager::~NodeManager() {
   d_attrManager = NULL;
   delete d_options;
   d_options = NULL;
+}
+
+unsigned NodeManager::registerDatatype(Datatype* dt) {
+  unsigned sz = d_ownedDatatypes.size();
+  d_ownedDatatypes.push_back( dt );
+  return sz;
+}
+
+const Datatype & NodeManager::getDatatypeForIndex( unsigned index ) const{
+  Assert( index<d_ownedDatatypes.size() );
+  return *d_ownedDatatypes[index];
 }
 
 void NodeManager::reclaimZombies() {
@@ -310,6 +356,45 @@ void NodeManager::reclaimZombies() {
     }
   }
 }/* NodeManager::reclaimZombies() */
+
+std::vector<NodeValue*> NodeManager::TopologicalSort(
+    const std::vector<NodeValue*>& roots) {
+  std::vector<NodeValue*> order;
+  std::vector<std::pair<bool, NodeValue*> > stack;
+  NodeValueIDSet visited;
+  const NodeValueIDSet root_set(roots.begin(), roots.end());
+
+  for (size_t index = 0; index < roots.size(); index++) {
+    NodeValue* root = roots[index];
+    if (visited.find(root) == visited.end()) {
+      stack.push_back(std::make_pair(false, root));
+    }
+    while (!stack.empty()) {
+      NodeValue* current = stack.back().second;
+      const bool visited_children = stack.back().first;
+      Debug("gc") << "Topological sort " << current << " " << visited_children
+                  << std::endl;
+      if (visited_children) {
+        if (root_set.find(current) != root_set.end()) {
+          order.push_back(current);
+        }
+        stack.pop_back();
+      } else {
+        stack.back().first = true;
+        Assert(visited.count(current) == 0);
+        visited.insert(current);
+        for (unsigned i = 0; i < current->getNumChildren(); ++i) {
+          expr::NodeValue* child = current->getChild(i);
+          if (visited.find(child) == visited.end()) {
+            stack.push_back(std::make_pair(false, child));
+          }
+        }
+      }
+    }
+  }
+  Assert(order.size() == roots.size());
+  return order;
+} /* NodeManager::TopologicalSort() */
 
 TypeNode NodeManager::getType(TNode n, bool check)
   throw(TypeCheckingExceptionPrivate, AssertionException) {
@@ -466,12 +551,19 @@ TypeNode NodeManager::mkSubrangeType(const SubrangeBounds& bounds)
 TypeNode NodeManager::TupleTypeCache::getTupleType( NodeManager * nm, std::vector< TypeNode >& types, unsigned index ) {
   if( index==types.size() ){
     if( d_data.isNull() ){
-      Datatype dt("__cvc4_tuple");
+      std::stringstream sst;
+      sst << "__cvc4_tuple";
+      for (unsigned i = 0; i < types.size(); ++ i) {
+        sst << "_" << types[i];
+      }
+      Datatype dt(sst.str());
       dt.setTuple();
-      DatatypeConstructor c("__cvc4_tuple_ctor");
+      std::stringstream ssc;
+      ssc << sst.str() << "_ctor";
+      DatatypeConstructor c(ssc.str());
       for (unsigned i = 0; i < types.size(); ++ i) {
         std::stringstream ss;
-        ss << "__cvc4_tuple_stor_" << i;
+        ss << sst.str() << "_stor_" << i;
         c.addArg(ss.str().c_str(), types[i].toType());
       }
       dt.addConstructor(c);
@@ -488,9 +580,16 @@ TypeNode NodeManager::RecTypeCache::getRecordType( NodeManager * nm, const Recor
   if( index==rec.getNumFields() ){
     if( d_data.isNull() ){
       const Record::FieldVector& fields = rec.getFields();
-      Datatype dt("__cvc4_record");
+      std::stringstream sst;
+      sst << "__cvc4_record";
+      for(Record::FieldVector::const_iterator i = fields.begin(); i != fields.end(); ++i) {
+        sst << "_" << (*i).first << "_" << (*i).second;
+      }
+      Datatype dt(sst.str());
       dt.setRecord();
-      DatatypeConstructor c("__cvc4_record_ctor");
+      std::stringstream ssc;
+      ssc << sst.str() << "_ctor";
+      DatatypeConstructor c(ssc.str());
       for(Record::FieldVector::const_iterator i = fields.begin(); i != fields.end(); ++i) {
         c.addArg((*i).first, (*i).second);
       }
@@ -681,18 +780,18 @@ Node NodeManager::mkInstConstant(const TypeNode& type) {
   return n;
 }
 
-Node NodeManager::mkSepNil(const TypeNode& type) {
-  Node n = NodeBuilder<0>(this, kind::SEP_NIL);
-  n.setAttribute(TypeAttr(), type);
-  n.setAttribute(TypeCheckedAttr(), true);
-  return n;
-}
-
-Node* NodeManager::mkSepNilPtr(const TypeNode& type) {
-  Node* n = NodeBuilder<0>(this, kind::SEP_NIL).constructNodePtr();
-  setAttribute(*n, TypeAttr(), type);
-  setAttribute(*n, TypeCheckedAttr(), true);
-  return n;
+Node NodeManager::mkUniqueVar(const TypeNode& type, Kind k) {
+  std::map< TypeNode, Node >::iterator it = d_unique_vars[k].find( type );
+  if( it==d_unique_vars[k].end() ){
+    Node n = NodeBuilder<0>(this, k);
+    n.setAttribute(TypeAttr(), type);
+    n.setAttribute(TypeCheckedAttr(), true);
+    d_unique_vars[k][type] = n;
+    Assert( n.getMetaKind() == kind::metakind::VARIABLE );
+    return n;
+  }else{
+    return it->second;
+  }
 }
 
 Node NodeManager::mkAbstractValue(const TypeNode& type) {

@@ -1,12 +1,14 @@
 #ifndef sc2__expr_h
 #define sc2__expr_h
 
-#include "gmp.h"
-#include <string>
-#include <vector>
+#include <stdint.h>
+#include <ext/hash_set>
 #include <iostream>
 #include <map>
+#include <string>
+#include <vector>
 #include "chunking_memory_management.h"
+#include "gmp.h"
 
 #define USE_FLAT_APP  //AJR: off deprecated
 #define MARKVAR_32
@@ -52,7 +54,24 @@ enum { NOT_CEXPR = 0, // for INT_EXPR, HOLE_EXPR, SYM_EXPR, SYMS_EXPR
        COMPARE
 };
 
+class Expr;
 class SymExpr;
+
+namespace __gnu_cxx {
+template <>
+struct hash<Expr *> {
+  size_t operator()(const Expr *x) const {
+    return reinterpret_cast<uintptr_t>(x);
+  }
+};
+}
+
+struct eqExprPtr {
+  bool operator()(const Expr *e1, const Expr *e2) const { return e1 == e2; }
+};
+
+typedef __gnu_cxx::hash_set<Expr *, __gnu_cxx::hash<Expr *>, eqExprPtr>
+    expr_ptr_set_t;
 
 class Expr {
 protected:
@@ -61,8 +80,6 @@ protected:
      bit 8: a flag for already cloned, free_in calculation
      bits 9-31: ref count*/
   int data;
-
-  void destroy(bool dec_kids);
 
   enum { INC, DEC, CREATE };
   void debugrefcnt(int ref, int what) {
@@ -88,7 +105,11 @@ protected:
     : data(1 << 9 /* refcount 1, not cloned */| (_op << 3) | _class)
   { }
 
-public:
+  bool _free_in(Expr *x, expr_ptr_set_t *visited);
+
+ public:
+  virtual ~Expr() {}
+
   static int markedCount;
   inline Expr* followDefs();
   inline int getclass() const { return data & 7; }
@@ -136,6 +157,9 @@ public:
   inline bool isArithTerm() const {
     return getop() == ADD || getop() == NEG;
   }
+  inline bool isSymbolic() const {
+    return getclass() == SYM_EXPR || getclass() == SYMS_EXPR;
+  }
 
   static Expr *build_app(Expr *hd, const std::vector<Expr *> &args, 
 			 int start = 0);
@@ -147,9 +171,9 @@ public:
      otherwise not. */
   Expr *collect_args(std::vector<Expr *> &args, bool follow_defs = true);
 
-  Expr *get_head(bool follow_defs = true);
+  Expr *get_head(bool follow_defs = true) const;
 
-  Expr *get_body(int op = PI, bool follow_defs = true);
+  Expr *get_body(int op = PI, bool follow_defs = true) const;
 
   std::string toString();
 
@@ -165,11 +189,14 @@ public:
   /* return a clone of this expr.  All abstractions are really duplicated
      in memory.  Other expressions may not actually be duplicated in
      memory, but their refcounts will be incremented. */
-  Expr *clone(); 
+  Expr *clone();
 
   // x can be a SymExpr or a HoleExpr.
-  bool free_in(Expr *x);
-  bool get_free_in() { return data & 256; }
+  bool free_in(Expr *x) {
+    expr_ptr_set_t visited;
+    return _free_in(x, &visited);
+  }
+  bool get_free_in() const { return data & 256; }
   void calc_free_in();
 
   static int cargCount;
@@ -181,7 +208,7 @@ public:
   C_MACROS__ADD_CHUNKING_MEMORY_MANAGEMENT_H(CExpr,kids);
 
   Expr **kids;
-  ~CExpr() {
+  virtual ~CExpr() {
     delete[] kids;
   }
   CExpr(int _op) : Expr(CEXPR, _op), kids() {
@@ -261,7 +288,7 @@ public:
 class IntExpr : public Expr {
  public:
   mpz_t n;
-  ~IntExpr() {
+  virtual ~IntExpr() {
     mpz_clear(n);
   }
   IntExpr(mpz_t _n) : Expr(INT_EXPR, 0), n() {
@@ -280,7 +307,7 @@ class IntExpr : public Expr {
 class RatExpr : public Expr {
  public:
   mpq_t n;
-  ~RatExpr() {
+  virtual ~RatExpr() {
     mpq_clear(n);
   }
   RatExpr(mpq_t _n) : Expr(RAT_EXPR, 0), n() {
@@ -321,6 +348,9 @@ class SymExpr : public Expr {
       debugrefcnt(1,CREATE);
 #endif
   }
+
+  virtual ~SymExpr() {}
+
 #ifdef MARKVAR_32
 private:
   int mark();
@@ -349,6 +379,8 @@ class SymSExpr : public SymExpr {
     debugrefcnt(1,CREATE);
 #endif
   }
+
+  virtual ~SymSExpr() {}
 };
 
 class HoleExpr : public Expr {

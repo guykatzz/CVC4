@@ -34,7 +34,6 @@ TESTS =	\
 	error20.delta01.smt \
 	error122.smt \
 	error122.delta01.smt \
-	error3.smt \
 	error3.delta01.smt \
 	pp-regfile.delta01.smt \
 	pp-regfile.delta02.smt
@@ -74,5 +73,5 @@ EXTRA_DIST = $(TESTS) \
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

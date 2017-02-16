@@ -27,6 +27,7 @@
 
 #include "base/configuration.h"
 #include "base/output.h"
+#include "base/ptr_closer.h"
 #include "expr/expr_iomanip.h"
 #include "expr/expr_manager.h"
 #include "main/command_executor.h"
@@ -154,7 +155,7 @@ int runCvc4(int argc, char* argv[], Options& opts) {
     } else {
       unsigned len = strlen(filename);
       if(len >= 5 && !strcmp(".smt2", filename + len - 5)) {
-        opts.setInputLanguage(language::input::LANG_SMTLIB_V2_0);
+        opts.setInputLanguage(language::input::LANG_SMTLIB_V2_5);
       } else if(len >= 4 && !strcmp(".smt", filename + len - 4)) {
         opts.setInputLanguage(language::input::LANG_SMTLIB_V1);
       } else if(len >= 5 && !strcmp(".smt1", filename + len - 5)) {
@@ -241,7 +242,7 @@ int runCvc4(int argc, char* argv[], Options& opts) {
   }
 # endif
 
-  Parser* replayParser = NULL;
+  PtrCloser<Parser> replayParser;
   if( opts.getReplayInputFilename() != "" ) {
     std::string replayFilename = opts.getReplayInputFilename();
     ParserBuilder replayParserBuilder(exprMgr, replayFilename, opts);
@@ -252,8 +253,8 @@ int runCvc4(int argc, char* argv[], Options& opts) {
       }
       replayParserBuilder.withStreamInput(cin);
     }
-    replayParser = replayParserBuilder.build();
-    pExecutor->setReplayStream(new Parser::ExprStream(replayParser));
+    replayParser.reset(replayParserBuilder.build());
+    pExecutor->setReplayStream(new Parser::ExprStream(replayParser.get()));
   }
 
   int returnValue = 0;
@@ -297,7 +298,7 @@ int runCvc4(int argc, char* argv[], Options& opts) {
                   << (Configuration::isAssertionBuild() ? "on" : "off")
                   << endl;
       }
-      if(replayParser != NULL) {
+      if(replayParser) {
         // have the replay parser use the declarations input interactively
         replayParser->useDeclarationsFrom(shell.getParser());
       }
@@ -319,7 +320,9 @@ int runCvc4(int argc, char* argv[], Options& opts) {
         delete cmd;
       }
     } else if( opts.getTearDownIncremental() > 0) {
-      if(!opts.getIncrementalSolving()) {
+      if(!opts.getIncrementalSolving() && opts.getTearDownIncremental() > 1) {
+        // For tear-down-incremental values greater than 1, need incremental
+        // on too.
         cmd = new SetOptionCommand("incremental", SExpr(true));
         cmd->setMuted(true);
         pExecutor->doCommand(cmd);
@@ -347,10 +350,10 @@ int runCvc4(int argc, char* argv[], Options& opts) {
 
       vector< vector<Command*> > allCommands;
       allCommands.push_back(vector<Command*>());
-      Parser *parser = parserBuilder.build();
-      if(replayParser != NULL) {
+      PtrCloser<Parser> parser(parserBuilder.build());
+      if(replayParser) {
         // have the replay parser use the file's declarations
-        replayParser->useDeclarationsFrom(parser);
+        replayParser->useDeclarationsFrom(parser.get());
       }
       int needReset = 0;
       // true if one of the commands was interrupted
@@ -484,8 +487,6 @@ int runCvc4(int argc, char* argv[], Options& opts) {
         }
         delete cmd;
       }
-      // Remove the parser
-      delete parser;
     } else {
       if(!opts.wasSetByUserIncrementalSolving()) {
         cmd = new SetOptionCommand("incremental", SExpr(false));
@@ -504,10 +505,10 @@ int runCvc4(int argc, char* argv[], Options& opts) {
 #endif /* CVC4_COMPETITION_MODE && !CVC4_SMTCOMP_APPLICATION_TRACK */
       }
 
-      Parser *parser = parserBuilder.build();
-      if(replayParser != NULL) {
+      PtrCloser<Parser> parser(parserBuilder.build());
+      if(replayParser) {
         // have the replay parser use the file's declarations
-        replayParser->useDeclarationsFrom(parser);
+        replayParser->useDeclarationsFrom(parser.get());
       }
       bool interrupted = false;
       while(status || opts.getContinuedExecution()) {
@@ -536,8 +537,6 @@ int runCvc4(int argc, char* argv[], Options& opts) {
         }
         delete cmd;
       }
-      // Remove the parser
-      delete parser;
     }
 
     Result result;

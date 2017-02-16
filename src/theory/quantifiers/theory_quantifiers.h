@@ -61,8 +61,9 @@ public:
   void notifyEq(TNode lhs, TNode rhs);
   void preRegisterTerm(TNode n);
   void presolve();
+  void ppNotifyAssertions( std::vector< Node >& assertions );
   void check(Effort e);
-  Node getNextDecisionRequest();
+  Node getNextDecisionRequest( unsigned& priority );
   Node getValue(TNode n);
   void collectModelInfo( TheoryModel* m, bool fullModel );
   void shutdown() { }

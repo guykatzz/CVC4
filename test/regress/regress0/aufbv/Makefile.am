@@ -48,7 +48,6 @@ TESTS =	\
 	fuzz07.smt \
 	fuzz08.smt \
 	fuzz09.smt \
-	fuzz10.smt \
 	fuzz11.smt \
 	fuzz12.smt \
 	fuzz13.smt \
@@ -76,5 +75,5 @@ EXTRA_DIST = $(TESTS)
 regress regress0 test: check
 
 # do nothing in this subdir
-.PHONY: regress1 regress2 regress3
-regress1 regress2 regress3:
+.PHONY: regress1 regress2 regress3 regress4
+regress1 regress2 regress3 regress4:

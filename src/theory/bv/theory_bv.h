@@ -70,6 +70,8 @@ public:
   void preRegisterTerm(TNode n);
 
   void check(Effort e);
+  
+  bool needsCheckLastEffort();
 
   void propagate(Effort e);
 
@@ -79,6 +81,11 @@ public:
 
   std::string identify() const { return std::string("TheoryBV"); }
 
+  /** equality engine */
+  eq::EqualityEngine * getEqualityEngine();
+  bool getCurrentSubstitution( int effort, std::vector< Node >& vars, std::vector< Node >& subs, std::map< Node, std::vector< Node > >& exp );
+  int getReduction( int effort, Node n, Node& nr );
+  
   PPAssertStatus ppAssert(TNode in, SubstitutionMap& outSubstitutions);
 
   void enableCoreTheorySlicer();
@@ -170,7 +177,14 @@ private:
   AbstractionModule* d_abstractionModule;
   bool d_isCoreTheory;
   bool d_calledPreregister;
-
+  
+  //for extended functions
+  bool d_needsLastCallCheck;
+  context::CDHashSet<Node, NodeHashFunction> d_extf_range_infer;
+  context::CDHashSet<Node, NodeHashFunction> d_extf_collapse_infer;
+  bool doExtfInferences( std::vector< Node >& terms );
+  bool doExtfReductions( std::vector< Node >& terms );
+  
   bool wasPropagatedBySubtheory(TNode literal) const {
     return d_propagatedBy.find(literal) != d_propagatedBy.end();
   }

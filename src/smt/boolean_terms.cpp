@@ -137,6 +137,46 @@ Node BooleanTermConverter::rewriteAs(TNode in, TypeNode as, std::map< TypeNode, 
   TypeNode in_t = in.getType();
   if( processing.find( in_t )==processing.end() ){
     processing[in_t] = true;
+    if(in.getType().isParametricDatatype() &&
+      in.getType().isInstantiatedDatatype()) {
+      // We have something here like (Pair Bool Bool)---need to dig inside
+      // and make it (Pair BV1 BV1)
+      Assert(as.isParametricDatatype() && as.isInstantiatedDatatype());
+      const Datatype* dt2 = &as[0].getDatatype();
+      std::vector<TypeNode> fromParams, toParams;
+      for(unsigned i = 0; i < dt2->getNumParameters(); ++i) {
+        fromParams.push_back(TypeNode::fromType(dt2->getParameter(i)));
+        toParams.push_back(as[i + 1]);
+      }
+      const Datatype* dt1;
+      if(d_datatypeCache.find(dt2) != d_datatypeCache.end()) {
+        dt1 = d_datatypeCache[dt2];
+      } else {
+        dt1 = d_datatypeReverseCache[dt2];
+      }
+      Assert(dt1 != NULL, "expected datatype in cache");
+      Assert(*dt1 == in.getType()[0].getDatatype(), "improper rewriteAs() between datatypes");
+      Node out;
+      for(size_t i = 0; i < dt1->getNumConstructors(); ++i) {
+        DatatypeConstructor ctor = (*dt1)[i];
+        NodeBuilder<> appctorb(kind::APPLY_CONSTRUCTOR);
+        appctorb << (*dt2)[i].getConstructor();
+        for(size_t j = 0; j < ctor.getNumArgs(); ++j) {
+          TypeNode asType = TypeNode::fromType(SelectorType((*dt2)[i][j].getSelector().getType()).getRangeType());
+          asType = asType.substitute(fromParams.begin(), fromParams.end(), toParams.begin(), toParams.end());
+          appctorb << rewriteAs(NodeManager::currentNM()->mkNode(kind::APPLY_SELECTOR_TOTAL, ctor[j].getSelector(), in), asType, processing);
+        }
+        Node appctor = appctorb;
+        if(i == 0) {
+          out = appctor;
+        } else {
+          Node newOut = NodeManager::currentNM()->mkNode(kind::ITE, ctor.getTester(), appctor, out);
+          out = newOut;
+        }
+      }
+      processing.erase( in_t );
+      return out;
+    }
     if(in.getType().isDatatype()) {
       if(as.isBoolean() && in.getType().hasAttribute(BooleanTermAttr())) {
         processing.erase( in_t );
@@ -186,46 +226,6 @@ Node BooleanTermConverter::rewriteAs(TNode in, TypeNode as, std::map< TypeNode, 
       Node lam = NodeManager::currentNM()->mkNode(kind::LAMBDA, boundvars, selprime);
       Node out = NodeManager::currentNM()->mkNode(kind::ARRAY_LAMBDA, lam);
       Assert(out.getType() == as);
-      processing.erase( in_t );
-      return out;
-    }
-    if(in.getType().isParametricDatatype() &&
-      in.getType().isInstantiatedDatatype()) {
-      // We have something here like (Pair Bool Bool)---need to dig inside
-      // and make it (Pair BV1 BV1)
-      Assert(as.isParametricDatatype() && as.isInstantiatedDatatype());
-      const Datatype* dt2 = &as[0].getDatatype();
-      std::vector<TypeNode> fromParams, toParams;
-      for(unsigned i = 0; i < dt2->getNumParameters(); ++i) {
-        fromParams.push_back(TypeNode::fromType(dt2->getParameter(i)));
-        toParams.push_back(as[i + 1]);
-      }
-      const Datatype* dt1;
-      if(d_datatypeCache.find(dt2) != d_datatypeCache.end()) {
-        dt1 = d_datatypeCache[dt2];
-      } else {
-        dt1 = d_datatypeReverseCache[dt2];
-      }
-      Assert(dt1 != NULL, "expected datatype in cache");
-      Assert(*dt1 == in.getType()[0].getDatatype(), "improper rewriteAs() between datatypes");
-      Node out;
-      for(size_t i = 0; i < dt1->getNumConstructors(); ++i) {
-        DatatypeConstructor ctor = (*dt1)[i];
-        NodeBuilder<> appctorb(kind::APPLY_CONSTRUCTOR);
-        appctorb << (*dt2)[i].getConstructor();
-        for(size_t j = 0; j < ctor.getNumArgs(); ++j) {
-          TypeNode asType = TypeNode::fromType(SelectorType((*dt2)[i][j].getSelector().getType()).getRangeType());
-          asType = asType.substitute(fromParams.begin(), fromParams.end(), toParams.begin(), toParams.end());
-          appctorb << rewriteAs(NodeManager::currentNM()->mkNode(kind::APPLY_SELECTOR_TOTAL, ctor[j].getSelector(), in), asType, processing);
-        }
-        Node appctor = appctorb;
-        if(i == 0) {
-          out = appctor;
-        } else {
-          Node newOut = NodeManager::currentNM()->mkNode(kind::ITE, ctor.getTester(), appctor, out);
-          out = newOut;
-        }
-      }
       processing.erase( in_t );
       return out;
     }
@@ -332,7 +332,7 @@ TypeNode BooleanTermConverter::convertType(TypeNode type, bool datatypesContext)
   if(type.getKind() == kind::DATATYPE_TYPE ||
      type.getKind() == kind::PARAMETRIC_DATATYPE) {
     bool parametric = (type.getKind() == kind::PARAMETRIC_DATATYPE);
-    const Datatype& dt = parametric ? type[0].getConst<Datatype>() : type.getConst<Datatype>();
+    const Datatype& dt = parametric ? type[0].getDatatype() : type.getDatatype();
     TypeNode out = TypeNode::fromType(convertDatatype(dt).getDatatypeType());
     Debug("boolean-terms") << "AFTER, got "<< out << " param:" << parametric << endl;
     if(parametric) {
@@ -647,10 +647,10 @@ Node BooleanTermConverter::rewriteBooleanTermsRec(TNode top, theory::TheoryId pa
           Assert(t[t.getNumChildren() - 1].getKind() == kind::DATATYPE_TYPE ||
                  t[t.getNumChildren() - 1].getKind() == kind::PARAMETRIC_DATATYPE);
           const Datatype& dt = t[t.getNumChildren() - 1].getKind() == kind::DATATYPE_TYPE ?
-            t[t.getNumChildren() - 1].getConst<Datatype>() :
-            t[t.getNumChildren() - 1][0].getConst<Datatype>();
+            t[t.getNumChildren() - 1].getDatatype() :
+            t[t.getNumChildren() - 1][0].getDatatype();
           TypeNode dt2type = convertType(TypeNode::fromType(dt.getDatatypeType()), parentTheory == theory::THEORY_DATATYPES);
-          const Datatype& dt2 = (dt2type.getKind() == kind::DATATYPE_TYPE ? dt2type : dt2type[0]).getConst<Datatype>();
+          const Datatype& dt2 = (dt2type.getKind() == kind::DATATYPE_TYPE ? dt2type : dt2type[0]).getDatatype();
           if(dt != dt2) {
             Assert(d_varCache.find(top) != d_varCache.end(),
                    "constructor `%s' not in cache", top.toString().c_str());
@@ -665,10 +665,10 @@ Node BooleanTermConverter::rewriteBooleanTermsRec(TNode top, theory::TheoryId pa
         } else if(t.isTester() || t.isSelector()) {
           Assert(parentTheory != theory::THEORY_BOOL);
           const Datatype& dt = t[0].getKind() == kind::DATATYPE_TYPE ?
-            t[0].getConst<Datatype>() :
-            t[0][0].getConst<Datatype>();
+            t[0].getDatatype() :
+            t[0][0].getDatatype();
           TypeNode dt2type = convertType(TypeNode::fromType(dt.getDatatypeType()), parentTheory == theory::THEORY_DATATYPES);
-          const Datatype& dt2 = (dt2type.getKind() == kind::DATATYPE_TYPE ? dt2type : dt2type[0]).getConst<Datatype>();
+          const Datatype& dt2 = (dt2type.getKind() == kind::DATATYPE_TYPE ? dt2type : dt2type[0]).getDatatype();
           if(dt != dt2) {
             Assert(d_varCache.find(top) != d_varCache.end(),
                    "tester or selector `%s' not in cache", top.toString().c_str());
@@ -706,7 +706,7 @@ Node BooleanTermConverter::rewriteBooleanTermsRec(TNode top, theory::TheoryId pa
         goto next_worklist;
       }
       switch(k) {
-      case kind::INST_ATTRIBUTE:
+      //case kind::INST_ATTRIBUTE:
       case kind::BOUND_VAR_LIST:
         result.top() << top;
         worklist.pop();
@@ -819,7 +819,7 @@ Node BooleanTermConverter::rewriteBooleanTermsRec(TNode top, theory::TheoryId pa
         // push children
         for(int i = top.getNumChildren() - 1; i >= 0; --i) {
           Debug("bt") << "rewriting: " << top[i] << endl;
-          worklist.push(triple<TNode, theory::TheoryId, bool>(top[i], top.getKind() == kind::CHAIN ? parentTheory : (isBoolean(top, i) ? theory::THEORY_BOOL : (top.getKind() == kind::APPLY_CONSTRUCTOR ? theory::THEORY_DATATYPES : theory::THEORY_BUILTIN)), false));
+          worklist.push(triple<TNode, theory::TheoryId, bool>(top[i], top.getKind() == kind::CHAIN ? parentTheory : ((isBoolean(top, i) || top.getKind()==kind::INST_ATTRIBUTE) ? theory::THEORY_BOOL : (top.getKind() == kind::APPLY_CONSTRUCTOR ? theory::THEORY_DATATYPES : theory::THEORY_BUILTIN)), false));
           //b << rewriteBooleanTermsRec(top[i], isBoolean(top, i) ? , quantBoolVars);
           //Debug("bt") << "got: " << b[b.getNumChildren() - 1] << endl;
         }

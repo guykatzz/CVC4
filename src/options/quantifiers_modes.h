@@ -123,12 +123,14 @@ enum TriggerActiveSelMode {
 };
 
 enum CVC4_PUBLIC PrenexQuantMode {
-  /** default : prenex quantifiers without user patterns */
-  PRENEX_NO_USER_PAT,
-  /** prenex all */
-  PRENEX_ALL,
-  /** prenex none */
-  PRENEX_NONE,
+  /** do not prenex */
+  PRENEX_QUANT_NONE,
+  /** prenex same sign quantifiers */
+  PRENEX_QUANT_SIMPLE,
+  /** aggressive prenex, disjunctive prenex normal form */
+  PRENEX_QUANT_DISJ_NORMAL,
+  /** prenex normal form */
+  PRENEX_QUANT_NORMAL,
 };
 
 enum CegqiFairMode {
@@ -205,6 +207,17 @@ enum QuantRepMode {
   QUANT_REP_MODE_FIRST,
   /** choose representatives that have minimal depth */
   QUANT_REP_MODE_DEPTH,
+};
+
+enum FmfBoundMinMode {
+  /** do not minimize bounds */
+  FMF_BOUND_MIN_NONE,
+  /** default, minimize integer ranges */
+  FMF_BOUND_MIN_INT_RANGE,
+  /** minimize set cardinality ranges */
+  FMF_BOUND_MIN_SET_CARD,
+  /** minimize all bounds */
+  FMF_BOUND_MIN_ALL,
 };
 
 }/* CVC4::theory::quantifiers namespace */

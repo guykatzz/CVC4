@@ -129,47 +129,43 @@ bool CommandExecutor::doCommandSingleton(Command* cmd)
   }
 
   // dump the model/proof/unsat core if option is set
-  if(status) {
+  if (status) {
     Command* g = NULL;
-    if( d_options.getProduceModels() &&
-        d_options.getDumpModels() &&
-        ( res.asSatisfiabilityResult() == Result::SAT ||
-          (res.isUnknown() && res.whyUnknown() == Result::INCOMPLETE) ) ) {
+    if (d_options.getProduceModels() && d_options.getDumpModels() &&
+        (res.asSatisfiabilityResult() == Result::SAT ||
+         (res.isUnknown() && res.whyUnknown() == Result::INCOMPLETE))) {
       g = new GetModelCommand();
     }
-    if( d_options.getProof() &&
-        d_options.getDumpProofs() &&
-        res.asSatisfiabilityResult() == Result::UNSAT ) {
+    if (d_options.getProof() && d_options.getDumpProofs() &&
+        res.asSatisfiabilityResult() == Result::UNSAT) {
       g = new GetProofCommand();
     }
 
-    if( d_options.getDumpInstantiations() &&
-        ( ( d_options.getInstFormatMode() != INST_FORMAT_MODE_SZS &&
-            ( res.asSatisfiabilityResult() == Result::SAT ||
-              (res.isUnknown() && res.whyUnknown() == Result::INCOMPLETE) ) ) ||
-          res.asSatisfiabilityResult() == Result::UNSAT ) )
-    {
+    if (d_options.getDumpInstantiations() &&
+        ((d_options.getInstFormatMode() != INST_FORMAT_MODE_SZS &&
+          (res.asSatisfiabilityResult() == Result::SAT ||
+           (res.isUnknown() && res.whyUnknown() == Result::INCOMPLETE))) ||
+         res.asSatisfiabilityResult() == Result::UNSAT)) {
       g = new GetInstantiationsCommand();
     }
 
-    if( d_options.getDumpSynth() &&
-        res.asSatisfiabilityResult() == Result::UNSAT )
-    {
+    if (d_options.getDumpSynth() &&
+        res.asSatisfiabilityResult() == Result::UNSAT) {
       g = new GetSynthSolutionCommand();
     }
 
-    if( d_options.getDumpUnsatCores() &&
-        res.asSatisfiabilityResult() == Result::UNSAT )
-    {
+    if (d_options.getDumpUnsatCores() &&
+        res.asSatisfiabilityResult() == Result::UNSAT) {
       g = new GetUnsatCoreCommand();
     }
 
-    if(g != NULL) {
+    if (g != NULL) {
       // set no time limit during dumping if applicable
-      if( d_options.getForceNoLimitCpuWhileDump() ){
+      if (d_options.getForceNoLimitCpuWhileDump()) {
         setNoLimitCPU();
       }
       status = doCommandSingleton(g);
+      delete g;
     }
   }
   return status;
@@ -258,7 +254,9 @@ void CommandExecutor::printStatsFilterZeros(std::ostream& out,
     std::getline(iss, statValue, '\n');
 
     double curFloat;
-    bool isFloat = (std::istringstream(statValue) >> curFloat);
+    std::istringstream iss_stat_value (statValue);
+    iss_stat_value >> curFloat;
+    bool isFloat = iss_stat_value.good();
 
     if( (isFloat && curFloat == 0) ||
         statValue == " \"0\"" ||
