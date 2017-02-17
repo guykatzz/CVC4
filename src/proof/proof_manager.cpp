@@ -56,17 +56,18 @@ std::string append(const std::string& str, uint64_t num) {
   return os.str();
 }
 
-ProofManager::ProofManager(ProofFormat format):
+ProofManager::ProofManager(context::Context* context, ProofFormat format):
+  d_context(context),
   d_satProof(NULL),
   d_cnfProof(NULL),
   d_theoryProof(NULL),
   d_inputFormulas(),
-  d_inputCoreFormulas(),
-  d_outputCoreFormulas(),
+  d_inputCoreFormulas(context),
+  d_outputCoreFormulas(context),
   d_nextId(0),
   d_fullProof(NULL),
   d_format(format),
-  d_deps()
+  d_deps(context)
 {
 }
 
@@ -289,17 +290,84 @@ void ProofManager::traceDeps(TNode n, ExprSet* coreAssertions) {
   }
 }
 
+void ProofManager::traceDeps(TNode n, CDExprSet* coreAssertions) {
+  // Debug("gk::uc") << "New TRACE DEPS called. Size of inputCoreFormulas: " << d_inputCoreFormulas.size() << "\n";
+
+  Debug("cores") << "trace deps " << n << std::endl;
+  if ((n.isConst() && n == NodeManager::currentNM()->mkConst<bool>(true)) ||
+      (n.getKind() == kind::NOT && n[0] == NodeManager::currentNM()->mkConst<bool>(false))) {
+    return;
+  }
+  if(d_inputCoreFormulas.find(n.toExpr()) != d_inputCoreFormulas.end()) {
+    // originating formula was in core set
+    Debug("cores") << " -- IN INPUT CORE LIST!" << std::endl;
+    coreAssertions->insert(n.toExpr());
+  } else {
+    Debug("cores") << " -- NOT IN INPUT CORE LIST!" << std::endl;
+    if(d_deps.find(n) == d_deps.end()) {
+      if (options::allowEmptyDependencies()) {
+        Debug("cores") << " -- Could not track cause assertion. Failing silently." << std::endl;
+        return;
+      }
+      InternalError("Cannot trace dependence information back to input assertion:\n`%s'", n.toString().c_str());
+    }
+    Assert(d_deps.find(n) != d_deps.end());
+    std::vector<Node> deps = (*d_deps.find(n)).second;
+    // Debug("gk::uc") << "\tNumber of entries in deps vector: " << deps.size() << std::endl;
+
+    for(std::vector<Node>::const_iterator i = deps.begin(); i != deps.end(); ++i) {
+      Debug("cores") << " + tracing deps: " << n << " -deps-on- " << *i << std::endl;
+      if( !(*i).isNull() ){
+        traceDeps(*i, coreAssertions);
+      }
+    }
+  }
+}
+
 void ProofManager::traceUnsatCore() {
+  Debug( "gk::uc" ) << "traceUnsatCore starting" << std::endl;
+
   Assert (options::unsatCores());
-  constructSatProof();
+  d_satProof->refreshProof();
   IdToSatClause used_lemmas;
   IdToSatClause used_inputs;
   d_satProof->collectClausesUsed(used_inputs,
                                  used_lemmas);
+
+
   IdToSatClause::const_iterator it = used_inputs.begin();
   for(; it != used_inputs.end(); ++it) {
+    // DEBUG start
+    {
+      Debug("gk::uc") << "working on used input " << it->first << std::endl;
+      std::vector<Expr> clause_expr;
+      for(unsigned i = 0; i < it->second->size(); ++i) {
+        prop::SatLiteral lit = (*(it->second))[i];
+        Debug("gk::uc") << "\tlit = " << lit << std::endl;
+        Expr atom = d_cnfProof->getAtom(lit.getSatVariable()).toExpr();
+        Debug("gk::uc") << "\tatom = " << atom << std::endl;
+        // if (atom.isConst()) {
+        //   Assert (atom == utils::mkTrue());
+        //   continue;
+        // }
+        Expr expr_lit = lit.isNegated() ? atom.notExpr(): atom;
+        clause_expr.push_back(expr_lit);
+      }
+
+      Debug("gk::uc") << "\t input " << it->first << " ( " << *(it->second) << " ) = ";
+      for (unsigned i = 0; i < clause_expr.size(); ++i) {
+        Debug("gk::uc") << clause_expr[i] << " ";
+      }
+      Debug("gk::uc") << std::endl << "Done dumping used input\n\n";
+    }
+    // DEBUG end
+
+
+    Debug("gk::uc") << "Getting assertion for clause: " << it->first << std::endl;
     Node node = d_cnfProof->getAssertionForClause(it->first);
+    Debug("gk::uc") << "Getting assertion for clause: " << it->first << " DONE" << std::endl;
     ProofRule rule = d_cnfProof->getProofRule(node);
+
 
     Debug("cores") << "core input assertion " << node << std::endl;
     Debug("cores") << "with proof rule " << rule << std::endl;
@@ -310,10 +378,28 @@ void ProofManager::traceUnsatCore() {
       traceDeps(node, &d_outputCoreFormulas);
     }
   }
+
+  Debug( "gk::uc" ) << "traceUnsatCore done. Size of core: " << d_outputCoreFormulas.size() << std::endl;
+
 }
 
 bool ProofManager::unsatCoreAvailable() const {
   return d_satProof->derivedEmptyClause();
+}
+
+std::vector<Expr> ProofManager::extractUnsatCore() {
+  Debug("gk::uc") << "Extract unsat core called\n";
+  Debug("gk::uc") << "number of core assertions at time of extraction: " << d_inputCoreFormulas.size() << std::endl;
+  std::vector<Expr> result;
+  output_core_iterator it = begin_unsat_core();
+  output_core_iterator end = end_unsat_core();
+  while ( it != end ) {
+    result.push_back(*it);
+    Debug("gk::uc") << "\tAdding: " << *it;
+    ++it;
+  }
+  Debug("gk::uc") << std::endl << "Extract unsat core done\n";
+  return result;
 }
 
 void ProofManager::constructSatProof() {
@@ -472,8 +558,9 @@ void ProofManager::addDependence(TNode n, TNode dep) {
     if( !dep.isNull() && d_deps.find(dep) == d_deps.end()) {
       Debug("cores") << "WHERE DID " << dep << " come from ??" << std::endl;
     }
-    //Assert(d_deps.find(dep) != d_deps.end());
-    d_deps[n].push_back(dep);
+    std::vector<Node> deps = d_deps[n].get();
+    deps.push_back(dep);
+    d_deps[n].set(deps);
   }
 }
 

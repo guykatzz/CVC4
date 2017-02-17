@@ -198,6 +198,8 @@ class TSatProof {
    */
   void constructProof(ClauseId id);
   void constructProof() { constructProof(d_emptyClauseId); }
+  void refreshProof(ClauseId id);
+  void refreshProof() { refreshProof(d_emptyClauseId); }
   bool proofConstructed() const;
   void collectClauses(ClauseId id);
   bool derivedEmptyClause() const;

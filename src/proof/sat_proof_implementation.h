@@ -744,6 +744,7 @@ void TSatProof<Solver>::registerResolution(ClauseId id, ResChain<Solver>* res) {
 template <class Solver>
 void TSatProof<Solver>::startResChain(typename Solver::TCRef start) {
   ClauseId id = getClauseIdForCRef(start);
+  Debug("gk::res") << "Start res chain: id = " << id << std::endl;
   ResolutionChain* res = new ResolutionChain(id);
   d_resStack.push_back(res);
 }
@@ -751,6 +752,7 @@ void TSatProof<Solver>::startResChain(typename Solver::TCRef start) {
 template <class Solver>
 void TSatProof<Solver>::startResChain(typename Solver::TLit start) {
   ClauseId id = getUnitId(start);
+  Debug("gk::res") << "Start res chain: id = " << id << std::endl;
   ResolutionChain* res = new ResolutionChain(id);
   d_resStack.push_back(res);
 }
@@ -760,6 +762,7 @@ void TSatProof<Solver>::addResolutionStep(typename Solver::TLit lit,
                                           typename Solver::TCRef clause,
                                           bool sign) {
   ClauseId id = registerClause(clause, LEARNT);
+  Debug("gk::res") << "Add resolution step: id = " << id << ", lit = " << lit << std::endl;
   ResChain<Solver>* res = d_resStack.back();
   res->addStep(lit, id, sign);
 }
@@ -767,6 +770,7 @@ void TSatProof<Solver>::addResolutionStep(typename Solver::TLit lit,
 template <class Solver>
 void TSatProof<Solver>::endResChain(ClauseId id) {
   Debug("proof:sat:detailed") << "endResChain " << id << "\n";
+  Debug("gk::res") << "End res chain: id = " << id << std::endl;
   Assert(d_resStack.size() > 0);
   ResChain<Solver>* res = d_resStack.back();
   registerResolution(id, res);
@@ -786,6 +790,7 @@ template <class Solver>
 void TSatProof<Solver>::endResChain(typename Solver::TLit lit) {
   Assert(d_resStack.size() > 0);
   ClauseId id = registerUnitClause(lit, LEARNT);
+  Debug("gk::res") << "End res chain: id = " << id << std::endl;
   Debug("proof:sat:detailed") << "endResChain unit " << id << "\n";
   ResolutionChain* res = d_resStack.back();
   d_glueMap[id] = 1;
@@ -848,6 +853,7 @@ ClauseId TSatProof<Solver>::resolveUnit(typename Solver::TLit lit) {
     }
   }
   ClauseId unit_id = registerUnitClause(lit, LEARNT);
+  Debug("gk::res") << "Resolve unit: id = " << unit_id << std::endl;
   registerResolution(unit_id, res);
   return unit_id;
 }
@@ -883,6 +889,7 @@ void TSatProof<Solver>::finalizeProof(typename Solver::TCRef conflict_ref) {
     ClauseId res_id = resolveUnit(~lit);
     res->addStep(lit, res_id, !sign(lit));
 
+    Debug("gk::res") << "Finalize proof: id = " << d_emptyClauseId << std::endl;
     registerResolution(d_emptyClauseId, res);
 
     return;
@@ -894,6 +901,7 @@ void TSatProof<Solver>::finalizeProof(typename Solver::TCRef conflict_ref) {
   if (Debug.isOn("proof:sat")) {
     Debug("proof:sat") << "proof::finalizeProof Final Conflict ";
     print(conflict_id);
+    Debug("proof:sat") << std::endl;
   }
 
   ResChain<Solver>* res = new ResChain<Solver>(conflict_id);
@@ -907,6 +915,8 @@ void TSatProof<Solver>::finalizeProof(typename Solver::TCRef conflict_ref) {
     res->addStep(lit, res_id, !sign(lit));
     conflict_size = conflict.size();
   }
+
+  Debug("gk::res") << "Finalize proof: id = " << d_emptyClauseId << std::endl;
   registerResolution(d_emptyClauseId, res);
 }
 
@@ -959,6 +969,30 @@ void TSatProof<Solver>::markDeleted(typename Solver::TCRef clause) {
 template <class Solver>
 void TSatProof<Solver>::constructProof(ClauseId conflict) {
   d_satProofConstructed = true;
+  collectClauses(conflict);
+}
+
+template <class Solver>
+void TSatProof<Solver>::refreshProof(ClauseId conflict) {
+  IdToSatClause::const_iterator seen_lemma_it = d_seenLemmas.begin();
+  IdToSatClause::const_iterator seen_lemma_end = d_seenLemmas.end();
+
+  for (; seen_lemma_it != seen_lemma_end; ++seen_lemma_it) {
+    if (d_deletedTheoryLemmas.find(seen_lemma_it->first) == d_deletedTheoryLemmas.end())
+      delete seen_lemma_it->second;
+  }
+
+  IdToSatClause::const_iterator seen_input_it = d_seenInputs.begin();
+  IdToSatClause::const_iterator seen_input_end = d_seenInputs.end();
+
+  for (; seen_input_it != seen_input_end; ++seen_input_it) {
+    delete seen_input_it->second;
+  }
+
+  d_seenInputs.clear();
+  d_seenLemmas.clear();
+  d_seenLearnt.clear();
+
   collectClauses(conflict);
 }
 
@@ -1017,6 +1051,8 @@ void TSatProof<Solver>::collectClauses(ClauseId id) {
     return;
   }
 
+  Debug("gk::uc") << "\tcollect clauses: id = " << id << std::endl;
+
   if (isInputClause(id)) {
     d_seenInputs.insert(std::make_pair(id, buildClause(id)));
     return;
@@ -1036,6 +1072,7 @@ void TSatProof<Solver>::collectClauses(ClauseId id) {
   collectClauses(start);
 
   for (size_t i = 0; i < steps.size(); i++) {
+    Debug("gk::uc") << "\tStep for " << id << ": " << steps[i].id << std::endl;
     collectClauses(steps[i].id);
   }
 }
