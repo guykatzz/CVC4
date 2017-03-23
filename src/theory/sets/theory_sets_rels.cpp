@@ -34,7 +34,7 @@ typedef std::map< Node, std::map< Node, std::hash_set< Node, NodeHashFunction > 
 int TheorySetsRels::EqcInfo::counter        = 0;
 
   void TheorySetsRels::check(Theory::Effort level) {
-    Trace("rels") << "\n[sets-rels] ******************************* Start the relational solver *******************************\n" << std::endl;
+    Trace("rels") << "\n[sets-rels] ******************************* Start the relational solver, effort = " << level << " *******************************\n" << std::endl;
     if(Theory::fullEffort(level)) {
       collectRelsInfo();
       check();
@@ -862,11 +862,13 @@ int TheorySetsRels::EqcInfo::counter        = 0;
 
   void TheorySetsRels::sendInfer( Node fact, Node exp, const char * c ) {
     if( !holds( fact ) ) {
+      Trace("rels-send-lemma") << "[Theory::Rels] **** Generate an infered fact "
+                               << fact << " with reason " << exp << " by "<< c << std::endl;
       d_pending_facts[fact] = exp;
     } else {
-      Trace("rels-send-infer") << "[Theory::Rels] **** Generate an infered fact fact = "
-                               << fact << " with reason = " << exp << " by "<< c
-                               << ", but it holds already, thus skip it!" << std::endl;
+      Trace("rels-send-lemma-debug") << "[Theory::Rels] **** Generate an infered fact "
+                                     << fact << " with reason " << exp << " by "<< c
+                                     << ", but it holds already, thus skip it!" << std::endl;
     }
   }
 
@@ -990,7 +992,7 @@ int TheorySetsRels::EqcInfo::counter        = 0;
       }
       Node tuple_reduct = NodeManager::currentNM()->mkNode(kind::APPLY_CONSTRUCTOR, tuple_elements);
       tuple_reduct = NodeManager::currentNM()->mkNode(kind::MEMBER,tuple_reduct, n[1]);
-      Node tuple_reduction_lemma = NodeManager::currentNM()->mkNode(kind::IFF, n, tuple_reduct);
+      Node tuple_reduction_lemma = NodeManager::currentNM()->mkNode(kind::EQUAL, n, tuple_reduct);
       sendLemma(tuple_reduction_lemma, d_trueNode, "tuple-reduction");
       d_symbolic_tuples.insert(n);
     }
@@ -1088,27 +1090,9 @@ int TheorySetsRels::EqcInfo::counter        = 0;
     }
   }
 
-  Node TheorySetsRels::explain( Node literal )
-  {
-    Trace("rels-exp") << "[sets-rels] TheorySetsRels::explain(" << literal << ")"<< std::endl;
-    std::vector<TNode>  assumptions;
-    bool                polarity        = literal.getKind() != kind::NOT;
-    TNode               atom            = polarity ? literal : literal[0];
-
-    if(atom.getKind() == kind::EQUAL || atom.getKind() == kind::IFF) {
-      d_eqEngine->explainEquality(atom[0], atom[1], polarity, assumptions);
-    } else if(atom.getKind() == kind::MEMBER) {
-      if( !d_eqEngine->hasTerm(atom)) {
-        d_eqEngine->addTerm(atom);
-      }
-      d_eqEngine->explainPredicate(atom, polarity, assumptions);
-    } else {
-      Trace("rels-exp") << "unhandled: " << literal << "; (" << atom << ", "
-                    << polarity << "); kind" << atom.getKind() << std::endl;
-      Unhandled();
-    }
-    Trace("rels-exp") << "[sets-rels] ****** done with TheorySetsRels::explain(" << literal << ")"<< std::endl;
-    return mkAnd(assumptions);
+  Node TheorySetsRels::explain( Node literal ){
+    //use lazy explanations
+    return literal;
   }
 
   TheorySetsRels::EqcInfo::EqcInfo( context::Context* c ) :
@@ -1422,10 +1406,6 @@ int TheorySetsRels::EqcInfo::counter        = 0;
     EqcInfo* t2_ei = getOrMakeEqcInfo(t2);
 
     if(t1_ei != NULL && t2_ei != NULL) {
-      // PT(t1) = PT(t2) -> t1 = t2;
-      if(!t1_ei->d_pt.get().isNull() && !t2_ei->d_pt.get().isNull()) {
-        sendInferProduct( true, t1_ei->d_pt.get(), t2_ei->d_pt.get(), explain(NodeManager::currentNM()->mkNode(kind::EQUAL,t1, t2)) );
-      }
       // Apply Product rule on (non)members of t2 and t1->pt
       if(!t1_ei->d_pt.get().isNull()) {
         for(NodeSet::key_iterator itr = t2_ei->d_mem.key_begin(); itr != t2_ei->d_mem.key_end(); itr++) {

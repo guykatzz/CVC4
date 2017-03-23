@@ -243,6 +243,10 @@ std::string ProofManager::getLitName(TNode lit,
   return litName;
 }
 
+bool ProofManager::hasLitName(TNode lit) {
+  return currentPM()->d_cnfProof->hasLiteral(lit);
+}
+
 std::string ProofManager::sanitize(TNode node) {
   Assert (node.isVar() || node.isConst());
 
@@ -565,6 +569,7 @@ void LFSCProof::toStream(std::ostream& out) {
     Debug("pf::pm") << "\t assertion = " << *it3 << std::endl;
 
   std::set<Node> atoms;
+
   NodePairSet rewrites;
   // collects the atoms in the clauses
   d_cnfProof->collectAtomsAndRewritesForLemmas(used_lemmas, atoms, rewrites);
@@ -779,7 +784,9 @@ void LFSCProof::printPreprocessedAssertions(const NodeSet& assertions,
 
       //TODO
       os << "(trust_f ";
+      if (ProofManager::currentPM()->getTheoryProofEngine()->printsAsBool(*it)) os << "(p_app ";
       ProofManager::currentPM()->getTheoryProofEngine()->printTheoryTerm((*it).toExpr(), os, globalLetMap);
+      if (ProofManager::currentPM()->getTheoryProofEngine()->printsAsBool(*it)) os << ")";
       os << ") ";
 
       os << "(\\ "<< ProofManager::getPreprocessedAssertionName(*it, "") << "\n";
@@ -870,6 +877,11 @@ void ProofManager::markPrinted(const Type& type) {
 
 void ProofManager::addRewriteFilter(const std::string &original, const std::string &substitute) {
   d_rewriteFilters[original] = substitute;
+}
+
+bool ProofManager::haveRewriteFilter(TNode lit) {
+  std::string litName = getLitName(currentPM()->d_cnfProof->getLiteral(lit));
+  return d_rewriteFilters.find(litName) != d_rewriteFilters.end();
 }
 
 void ProofManager::clearRewriteFilters() {
@@ -997,6 +1009,10 @@ void ProofManager::printGlobalLetMap(std::set<Node>& atoms,
   }
 
   out << std::endl << std::endl;
+}
+
+void ProofManager::ensureLiteral(Node node) {
+  d_cnfProof->ensureLiteral(node);
 }
 
 } /* CVC4  namespace */

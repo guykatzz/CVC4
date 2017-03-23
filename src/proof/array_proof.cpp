@@ -15,16 +15,17 @@
 
 **/
 
-#include "proof/theory_proof.h"
-#include "proof/proof_manager.h"
 #include "proof/array_proof.h"
+#include "proof/proof_manager.h"
+#include "proof/simplify_boolean_node.h"
+#include "proof/theory_proof.h"
 #include "theory/arrays/theory_arrays.h"
 #include <stack>
 
 namespace CVC4 {
 
 inline static Node eqNode(TNode n1, TNode n2) {
-  return NodeManager::currentNM()->mkNode(n1.getType().isBoolean() ? kind::IFF : kind::EQUAL, n1, n2);
+  return NodeManager::currentNM()->mkNode(kind::EQUAL, n1, n2);
 }
 
 // congrence matching term helper
@@ -147,6 +148,9 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
 
     size_t i = 0;
     while (i < pf->d_children.size()) {
+      if (pf->d_children[i]->d_id != theory::eq::MERGED_THROUGH_CONGRUENCE)
+        pf->d_children[i]->d_node = simplifyBooleanNode(pf->d_children[i]->d_node);
+
       // Look for the negative clause, with which we will form a contradiction.
       if(!pf->d_children[i]->d_node.isNull() && pf->d_children[i]->d_node.getKind() == kind::NOT) {
         Assert(neg < 0);
@@ -318,6 +322,8 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
     pf->debug_print("mgd", 0, &d_proofPrinter);
     std::stack<const theory::eq::EqProof*> stk;
     for(const theory::eq::EqProof* pf2 = pf; pf2->d_id == theory::eq::MERGED_THROUGH_CONGRUENCE; pf2 = pf2->d_children[0]) {
+      Debug("mgd") << "Looking at pf2 with d_node: " << pf2->d_node << std::endl;
+
       Assert(!pf2->d_node.isNull());
       Assert(pf2->d_node.getKind() == kind::PARTIAL_APPLY_UF ||
              pf2->d_node.getKind() == kind::BUILTIN ||
@@ -601,6 +607,9 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
     Debug("mgd") << "\ndoing trans proof[[\n";
     pf->debug_print("mgd", 0, &d_proofPrinter);
     Debug("mgd") << "\n";
+
+    pf->d_children[0]->d_node = simplifyBooleanNode(pf->d_children[0]->d_node);
+
     Node n1 = toStreamRecLFSC(ss, tp, pf->d_children[0], tb + 1, map);
     Debug("mgd") << "\ndoing trans proof, got n1 " << n1 << "\n";
     if(tb == 1) {
@@ -616,6 +625,13 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
     for(size_t i = 1; i < pf->d_children.size(); ++i) {
       std::stringstream ss1(ss.str()), ss2;
       ss.str("");
+
+      // In congruences, we can have something like a[x] - it's important to keep these,
+      // and not turn them into (a[x]=true), because that will mess up the congruence application
+      // later.
+
+      if (pf->d_children[i]->d_id != theory::eq::MERGED_THROUGH_CONGRUENCE)
+        pf->d_children[i]->d_node = simplifyBooleanNode(pf->d_children[i]->d_node);
 
       // It is possible that we've already converted the i'th child to stream. If so,
       // use previously stored result. Otherwise, convert and store.
@@ -640,7 +656,7 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
       //       b, we go for b=b. If there is no following node, we look at the goal of the transitivity proof,
       //       and use it to determine which option we need.
 
-      if(n2.getKind() == kind::EQUAL || n2.getKind() == kind::IFF) {
+      if(n2.getKind() == kind::EQUAL) {
         if (((n1[0] == n2[0]) && (n1[1] == n2[1])) || ((n1[0] == n2[1]) && (n1[1] == n2[0]))) {
           // We are in a sequence of identical equalities
 
@@ -701,8 +717,7 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
                   nodeAfterEqualitySequence = nodeAfterEqualitySequence[0];
                 }
 
-                Assert(nodeAfterEqualitySequence.getKind() == kind::EQUAL ||
-                       nodeAfterEqualitySequence.getKind() == kind::IFF);
+                Assert(nodeAfterEqualitySequence.getKind() == kind::EQUAL);
 
                 if ((n1[0] == nodeAfterEqualitySequence[0]) || (n1[0] == nodeAfterEqualitySequence[1])) {
 
@@ -747,7 +762,7 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
       Debug("mgd") << "\ndoing trans proof, got n2 " << n2 << "\n";
       if(tb == 1) {
         Debug("mgdx") << "\ntrans proof[" << i << "], got n2 " << n2 << "\n";
-        Debug("mgdx") << (n2.getKind() == kind::EQUAL || n2.getKind() == kind::IFF) << "\n";
+        Debug("mgdx") << (n2.getKind() == kind::EQUAL) << "\n";
 
         if ((n1.getNumChildren() >= 2) && (n2.getNumChildren() >= 2)) {
           Debug("mgdx") << n1[0].getId() << " " << n1[1].getId() << " / " << n2[0].getId() << " " << n2[1].getId() << "\n";
@@ -784,8 +799,7 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
         ss << "(trans _ _ _ _ ";
       }
 
-      if((n2.getKind() == kind::EQUAL || n2.getKind() == kind::IFF) &&
-         (n1.getKind() == kind::EQUAL || n1.getKind() == kind::IFF))
+      if((n2.getKind() == kind::EQUAL) && (n1.getKind() == kind::EQUAL))
         // Both elements of the transitivity rule are equalities/iffs
       {
         if(n1[0] == n2[0]) {
@@ -824,7 +838,7 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
           Unreachable();
         }
         Debug("mgd") << "++ trans proof[" << i << "], now have " << n1 << std::endl;
-      } else if(n1.getKind() == kind::EQUAL || n1.getKind() == kind::IFF) {
+      } else if(n1.getKind() == kind::EQUAL) {
         // n1 is an equality/iff, but n2 is a predicate
         if(n1[0] == n2) {
           n1 = n1[1];
@@ -836,7 +850,7 @@ Node ProofArray::toStreamRecLFSC(std::ostream& out,
         } else {
           Unreachable();
         }
-      } else if(n2.getKind() == kind::EQUAL || n2.getKind() == kind::IFF) {
+      } else if(n2.getKind() == kind::EQUAL) {
         // n2 is an equality/iff, but n1 is a predicate
         if(n2[0] == n1) {
           n1 = n2[1];
@@ -1168,6 +1182,13 @@ void ArrayProof::registerTerm(Expr term) {
     d_declarations.insert(term);
   }
 
+  if (term.getKind() == kind::SELECT && term.getType().isBoolean()) {
+    // Ensure cnf literals
+    Node asNode(term);
+    ProofManager::currentPM()->ensureLiteral(eqNode(term, NodeManager::currentNM()->mkConst(true)));
+    ProofManager::currentPM()->ensureLiteral(eqNode(term, NodeManager::currentNM()->mkConst(false)));
+  }
+
   // recursively declare all other terms
   for (unsigned i = 0; i < term.getNumChildren(); ++i) {
     // could belong to other theories
@@ -1199,8 +1220,11 @@ void LFSCArrayProof::printOwnedTerm(Expr term, std::ostream& os, const ProofLetM
   Assert ((term.getKind() == kind::SELECT) || (term.getKind() == kind::PARTIAL_SELECT_0) || (term.getKind() == kind::PARTIAL_SELECT_1) || (term.getKind() == kind::STORE));
 
   switch (term.getKind()) {
-  case kind::SELECT:
+  case kind::SELECT: {
     Assert(term.getNumChildren() == 2);
+
+    bool convertToBool = (term[1].getType().isBoolean() && !d_proofEngine->printsAsBool(term[1]));
+
     os << "(apply _ _ (apply _ _ (read ";
     printSort(ArrayType(term[0].getType()).getIndexType(), os);
     os << " ";
@@ -1208,9 +1232,12 @@ void LFSCArrayProof::printOwnedTerm(Expr term, std::ostream& os, const ProofLetM
     os << ") ";
     printTerm(term[0], os, map);
     os << ") ";
+    if (convertToBool) os << "(f_to_b ";
     printTerm(term[1], os, map);
+    if (convertToBool) os << ")";
     os << ") ";
     return;
+  }
 
   case kind::PARTIAL_SELECT_0:
     Assert(term.getNumChildren() == 1);
@@ -1383,7 +1410,15 @@ void LFSCArrayProof::printDeferredDeclarations(std::ostream& os, std::ostream& p
 }
 
 void LFSCArrayProof::printAliasingDeclarations(std::ostream& os, std::ostream& paren, const ProofLetMap &globalLetMap) {
-    // Nothing to do here at this point.
+  // Nothing to do here at this point.
+}
+
+bool LFSCArrayProof::printsAsBool(const Node &n)
+{
+  if (n.getKind() == kind::SELECT)
+    return true;
+
+  return false;
 }
 
 } /* CVC4  namespace */

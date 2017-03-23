@@ -138,7 +138,7 @@ bool BoundedIntegers::IntRangeModel::proxyCurrentRange() {
     if( d_ranges_proxied.find( curr )==d_ranges_proxied.end() ){
       d_ranges_proxied[curr] = true;
       Assert( d_range_literal.find( curr )!=d_range_literal.end() );
-      Node lem = NodeManager::currentNM()->mkNode( IFF, d_range_literal[curr].negate(),
+      Node lem = NodeManager::currentNM()->mkNode( EQUAL, d_range_literal[curr].negate(),
                    NodeManager::currentNM()->mkNode( LEQ, d_range, NodeManager::currentNM()->mkConst( Rational(curr) ) ) );
       Trace("bound-int-lemma") << "*** bound int : proxy lemma : " << lem << std::endl;
       d_bi->getQuantifiersEngine()->addLemma( lem );
@@ -657,6 +657,10 @@ Node BoundedIntegers::getSetRangeValue( Node q, Node v, RepSetIterator * rsi ) {
   if( !sr.isNull() ){
     Trace("bound-int-rsi") << "Get value in model for..." << sr << std::endl;
     sr = d_quantEngine->getModel()->getCurrentModelValue( sr );
+    //if non-constant, then sr does not occur in the model, we fail
+    if( !sr.isConst() ){
+      return Node::null();
+    }
     Trace("bound-int-rsi") << "Value is " << sr << std::endl;
     //as heuristic, map to term model
     if( sr.getKind()!=EMPTYSET ){
@@ -793,6 +797,7 @@ bool BoundedIntegers::getBoundElements( RepSetIterator * rsi, bool initial, Node
       Node l, u;
       getBoundValues( q, v, rsi, l, u );
       if( l.isNull() || u.isNull() ){
+        Trace("bound-int-warn") << "WARNING: Could not find integer bounds in model for " << v << " in " << q << std::endl;
         //failed, abort the iterator
         return false;
       }else{
@@ -820,6 +825,7 @@ bool BoundedIntegers::getBoundElements( RepSetIterator * rsi, bool initial, Node
     }else if( bvt==BOUND_SET_MEMBER  ){ 
       Node srv = getSetRangeValue( q, v, rsi );
       if( srv.isNull() ){
+        Trace("bound-int-warn") << "WARNING: Could not find set bound in model for " << v << " in " << q << std::endl;
         return false;
       }else{
         Trace("bound-int-rsi") << "Bounded by set membership : " << srv << std::endl;

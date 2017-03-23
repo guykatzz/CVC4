@@ -82,16 +82,22 @@ Expr TypeCheckingException::getExpression() const throw() {
 Expr::Expr() :
   d_node(new Node),
   d_exprManager(NULL) {
+  // We do not need to wrap this in an ExprManagerScope as `new Node` is backed
+  // by NodeValue::null which is a static outside of a NodeManager.
 }
 
 Expr::Expr(ExprManager* em, Node* node) :
   d_node(node),
   d_exprManager(em) {
+  // We do not need to wrap this in an ExprManagerScope as this only initializes
+  // pointers
 }
 
 Expr::Expr(const Expr& e) :
-  d_node(new Node(*e.d_node)),
+  d_node(NULL),
   d_exprManager(e.d_exprManager) {
+  ExprManagerScope ems(*this);
+  d_node = new Node(*e.d_node);
 }
 
 Expr::~Expr() {
@@ -528,7 +534,7 @@ Expr Expr::iffExpr(const Expr& e) const {
          "Don't have an expression manager for this expression!");
   PrettyCheckArgument(d_exprManager == e.d_exprManager, e,
                       "Different expression managers!");
-  return d_exprManager->mkExpr(IFF, *this, e);
+  return d_exprManager->mkExpr(EQUAL, *this, e);
 }
 
 Expr Expr::impExpr(const Expr& e) const {

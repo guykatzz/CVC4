@@ -183,6 +183,20 @@ bool TheoryStrings::areDisequal( Node a, Node b ){
   }
 }
 
+bool TheoryStrings::areCareDisequal( TNode x, TNode y ) {
+  Assert( d_equalityEngine.hasTerm(x) );
+  Assert( d_equalityEngine.hasTerm(y) );
+  if( d_equalityEngine.isTriggerTerm(x, THEORY_STRINGS) && d_equalityEngine.isTriggerTerm(y, THEORY_STRINGS) ){
+    TNode x_shared = d_equalityEngine.getTriggerTermRepresentative(x, THEORY_STRINGS);
+    TNode y_shared = d_equalityEngine.getTriggerTermRepresentative(y, THEORY_STRINGS);
+    EqualityStatus eqStatus = d_valuation.getEqualityStatus(x_shared, y_shared);
+    if( eqStatus==EQUALITY_FALSE_AND_PROPAGATED || eqStatus==EQUALITY_FALSE || eqStatus==EQUALITY_FALSE_IN_MODEL ){
+      return true;
+    }
+  }
+  return false;
+}
+
 Node TheoryStrings::getLengthExp( Node t, std::vector< Node >& exp, Node te ){
   Assert( areEqual( t, te ) );
   Node lt = mkLength( te );
@@ -257,7 +271,7 @@ void TheoryStrings::explain(TNode literal, std::vector<TNode>& assumptions) {
   TNode atom = polarity ? literal : literal[0];
   unsigned ps = assumptions.size();
   std::vector< TNode > tassumptions;
-  if (atom.getKind() == kind::EQUAL || atom.getKind() == kind::IFF) {
+  if (atom.getKind() == kind::EQUAL) {
     if( atom[0]!=atom[1] ){
       Assert( hasTerm( atom[0] ) );
       Assert( hasTerm( atom[1] ) );
@@ -402,7 +416,7 @@ int TheoryStrings::getReduction( int effort, Node n, Node& nr ) {
           std::vector< Node > new_nodes;
           Node res = d_preproc.simplify( n, new_nodes );
           Assert( res!=n );
-          new_nodes.push_back( NodeManager::currentNM()->mkNode( res.getType().isBoolean() ? kind::IFF : kind::EQUAL, res, n ) );
+          new_nodes.push_back( NodeManager::currentNM()->mkNode( kind::EQUAL, res, n ) );
           Node nnlem = new_nodes.size()==1 ? new_nodes[0] : NodeManager::currentNM()->mkNode( kind::AND, new_nodes );
           nnlem = Rewriter::rewrite( nnlem );
           Trace("strings-red-lemma") << "Reduction_" << effort << " lemma : " << nnlem << std::endl;
@@ -442,7 +456,16 @@ void TheoryStrings::presolve() {
 void TheoryStrings::collectModelInfo( TheoryModel* m, bool fullModel ) {
   Trace("strings-model") << "TheoryStrings : Collect model info, fullModel = " << fullModel << std::endl;
   Trace("strings-model") << "TheoryStrings : assertEqualityEngine." << std::endl;
+  
+  //AJR : no use doing this since we cannot preregister terms with finite types that don't belong to strings.
+  //      change this if we generalize to sequences.
+  //set<Node> termSet;
+  // Compute terms appearing in assertions and shared terms
+  //computeRelevantTerms(termSet);
+  //m->assertEqualityEngine( &d_equalityEngine, &termSet );
+  
   m->assertEqualityEngine( &d_equalityEngine );
+  
   // Generate model
   std::vector< Node > nodes;
   getEquivalenceClasses( nodes );
@@ -820,11 +843,7 @@ void TheoryStrings::conflict(TNode a, TNode b){
     Debug("strings-conflict") << "Making conflict..." << std::endl;
     d_conflict = true;
     Node conflictNode;
-    if (a.getKind() == kind::CONST_BOOLEAN) {
-      conflictNode = explain( a.iffNode(b) );
-    } else {
-      conflictNode = explain( a.eqNode(b) );
-    }
+    conflictNode = explain( a.eqNode(b) );
     Trace("strings-conflict") << "CONFLICT: Eq engine conflict : " << conflictNode << std::endl;
     d_out->conflict( conflictNode );
   }
@@ -889,17 +908,12 @@ void TheoryStrings::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::Te
           Assert( d_equalityEngine.hasTerm(x) );
           Assert( d_equalityEngine.hasTerm(y) );
           Assert( !d_equalityEngine.areDisequal( x, y, false ) );
+          Assert( !areCareDisequal( x, y ) );
           if( !d_equalityEngine.areEqual( x, y ) ){
             if( d_equalityEngine.isTriggerTerm(x, THEORY_STRINGS) && d_equalityEngine.isTriggerTerm(y, THEORY_STRINGS) ){
               TNode x_shared = d_equalityEngine.getTriggerTermRepresentative(x, THEORY_STRINGS);
               TNode y_shared = d_equalityEngine.getTriggerTermRepresentative(y, THEORY_STRINGS);
-              EqualityStatus eqStatus = d_valuation.getEqualityStatus(x_shared, y_shared);
-              if( eqStatus==EQUALITY_FALSE_AND_PROPAGATED || eqStatus==EQUALITY_FALSE || eqStatus==EQUALITY_FALSE_IN_MODEL ){
-                //an argument is disequal, we are done
-                return;
-              }else{
-                currentPairs.push_back(make_pair(x_shared, y_shared));
-              }
+              currentPairs.push_back(make_pair(x_shared, y_shared));
             }
           }
         }
@@ -923,7 +937,9 @@ void TheoryStrings::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::Te
         ++it2;
         for( ; it2 != t1->d_data.end(); ++it2 ){
           if( !d_equalityEngine.areDisequal(it->first, it2->first, false) ){
-            addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            if( !areCareDisequal(it->first, it2->first) ){
+              addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            }
           }
         }
       }
@@ -932,7 +948,9 @@ void TheoryStrings::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::Te
       for( std::map< TNode, quantifiers::TermArgTrie >::iterator it = t1->d_data.begin(); it != t1->d_data.end(); ++it ){
         for( std::map< TNode, quantifiers::TermArgTrie >::iterator it2 = t2->d_data.begin(); it2 != t2->d_data.end(); ++it2 ){
           if( !d_equalityEngine.areDisequal(it->first, it2->first, false) ){
-            addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            if( !areCareDisequal(it->first, it2->first) ){
+              addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            }
           }
         }
       }
@@ -3955,10 +3973,10 @@ Node TheoryStrings::getMembership( Node n, bool isPos, unsigned i ) {
 
 Node TheoryStrings::mkRegExpAntec(Node atom, Node ant) {
   if(d_regexp_ant.find(atom) == d_regexp_ant.end()) {
-    return Rewriter::rewrite( NodeManager::currentNM()->mkNode(kind::AND, ant, atom) );
+    return NodeManager::currentNM()->mkNode(kind::AND, ant, atom);
   } else {
     Node n = d_regexp_ant[atom];
-    return Rewriter::rewrite( NodeManager::currentNM()->mkNode(kind::AND, ant, n) );
+    return NodeManager::currentNM()->mkNode(kind::AND, ant, n);
   }
 }
 
@@ -4472,7 +4490,7 @@ void TheoryStrings::checkMemberships() {
                 }
               }
             }
-            antec = Rewriter::rewrite( NodeManager::currentNM()->mkNode(kind::AND, antec, mkExplain(rnfexp)) );
+            antec = NodeManager::currentNM()->mkNode(kind::AND, antec, mkExplain(rnfexp));
             Node conc = nvec.size()==1 ? nvec[0] : NodeManager::currentNM()->mkNode(kind::AND, nvec);
             conc = Rewriter::rewrite(conc);
             sendLemma( antec, conc, "REGEXP_Unfold" );
@@ -4612,7 +4630,7 @@ bool TheoryStrings::checkPDerivative( Node x, Node r, Node atom, bool &addedLemm
     switch(d_regexp_opr.delta(r, exp)) {
       case 0: {
         Node antec = mkRegExpAntec(atom, x.eqNode(d_emptyString));
-        antec = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::AND, antec, antnf));
+        antec = NodeManager::currentNM()->mkNode(kind::AND, antec, antnf);
         sendLemma(antec, exp, "RegExp Delta");
         addedLemma = true;
         d_regexp_ccached.insert(atom);
@@ -4624,7 +4642,7 @@ bool TheoryStrings::checkPDerivative( Node x, Node r, Node atom, bool &addedLemm
       }
       case 2: {
         Node antec = mkRegExpAntec(atom, x.eqNode(d_emptyString));
-        antec = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::AND, antec, antnf));
+        antec = NodeManager::currentNM()->mkNode(kind::AND, antec, antnf);
         Node conc = Node::null();
         sendLemma(antec, conc, "RegExp Delta CONFLICT");
         addedLemma = true;
@@ -4653,7 +4671,7 @@ bool TheoryStrings::checkPDerivative( Node x, Node r, Node atom, bool &addedLemm
       }
     }*/
     Node sREant = mkRegExpAntec(atom, d_true);
-    sREant = Rewriter::rewrite(NodeManager::currentNM()->mkNode(kind::AND, sREant, antnf));
+    sREant = NodeManager::currentNM()->mkNode(kind::AND, sREant, antnf);
     if(deriveRegExp( x, r, sREant )) {
       addedLemma = true;
       d_regexp_ccached.insert(atom);

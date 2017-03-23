@@ -27,7 +27,6 @@
 #include "options/arith_propagation_mode.h"
 #include "options/arith_unate_lemma_mode.h"
 #include "options/base_handlers.h"
-#include "options/boolean_term_conversion_mode.h"
 #include "options/bv_bitblast_mode.h"
 #include "options/decision_mode.h"
 #include "options/language.h"
@@ -118,10 +117,6 @@ public:
 
   theory::bv::SatSolverMode stringToSatSolver(std::string option, std::string optarg) throw(OptionException);
     
-
-  // theory/booleans/options_handlers.h
-  theory::booleans::BooleanTermConversionMode stringToBooleanTermConversionMode(std::string option, std::string optarg) throw(OptionException);
-
   // theory/uf/options_handlers.h
   theory::uf::UfssMode stringToUfssMode(std::string option, std::string optarg) throw(OptionException);
 

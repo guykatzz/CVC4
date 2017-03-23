@@ -16,7 +16,7 @@
 #include "theory/quantifiers/ceg_t_instantiator.h"
 
 #include "options/quantifiers_options.h"
-#include "smt/ite_removal.h"
+#include "smt/term_formula_removal.h"
 #include "theory/quantifiers/first_order_model.h"
 #include "theory/quantifiers/term_database.h"
 #include "theory/quantifiers/quantifiers_rewriter.h"
@@ -556,34 +556,43 @@ Node CegInstantiator::applySubstitution( TypeNode tn, Node n, std::vector< Node 
           }
         }
         //make sum with normalized coefficient
-        Assert( !pv_coeff.isNull() );
-        pv_coeff = Rewriter::rewrite( pv_coeff );
-        Trace("cegqi-si-apply-subs-debug") << "Combined coeff : " << pv_coeff << std::endl;
-        std::vector< Node > children;
-        for( std::map< Node, Node >::iterator it = msum.begin(); it != msum.end(); ++it ){
-          Node c_coeff;
-          if( !msum_coeff[it->first].isNull() ){
-            c_coeff = Rewriter::rewrite( NodeManager::currentNM()->mkConst( pv_coeff.getConst<Rational>() / msum_coeff[it->first].getConst<Rational>() ) );
+        if( !pv_coeff.isNull() ){
+          pv_coeff = Rewriter::rewrite( pv_coeff );
+          Trace("cegqi-si-apply-subs-debug") << "Combined coeff : " << pv_coeff << std::endl;
+          std::vector< Node > children;
+          for( std::map< Node, Node >::iterator it = msum.begin(); it != msum.end(); ++it ){
+            Node c_coeff;
+            if( !msum_coeff[it->first].isNull() ){
+              c_coeff = Rewriter::rewrite( NodeManager::currentNM()->mkConst( pv_coeff.getConst<Rational>() / msum_coeff[it->first].getConst<Rational>() ) );
+            }else{
+              c_coeff = pv_coeff;
+            }
+            if( !it->second.isNull() ){
+              c_coeff = NodeManager::currentNM()->mkNode( MULT, c_coeff, it->second );
+            }
+            Assert( !c_coeff.isNull() );
+            Node c;
+            if( msum_term[it->first].isNull() ){
+              c = c_coeff;
+            }else{
+              c = NodeManager::currentNM()->mkNode( MULT, c_coeff, msum_term[it->first] );
+            }
+            children.push_back( c );
+            Trace("cegqi-si-apply-subs-debug") << "Add child : " << c << std::endl;
+          }
+          Node nret = children.size()==1 ? children[0] : NodeManager::currentNM()->mkNode( PLUS, children );
+          nret = Rewriter::rewrite( nret );
+          //ensure that nret does not contain vars
+          if( !TermDb::containsTerms( nret, vars ) ){
+            //result is ( nret / pv_coeff )
+            return nret;
           }else{
-            c_coeff = pv_coeff;
+            Trace("cegqi-si-apply-subs-debug") << "Failed, since result " << nret << " contains free variable." << std::endl;
           }
-          if( !it->second.isNull() ){
-            c_coeff = NodeManager::currentNM()->mkNode( MULT, c_coeff, it->second );
-          }
-          Assert( !c_coeff.isNull() );
-          Node c;
-          if( msum_term[it->first].isNull() ){
-            c = c_coeff;
-          }else{
-            c = NodeManager::currentNM()->mkNode( MULT, c_coeff, msum_term[it->first] );
-          }
-          children.push_back( c );
-          Trace("cegqi-si-apply-subs-debug") << "Add child : " << c << std::endl;
+        }else{
+          //implies that we have a monomial that has a free variable
+          Trace("cegqi-si-apply-subs-debug") << "Failed to find coefficient during substitution, implies monomial with free variable." << std::endl;
         }
-        Node nret = children.size()==1 ? children[0] : NodeManager::currentNM()->mkNode( PLUS, children );
-        nret = Rewriter::rewrite( nret );
-        //result is ( nret / pv_coeff )
-        return nret;
       }else{
         Trace("cegqi-si-apply-subs-debug") << "Failed to find monomial sum " << n << std::endl;
       }
@@ -753,6 +762,12 @@ void CegInstantiator::processAssertions() {
               Trace("cbqi-proc") << "......add substitution : " << itae2->first << " -> " << itae2->second << std::endl;
             }
           }
+        }else if( atom.getKind()==BOOLEAN_TERM_VARIABLE ){
+          if( std::find( d_aux_vars.begin(), d_aux_vars.end(), atom )!=d_aux_vars.end() ){
+            Node val = NodeManager::currentNM()->mkConst( lit.getKind()!=NOT );
+            aux_subs[ atom ] = val;
+            Trace("cbqi-proc") << "......add substitution : " << atom << " -> " << val << std::endl;
+          }
         }
       }
     }
@@ -884,7 +899,7 @@ void CegInstantiator::collectCeAtoms( Node n, std::map< Node, bool >& visited ) 
     d_is_nested_quant = true;
   }else if( visited.find( n )==visited.end() ){
     visited[n] = true;
-    if( TermDb::isBoolConnective( n.getKind() ) ){
+    if( TermDb::isBoolConnectiveTerm( n ) ){
       for( unsigned i=0; i<n.getNumChildren(); i++ ){
         collectCeAtoms( n[i], visited );
       }
@@ -940,7 +955,7 @@ void CegInstantiator::registerCounterexampleLemma( std::vector< Node >& lems, st
 
   //remove ITEs
   IteSkolemMap iteSkolemMap;
-  d_qe->getTheoryEngine()->getIteRemover()->run(lems, iteSkolemMap);
+  d_qe->getTheoryEngine()->getTermFormulaRemover()->run(lems, iteSkolemMap);
   //Assert( d_aux_vars.empty() );
   d_aux_vars.clear();
   d_aux_eq.clear();
@@ -965,6 +980,14 @@ void CegInstantiator::registerCounterexampleLemma( std::vector< Node >& lems, st
         }
       }
     }
+    /*else if( lems[i].getKind()==EQUAL && lems[i][0].getType().isBoolean() ){
+      //Boolean terms
+      if( std::find( d_aux_vars.begin(), d_aux_vars.end(), lems[i][0] )!=d_aux_vars.end() ){
+        Node v = lems[i][0];
+        d_aux_eq[rlem][v] = lems[i][1];
+         Trace("cbqi-debug") << "  " << rlem << " implies " << v << " = " << lems[i][1] << std::endl;
+      } 
+    }*/
     lems[i] = rlem;
   }
   //collect atoms from all lemmas: we will only do bounds coming from original body

@@ -139,8 +139,7 @@ RewriteResponse TheorySepRewriter::postRewrite(TNode node) {
       }
       break;
     }
-    case kind::EQUAL:
-    case kind::IFF: {
+    case kind::EQUAL: {
       if(node[0] == node[1]) {
         return RewriteResponse(REWRITE_DONE, NodeManager::currentNM()->mkConst(true));
       }
@@ -165,7 +164,7 @@ RewriteResponse TheorySepRewriter::postRewrite(TNode node) {
 Node TheorySepRewriter::preSkolemEmp( Node n, bool pol, std::map< bool, std::map< Node, Node > >& visited ) {
   std::map< Node, Node >::iterator it = visited[pol].find( n );
   if( it==visited[pol].end() ){
-    Trace("ajr-temp") << "Pre-skolem emp " << n << " with pol " << pol << std::endl;
+    Trace("sep-preprocess") << "Pre-skolem emp " << n << " with pol " << pol << std::endl;
     Node ret = n;
     if( n.getKind()==kind::SEP_EMP ){
       if( !pol ){

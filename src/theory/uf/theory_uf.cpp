@@ -139,14 +139,14 @@ void TheoryUF::check(Effort level) {
     }
   }
 
-
-  if (d_thss != NULL && ! d_conflict) {
-    d_thss->check(level);
-    if( d_thss->isConflict() ){
-      d_conflict = true;
+  if(! d_conflict ){
+    if (d_thss != NULL) {
+      d_thss->check(level);
+      if( d_thss->isConflict() ){
+        d_conflict = true;
+      }
     }
   }
-
 }/* TheoryUF::check() */
 
 void TheoryUF::preRegisterTerm(TNode node) {
@@ -217,7 +217,7 @@ void TheoryUF::explain(TNode literal, std::vector<TNode>& assumptions, eq::EqPro
   // Do the work
   bool polarity = literal.getKind() != kind::NOT;
   TNode atom = polarity ? literal : literal[0];
-  if (atom.getKind() == kind::EQUAL || atom.getKind() == kind::IFF) {
+  if (atom.getKind() == kind::EQUAL) {
     d_equalityEngine.explainEquality(atom[0], atom[1], polarity, assumptions, pf);
   } else {
     d_equalityEngine.explainPredicate(atom, polarity, assumptions, pf);
@@ -246,7 +246,12 @@ Node TheoryUF::explain(TNode literal, eq::EqProof* pf) {
 }
 
 void TheoryUF::collectModelInfo( TheoryModel* m, bool fullModel ){
-  m->assertEqualityEngine( &d_equalityEngine );
+  set<Node> termSet;
+
+  // Compute terms appearing in assertions and shared terms
+  computeRelevantTerms(termSet);
+
+  m->assertEqualityEngine( &d_equalityEngine, &termSet );
   // if( fullModel ){
   //   std::map< TypeNode, TypeEnumerator* > type_enums;
   //   //must choose proper representatives
@@ -336,10 +341,10 @@ void TheoryUF::ppStaticLearn(TNode n, NodeBuilder<>& learned) {
     if(n.getKind() == kind::OR && n.getNumChildren() == 2 &&
        n[0].getKind() == kind::AND && n[0].getNumChildren() == 2 &&
        n[1].getKind() == kind::AND && n[1].getNumChildren() == 2 &&
-       (n[0][0].getKind() == kind::EQUAL || n[0][0].getKind() == kind::IFF) &&
-       (n[0][1].getKind() == kind::EQUAL || n[0][1].getKind() == kind::IFF) &&
-       (n[1][0].getKind() == kind::EQUAL || n[1][0].getKind() == kind::IFF) &&
-       (n[1][1].getKind() == kind::EQUAL || n[1][1].getKind() == kind::IFF)) {
+       (n[0][0].getKind() == kind::EQUAL) &&
+       (n[0][1].getKind() == kind::EQUAL) &&
+       (n[1][0].getKind() == kind::EQUAL) &&
+       (n[1][1].getKind() == kind::EQUAL)) {
       // now we have (a = b && c = d) || (e = f && g = h)
 
       Debug("diamonds") << "has form of a diamond!" << endl;
@@ -396,7 +401,7 @@ void TheoryUF::ppStaticLearn(TNode n, NodeBuilder<>& learned) {
           (a == h && d == e) ) {
         // learn: n implies a == d
         Debug("diamonds") << "+ C holds" << endl;
-        Node newEquality = a.getType().isBoolean() ? a.iffNode(d) : a.eqNode(d);
+        Node newEquality = a.eqNode(d);
         Debug("diamonds") << "  ==> " << newEquality << endl;
         learned << n.impNode(newEquality);
       } else {
@@ -433,6 +438,20 @@ void TheoryUF::addSharedTerm(TNode t) {
   d_equalityEngine.addTriggerTerm(t, THEORY_UF);
 }
 
+bool TheoryUF::areCareDisequal(TNode x, TNode y){
+  Assert( d_equalityEngine.hasTerm(x) );
+  Assert( d_equalityEngine.hasTerm(y) );
+  if( d_equalityEngine.isTriggerTerm(x, THEORY_UF) && d_equalityEngine.isTriggerTerm(y, THEORY_UF) ){
+    TNode x_shared = d_equalityEngine.getTriggerTermRepresentative(x, THEORY_UF);
+    TNode y_shared = d_equalityEngine.getTriggerTermRepresentative(y, THEORY_UF);
+    EqualityStatus eqStatus = d_valuation.getEqualityStatus(x_shared, y_shared);
+    if( eqStatus==EQUALITY_FALSE_AND_PROPAGATED || eqStatus==EQUALITY_FALSE || eqStatus==EQUALITY_FALSE_IN_MODEL ){
+      return true;
+    }
+  }
+  return false;
+}
+
 //TODO: move quantifiers::TermArgTrie to src/theory/
 void TheoryUF::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::TermArgTrie * t2, unsigned arity, unsigned depth ){
   if( depth==arity ){
@@ -448,17 +467,12 @@ void TheoryUF::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::TermArg
           Assert( d_equalityEngine.hasTerm(x) );
           Assert( d_equalityEngine.hasTerm(y) );
           Assert( !d_equalityEngine.areDisequal( x, y, false ) );
+          Assert( !areCareDisequal( x, y ) );
           if( !d_equalityEngine.areEqual( x, y ) ){
             if( d_equalityEngine.isTriggerTerm(x, THEORY_UF) && d_equalityEngine.isTriggerTerm(y, THEORY_UF) ){
               TNode x_shared = d_equalityEngine.getTriggerTermRepresentative(x, THEORY_UF);
               TNode y_shared = d_equalityEngine.getTriggerTermRepresentative(y, THEORY_UF);
-              EqualityStatus eqStatus = d_valuation.getEqualityStatus(x_shared, y_shared);
-              if( eqStatus==EQUALITY_FALSE_AND_PROPAGATED || eqStatus==EQUALITY_FALSE || eqStatus==EQUALITY_FALSE_IN_MODEL ){
-                //an argument is disequal, we are done
-                return;
-              }else{
-                currentPairs.push_back(make_pair(x_shared, y_shared));
-              }
+              currentPairs.push_back(make_pair(x_shared, y_shared));
             }
           }
         }
@@ -482,7 +496,9 @@ void TheoryUF::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::TermArg
         ++it2;
         for( ; it2 != t1->d_data.end(); ++it2 ){
           if( !d_equalityEngine.areDisequal(it->first, it2->first, false) ){
-            addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            if( !areCareDisequal(it->first, it2->first) ){
+              addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            }
           }
         }
       }
@@ -491,7 +507,9 @@ void TheoryUF::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::TermArg
       for( std::map< TNode, quantifiers::TermArgTrie >::iterator it = t1->d_data.begin(); it != t1->d_data.end(); ++it ){
         for( std::map< TNode, quantifiers::TermArgTrie >::iterator it2 = t2->d_data.begin(); it2 != t2->d_data.end(); ++it2 ){
           if( !d_equalityEngine.areDisequal(it->first, it2->first, false) ){
-            addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            if( !areCareDisequal(it->first, it2->first) ){
+              addCarePairs( &it->second, &it2->second, arity, depth+1 );
+            }
           }
         }
       }
@@ -533,12 +551,7 @@ void TheoryUF::computeCareGraph() {
 
 void TheoryUF::conflict(TNode a, TNode b) {
   eq::EqProof* pf = d_proofsEnabled ? new eq::EqProof() : NULL;
-
-  if (a.getKind() == kind::CONST_BOOLEAN) {
-    d_conflictNode = explain(a.iffNode(b),pf);
-  } else {
-    d_conflictNode = explain(a.eqNode(b),pf);
-  }
+  d_conflictNode = explain(a.eqNode(b),pf);
   ProofUF* puf = d_proofsEnabled ? new ProofUF( pf ) : NULL;
   d_out->conflict(d_conflictNode, puf);
   d_conflict = true;
