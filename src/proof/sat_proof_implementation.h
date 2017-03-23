@@ -196,20 +196,22 @@ void ProofProxy<Solver>::updateCRef(typename Solver::TCRef oldref,
 
 /// SatProof
 template <class Solver>
-TSatProof<Solver>::TSatProof(Solver* solver, const std::string& name,
-                             bool checkRes)
+TSatProof<Solver>::TSatProof(Solver* solver, context::Context* context,
+                             const std::string& name, bool checkRes)
     : d_solver(solver),
+      d_context(context),
       d_cnfProof(NULL),
       d_idClause(),
       d_clauseId(),
-      d_idUnit(),
+      d_idUnit(context),
+      d_unitId(context),
       d_deleted(),
       d_inputClauses(),
       d_lemmaClauses(),
       d_assumptions(),
       d_assumptionConflicts(),
       d_assumptionConflictsDebug(),
-      d_resolutionChains(),
+      d_resolutionChains(d_context),
       d_resStack(),
       d_checkRes(checkRes),
       d_emptyClauseId(ClauseIdEmpty),
@@ -263,7 +265,7 @@ TSatProof<Solver>::~TSatProof() {
   ResolutionChainIterator resolution_it = d_resolutionChains.begin();
   ResolutionChainIterator resolution_it_end = d_resolutionChains.end();
   for (; resolution_it != resolution_it_end; ++resolution_it) {
-    ResChain<Solver>* current = resolution_it->second;
+    ResChain<Solver>* current = (*resolution_it).second;
     delete current;
   }
 
@@ -378,7 +380,7 @@ template <class Solver>
 ClauseId TSatProof<Solver>::getClauseIdForLiteral(
     typename Solver::TLit lit) const {
   Assert(hasClauseIdForLiteral(lit));
-  return d_unitId.find(toInt(lit))->second;
+  return (*d_unitId.find(toInt(lit))).second;
 }
 
 template <class Solver>
@@ -432,7 +434,7 @@ bool TSatProof<Solver>::isUnit(ClauseId id) const {
 template <class Solver>
 typename Solver::TLit TSatProof<Solver>::getUnit(ClauseId id) const {
   Assert(isUnit(id));
-  return d_idUnit.find(id)->second;
+  return (*d_idUnit.find(id)).second;
 }
 
 template <class Solver>
@@ -443,7 +445,7 @@ bool TSatProof<Solver>::isUnit(typename Solver::TLit lit) const {
 template <class Solver>
 ClauseId TSatProof<Solver>::getUnitId(typename Solver::TLit lit) const {
   Assert(isUnit(lit));
-  return d_unitId.find(toInt(lit))->second;
+  return (*d_unitId.find(toInt(lit))).second;
 }
 
 template <class Solver>
@@ -455,7 +457,7 @@ template <class Solver>
 const typename TSatProof<Solver>::ResolutionChain&
 TSatProof<Solver>::getResolutionChain(ClauseId id) const {
   Assert(hasResolutionChain(id));
-  const ResolutionChain* chain = d_resolutionChains.find(id)->second;
+  const ResolutionChain* chain = (*d_resolutionChains.find(id)).second;
   return *chain;
 }
 
@@ -535,6 +537,7 @@ ClauseId TSatProof<Solver>::registerClause(typename Solver::TCRef clause,
   typename ClauseIdMap::iterator it = d_clauseId.find(clause);
   if (it == d_clauseId.end()) {
     ClauseId newId = ProofManager::currentPM()->nextId();
+
     d_clauseId.insert(std::make_pair(clause, newId));
     d_idClause.insert(std::make_pair(newId, clause));
     if (kind == INPUT) {
@@ -568,8 +571,11 @@ ClauseId TSatProof<Solver>::registerUnitClause(typename Solver::TLit lit,
   typename UnitIdMap::iterator it = d_unitId.find(toInt(lit));
   if (it == d_unitId.end()) {
     ClauseId newId = ProofManager::currentPM()->nextId();
-    d_unitId.insert(std::make_pair(toInt(lit), newId));
-    d_idUnit.insert(std::make_pair(newId, lit));
+
+    if (d_unitId.find(toInt(lit)) == d_unitId.end())
+      d_unitId[toInt(lit)] = newId;
+    if (d_idUnit.find(newId) == d_idUnit.end())
+      d_idUnit[newId] = lit;
 
     if (kind == INPUT) {
       Assert(d_inputClauses.find(newId) == d_inputClauses.end());
@@ -719,13 +725,12 @@ void TSatProof<Solver>::registerResolution(ClauseId id, ResChain<Solver>* res) {
   // could be the case that a resolution chain for this clause already
   // exists (e.g. when removing units in addClause).
   if (hasResolutionChain(id)) {
-    ResChain<Solver>* current = d_resolutionChains.find(id)->second;
+    ResChain<Solver>* current = (*d_resolutionChains.find(id)).second;
     delete current;
-    d_resolutionChains.erase(id);
   }
-  Assert(!hasResolutionChain(id));
+  if (d_resolutionChains.find(id) == d_resolutionChains.end())
+    d_resolutionChains.insert(id, res);
 
-  d_resolutionChains.insert(std::make_pair(id, res));
   if (Debug.isOn("proof:sat")) {
     printRes(id);
   }
@@ -744,7 +749,6 @@ void TSatProof<Solver>::registerResolution(ClauseId id, ResChain<Solver>* res) {
 template <class Solver>
 void TSatProof<Solver>::startResChain(typename Solver::TCRef start) {
   ClauseId id = getClauseIdForCRef(start);
-  Debug("gk::res") << "Start res chain: id = " << id << std::endl;
   ResolutionChain* res = new ResolutionChain(id);
   d_resStack.push_back(res);
 }
@@ -752,7 +756,6 @@ void TSatProof<Solver>::startResChain(typename Solver::TCRef start) {
 template <class Solver>
 void TSatProof<Solver>::startResChain(typename Solver::TLit start) {
   ClauseId id = getUnitId(start);
-  Debug("gk::res") << "Start res chain: id = " << id << std::endl;
   ResolutionChain* res = new ResolutionChain(id);
   d_resStack.push_back(res);
 }
@@ -762,7 +765,6 @@ void TSatProof<Solver>::addResolutionStep(typename Solver::TLit lit,
                                           typename Solver::TCRef clause,
                                           bool sign) {
   ClauseId id = registerClause(clause, LEARNT);
-  Debug("gk::res") << "Add resolution step: id = " << id << ", lit = " << lit << std::endl;
   ResChain<Solver>* res = d_resStack.back();
   res->addStep(lit, id, sign);
 }
@@ -770,7 +772,6 @@ void TSatProof<Solver>::addResolutionStep(typename Solver::TLit lit,
 template <class Solver>
 void TSatProof<Solver>::endResChain(ClauseId id) {
   Debug("proof:sat:detailed") << "endResChain " << id << "\n";
-  Debug("gk::res") << "End res chain: id = " << id << std::endl;
   Assert(d_resStack.size() > 0);
   ResChain<Solver>* res = d_resStack.back();
   registerResolution(id, res);
@@ -790,7 +791,6 @@ template <class Solver>
 void TSatProof<Solver>::endResChain(typename Solver::TLit lit) {
   Assert(d_resStack.size() > 0);
   ClauseId id = registerUnitClause(lit, LEARNT);
-  Debug("gk::res") << "End res chain: id = " << id << std::endl;
   Debug("proof:sat:detailed") << "endResChain unit " << id << "\n";
   ResolutionChain* res = d_resStack.back();
   d_glueMap[id] = 1;
@@ -828,6 +828,7 @@ void TSatProof<Solver>::storeUnitResolution(typename Solver::TLit lit) {
 template <class Solver>
 ClauseId TSatProof<Solver>::resolveUnit(typename Solver::TLit lit) {
   // first check if we already have a resolution for lit
+
   if (isUnit(lit)) {
     ClauseId id = getClauseIdForLiteral(lit);
     Assert(hasResolutionChain(id) || isInputClause(id) || isLemmaClause(id));
@@ -853,7 +854,6 @@ ClauseId TSatProof<Solver>::resolveUnit(typename Solver::TLit lit) {
     }
   }
   ClauseId unit_id = registerUnitClause(lit, LEARNT);
-  Debug("gk::res") << "Resolve unit: id = " << unit_id << std::endl;
   registerResolution(unit_id, res);
   return unit_id;
 }
@@ -888,11 +888,9 @@ void TSatProof<Solver>::finalizeProof(typename Solver::TCRef conflict_ref) {
     typename Solver::TLit lit = d_idUnit[conflict_id];
     ClauseId res_id = resolveUnit(~lit);
     res->addStep(lit, res_id, !sign(lit));
-
-    Debug("gk::res") << "Finalize proof: id = " << d_emptyClauseId << std::endl;
     registerResolution(d_emptyClauseId, res);
-
     return;
+
   } else {
     Assert(!d_storedUnitConflict);
     conflict_id = registerClause(conflict_ref, LEARNT);  // FIXME
@@ -916,7 +914,6 @@ void TSatProof<Solver>::finalizeProof(typename Solver::TCRef conflict_ref) {
     conflict_size = conflict.size();
   }
 
-  Debug("gk::res") << "Finalize proof: id = " << d_emptyClauseId << std::endl;
   registerResolution(d_emptyClauseId, res);
 }
 
@@ -1051,8 +1048,6 @@ void TSatProof<Solver>::collectClauses(ClauseId id) {
     return;
   }
 
-  Debug("gk::uc") << "\tcollect clauses: id = " << id << std::endl;
-
   if (isInputClause(id)) {
     d_seenInputs.insert(std::make_pair(id, buildClause(id)));
     return;
@@ -1072,7 +1067,6 @@ void TSatProof<Solver>::collectClauses(ClauseId id) {
   collectClauses(start);
 
   for (size_t i = 0; i < steps.size(); i++) {
-    Debug("gk::uc") << "\tStep for " << id << ": " << steps[i].id << std::endl;
     collectClauses(steps[i].id);
   }
 }
