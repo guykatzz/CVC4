@@ -254,8 +254,8 @@ public:
   void traceDeps(TNode n, CDExprSet* coreAssertions);
   void traceUnsatCore();
 
-
   typedef CDExprSet::const_iterator output_core_iterator;
+
   output_core_iterator begin_unsat_core() const { return d_outputCoreFormulas.begin(); }
   output_core_iterator end_unsat_core() const { return d_outputCoreFormulas.end(); }
   size_t size_unsat_core() const { return d_outputCoreFormulas.size(); }
