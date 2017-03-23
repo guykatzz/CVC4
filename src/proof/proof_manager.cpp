@@ -142,7 +142,7 @@ SkolemizationManager* ProofManager::getSkolemizationManager() {
 void ProofManager::initSatProof(Minisat::Solver* solver) {
   Assert (currentPM()->d_satProof == NULL);
   Assert(currentPM()->d_format == LFSC);
-  currentPM()->d_satProof = new LFSCCoreSatProof(solver, "");
+  currentPM()->d_satProof = new LFSCCoreSatProof(solver, d_context, "");
 }
 
 void ProofManager::initCnfProof(prop::CnfStream* cnfStream,

@@ -1031,7 +1031,7 @@ SmtEngine::SmtEngine(ExprManager* em) throw() :
   // being parsed from the input file. Because of this, we cannot trust
   // that options::proof() is set correctly yet.
 #ifdef CVC4_PROOF
-  d_proofManager = new ProofManager(d_context);
+  d_proofManager = new ProofManager(d_userContext);
 #endif
 
   // We have mutual dependency here, so we add the prop engine to the theory

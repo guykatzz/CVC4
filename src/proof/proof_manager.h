@@ -181,7 +181,7 @@ public:
   static ProofManager* currentPM();
 
   // initialization
-  static void         initSatProof(Minisat::Solver* solver);
+  void         initSatProof(Minisat::Solver* solver);
   static void         initCnfProof(CVC4::prop::CnfStream* cnfStream,
                                    context::Context* ctx);
   static void         initTheoryProofEngine();
