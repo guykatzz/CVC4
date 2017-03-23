@@ -88,6 +88,7 @@ enum RewriteRuleId {
   EvalLshr,
   EvalAshr,
   EvalUlt,
+  EvalUltBv,
   EvalUle,
   EvalExtract, 
   EvalSignExtend,
@@ -95,7 +96,10 @@ enum RewriteRuleId {
   EvalRotateRight,
   EvalNeg,
   EvalSlt,
+  EvalSltBv,
   EvalSle,
+  EvalITEBv,
+  EvalComp,
 
   /// simplification rules
   /// all of these rules decrease formula size
@@ -222,6 +226,9 @@ inline std::ostream& operator << (std::ostream& out, RewriteRuleId ruleId) {
   case EvalUle :            out << "EvalUle";             return out;
   case EvalSlt :            out << "EvalSlt";             return out;
   case EvalSle :            out << "EvalSle";             return out; 
+  case EvalSltBv:           out << "EvalSltBv";           return out;
+  case EvalITEBv:           out << "EvalITEBv";           return out;
+  case EvalComp:            out << "EvalComp";            return out;
   case EvalExtract :        out << "EvalExtract";         return out;
   case EvalSignExtend :     out << "EvalSignExtend";      return out;
   case EvalRotateLeft :     out << "EvalRotateLeft";      return out;
@@ -383,12 +390,7 @@ public:
           std::ostringstream os;
           os << "RewriteRule <"<<rule<<">; expect unsat";
 
-          Node condition;
-          if (result.getType().isBoolean()) {
-            condition = node.iffNode(result).notNode();
-          } else {
-            condition = node.eqNode(result).notNode();
-          }
+          Node condition = node.eqNode(result).notNode();
 
           Dump("bv-rewrites")
             << CommentCommand(os.str())

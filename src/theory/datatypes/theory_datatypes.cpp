@@ -23,7 +23,6 @@
 #include "options/datatypes_options.h"
 #include "options/quantifiers_options.h"
 #include "options/smt_options.h"
-#include "smt/boolean_terms.h"
 #include "theory/datatypes/datatypes_rewriter.h"
 #include "theory/datatypes/theory_datatypes_type_rules.h"
 #include "theory/quantifiers_engine.h"
@@ -174,7 +173,7 @@ void TheoryDatatypes::check(Effort e) {
         return;
       }
     }while( d_addedFact );
-
+  
     //check for splits
     Trace("datatypes-debug") << "Check for splits " << e << endl;
     do {
@@ -184,6 +183,7 @@ void TheoryDatatypes::check(Effort e) {
       eq::EqClassesIterator eqcs_i = eq::EqClassesIterator( &d_equalityEngine );
       while( !eqcs_i.isFinished() ){
         Node n = (*eqcs_i);
+        //TODO : avoid irrelevant (pre-registered but not asserted) terms here?
         TypeNode tn = n.getType();
         if( tn.isDatatype() ){
           Trace("datatypes-debug") << "Process equivalence class " << n << std::endl;
@@ -422,7 +422,7 @@ void TheoryDatatypes::doPendingMerges(){
     //do all pending merges
     int i=0;
     while( i<(int)d_pending_merge.size() ){
-      Assert( d_pending_merge[i].getKind()==EQUAL || d_pending_merge[i].getKind()==IFF );
+      Assert( d_pending_merge[i].getKind()==EQUAL );
       merge( d_pending_merge[i][0], d_pending_merge[i][1] );
       i++;
     }
@@ -507,15 +507,9 @@ void TheoryDatatypes::preRegisterTerm(TNode n) {
     d_equalityEngine.addTriggerPredicate(n);
     break;
   default:
-    // Maybe it's a predicate
-    if (n.getType().isBoolean()) {
-      // Get triggered for both equal and dis-equal
-      d_equalityEngine.addTriggerPredicate(n);
-    } else {
-      // Function applications/predicates
-      d_equalityEngine.addTerm(n);
-      //d_equalityEngine.addTriggerTerm(n, THEORY_DATATYPES);
-    }
+    // Function applications/predicates
+    d_equalityEngine.addTerm(n);
+    //d_equalityEngine.addTriggerTerm(n, THEORY_DATATYPES);
     break;
   }
   flushPendingFacts();
@@ -634,11 +628,7 @@ Node TheoryDatatypes::ppRewrite(TNode in) {
 void TheoryDatatypes::addSharedTerm(TNode t) {
   Debug("datatypes") << "TheoryDatatypes::addSharedTerm(): "
                      << t << " " << t.getType().isBoolean() << endl;
-  //if( t.getType().isBoolean() ){
-    //d_equalityEngine.addTriggerPredicate(t, THEORY_DATATYPES);
-  //}else{
   d_equalityEngine.addTriggerTerm(t, THEORY_DATATYPES);
-  //}
   Debug("datatypes") << "TheoryDatatypes::addSharedTerm() finished" << std::endl;
 }
 
@@ -703,7 +693,7 @@ void TheoryDatatypes::explain(TNode literal, std::vector<TNode>& assumptions){
   Debug("datatypes-explain") << "Explain " << literal << std::endl;
   bool polarity = literal.getKind() != kind::NOT;
   TNode atom = polarity ? literal : literal[0];
-  if (atom.getKind() == kind::EQUAL || atom.getKind() == kind::IFF) {
+  if (atom.getKind() == kind::EQUAL) {
     explainEquality( atom[0], atom[1], polarity, assumptions );
   } else if( atom.getKind() == kind::AND && polarity ){
     for( unsigned i=0; i<atom.getNumChildren(); i++ ){
@@ -731,11 +721,7 @@ Node TheoryDatatypes::explain( std::vector< Node >& lits ) {
 
 /** Conflict when merging two constants */
 void TheoryDatatypes::conflict(TNode a, TNode b){
-  if (a.getKind() == kind::CONST_BOOLEAN) {
-    d_conflictNode = explain( a.iffNode(b) );
-  } else {
-    d_conflictNode = explain( a.eqNode(b) );
-  }
+  d_conflictNode = explain( a.eqNode(b) );
   Trace("dt-conflict") << "CONFLICT: Eq engine conflict : " << d_conflictNode << std::endl;
   d_out->conflict( d_conflictNode );
   d_conflict = true;
@@ -812,8 +798,7 @@ void TheoryDatatypes::merge( Node t1, Node t2 ){
             for( unsigned i=0; i<deq_cand.size(); i++ ){
               if( d_equalityEngine.areDisequal( deq_cand[i].first, deq_cand[i].second, true ) ){
                 conf = true;
-                Node eq = NodeManager::currentNM()->mkNode( deq_cand[i].first.getType().isBoolean() ? kind::IFF : kind::EQUAL,
-                                                            deq_cand[i].first, deq_cand[i].second );
+                Node eq = NodeManager::currentNM()->mkNode( kind::EQUAL, deq_cand[i].first, deq_cand[i].second );
                 exp.push_back( eq.negate() );
               }
             }
@@ -835,7 +820,7 @@ void TheoryDatatypes::merge( Node t1, Node t2 ){
             //do unification
             for( int i=0; i<(int)cons1.getNumChildren(); i++ ) {
               if( !areEqual( cons1[i], cons2[i] ) ){
-                Node eq = cons1[i].getType().isBoolean() ? cons1[i].iffNode( cons2[i] ) : cons1[i].eqNode( cons2[i] );
+                Node eq = cons1[i].eqNode( cons2[i] );
                 d_pending.push_back( eq );
                 d_pending_exp[ eq ] = unifEq;
                 Trace("datatypes-infer") << "DtInfer : cons-inj : " << eq << " by " << unifEq << std::endl;
@@ -1284,7 +1269,7 @@ void TheoryDatatypes::collapseSelector( Node s, Node c ) {
   if( !r.isNull() ){
     Node rr = Rewriter::rewrite( r );
     if( use_s!=rr ){
-      Node eq = rr.getType().isBoolean() ? use_s.iffNode( rr ) : use_s.eqNode( rr );
+      Node eq = use_s.eqNode( rr );
       Node eq_exp;
       if( options::dtRefIntro() ){
         eq_exp = d_true;
@@ -1331,20 +1316,13 @@ void TheoryDatatypes::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::
           Assert( d_equalityEngine.hasTerm(x) );
           Assert( d_equalityEngine.hasTerm(y) );
           Assert( !areDisequal( x, y ) );
+          Assert( !areCareDisequal( x, y ) );
           if( !d_equalityEngine.areEqual( x, y ) ){
             Trace("dt-cg") << "Arg #" << k << " is " << x << " " << y << std::endl;
             if( d_equalityEngine.isTriggerTerm(x, THEORY_DATATYPES) && d_equalityEngine.isTriggerTerm(y, THEORY_DATATYPES) ){
               TNode x_shared = d_equalityEngine.getTriggerTermRepresentative(x, THEORY_DATATYPES);
               TNode y_shared = d_equalityEngine.getTriggerTermRepresentative(y, THEORY_DATATYPES);
-              Trace("dt-cg") << "Arg #" << k << " shared term is " << x_shared << " " << y_shared << std::endl;
-              EqualityStatus eqStatus = d_valuation.getEqualityStatus(x_shared, y_shared);
-              Trace("dt-cg") << "...eq status is " << eqStatus << std::endl;
-              if( eqStatus==EQUALITY_FALSE_AND_PROPAGATED || eqStatus==EQUALITY_FALSE || eqStatus==EQUALITY_FALSE_IN_MODEL ){
-                //an argument is disequal, we are done
-                return;
-              }else{
-                currentPairs.push_back(make_pair(x_shared, y_shared));
-              }
+              currentPairs.push_back(make_pair(x_shared, y_shared));
             }
           }
         }
@@ -1368,8 +1346,10 @@ void TheoryDatatypes::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::
         std::map< TNode, quantifiers::TermArgTrie >::iterator it2 = it;
         ++it2;
         for( ; it2 != t1->d_data.end(); ++it2 ){
-          if( !areDisequal(it->first, it2->first) ){
-            addCarePairs( &it->second, &it2->second, arity, depth+1, n_pairs );
+          if( !d_equalityEngine.areDisequal(it->first, it2->first, false) ){
+            if( !areCareDisequal(it->first, it2->first) ){
+              addCarePairs( &it->second, &it2->second, arity, depth+1, n_pairs );
+            }
           }
         }
       }
@@ -1377,8 +1357,10 @@ void TheoryDatatypes::addCarePairs( quantifiers::TermArgTrie * t1, quantifiers::
       //add care pairs based on product of indices, non-disequal arguments
       for( std::map< TNode, quantifiers::TermArgTrie >::iterator it = t1->d_data.begin(); it != t1->d_data.end(); ++it ){
         for( std::map< TNode, quantifiers::TermArgTrie >::iterator it2 = t2->d_data.begin(); it2 != t2->d_data.end(); ++it2 ){
-          if( !areDisequal(it->first, it2->first) ){
-            addCarePairs( &it->second, &it2->second, arity, depth+1, n_pairs );
+          if( !d_equalityEngine.areDisequal(it->first, it2->first, false) ){
+            if( !areCareDisequal(it->first, it2->first) ){
+              addCarePairs( &it->second, &it2->second, arity, depth+1, n_pairs );
+            }
           }
         }
       }
@@ -1430,9 +1412,15 @@ void TheoryDatatypes::collectModelInfo( TheoryModel* m, bool fullModel ){
   Trace("dt-model") << std::endl;
   printModelDebug( "dt-model" );
   Trace("dt-model") << std::endl;
+  
+  set<Node> termSet;
+  
+  // Compute terms appearing in assertions and shared terms, and in inferred equalities
+  getRelevantTerms(termSet);
 
   //combine the equality engine
-  m->assertEqualityEngine( &d_equalityEngine );
+  m->assertEqualityEngine( &d_equalityEngine, &termSet );
+  
 
   //get all constructors
   eq::EqClassesIterator eqccs_i = eq::EqClassesIterator( &d_equalityEngine );
@@ -1442,18 +1430,22 @@ void TheoryDatatypes::collectModelInfo( TheoryModel* m, bool fullModel ){
   while( !eqccs_i.isFinished() ){
     Node eqc = (*eqccs_i);
     //for all equivalence classes that are datatypes
-    if( eqc.getType().isDatatype() ){
-      EqcInfo* ei = getOrMakeEqcInfo( eqc );
-      if( ei && !ei->d_constructor.get().isNull() ){
-        Node c = ei->d_constructor.get();
-        cons.push_back( c );
-        eqc_cons[ eqc ] = c;
-      }else{
-        //if eqc contains a symbol known to datatypes (a selector), then we must assign
-        //should assign constructors to EQC if they have a selector or a tester
-        bool shouldConsider = ( ei && ei->d_selectors ) || hasTester( eqc );
-        if( shouldConsider ){
-          nodes.push_back( eqc );
+    if( termSet.find( eqc )==termSet.end() ){
+      Trace("dt-cmi-debug") << "Irrelevant eqc : " << eqc << std::endl;
+    }else{
+      if( eqc.getType().isDatatype() ){
+        EqcInfo* ei = getOrMakeEqcInfo( eqc );
+        if( ei && !ei->d_constructor.get().isNull() ){
+          Node c = ei->d_constructor.get();
+          cons.push_back( c );
+          eqc_cons[ eqc ] = c;
+        }else{
+          //if eqc contains a symbol known to datatypes (a selector), then we must assign
+          //should assign constructors to EQC if they have a selector or a tester
+          bool shouldConsider = ( ei && ei->d_selectors ) || hasTester( eqc );
+          if( shouldConsider ){
+            nodes.push_back( eqc );
+          }
         }
       }
     }
@@ -1472,54 +1464,6 @@ void TheoryDatatypes::collectModelInfo( TheoryModel* m, bool fullModel ){
     const Datatype& dt = ((DatatypeType)tt).getDatatype();
     if( !d_equalityEngine.hasTerm( eqc ) ){
       Assert( false );
-      /*
-      if( !dt.isCodatatype() ){
-        Trace("dt-cmi") << "NOTICE : Datatypes: need to assign constructor for " << eqc << std::endl;
-        Trace("dt-cmi") << "   Type : " << eqc.getType() << std::endl;
-        TypeNode tn = eqc.getType();
-        //if it is infinite, make sure it is fresh
-        //  this ensures that the term that this is an argument of is distinct.
-        if( eqc.getType().getCardinality().isInfinite() ){
-          std::map< TypeNode, int >::iterator it = typ_enum_map.find( tn );
-          int teIndex;
-          if( it==typ_enum_map.end() ){
-            teIndex = (int)typ_enum.size();
-            typ_enum_map[tn] = teIndex;
-            typ_enum.push_back( TypeEnumerator(tn) );
-          }else{
-            teIndex = it->second;
-          }
-          bool success;
-          do{
-            success = true;
-            Assert( !typ_enum[teIndex].isFinished() );
-            neqc = *typ_enum[teIndex];
-            Trace("dt-cmi-debug") << "Try " << neqc << " ... " << std::endl;
-            ++typ_enum[teIndex];
-            for( unsigned i=0; i<cons.size(); i++ ){
-              //check if it is modulo equality the same
-              if( cons[i].getOperator()==neqc.getOperator() ){
-                bool diff = false;
-                for( unsigned j=0; j<cons[i].getNumChildren(); j++ ){
-                  if( !m->areEqual( cons[i][j], neqc[j] ) ){
-                    diff = true;
-                    break;
-                  }
-                }
-                if( !diff ){
-                  Trace("dt-cmi-debug") << "...Already equivalent modulo equality to " << cons[i] << std::endl;
-                  success = false;
-                  break;
-                }
-              }
-            }
-          }while( !success );
-        }else{
-          TypeEnumerator te(tn);
-          neqc = *te;
-        }
-      }
-      */
     }else{
       Trace("dt-cmi") << "NOTICE : Datatypes: no constructor in equivalence class " << eqc << std::endl;
       Trace("dt-cmi") << "   Type : " << eqc.getType() << std::endl;
@@ -1697,7 +1641,7 @@ void TheoryDatatypes::collectTerms( Node n ) {
             if( children.empty() ){
               lem = n.negate();
             }else{
-              lem = NodeManager::currentNM()->mkNode( IFF, n, children.size()==1 ? children[0] : NodeManager::currentNM()->mkNode( OR, children ) );
+              lem = NodeManager::currentNM()->mkNode( EQUAL, n, children.size()==1 ? children[0] : NodeManager::currentNM()->mkNode( OR, children ) );
             }
             Trace("datatypes-infer") << "DtInfer : zero height : " << lem << std::endl;
             //d_pending.push_back( lem );
@@ -1716,7 +1660,7 @@ void TheoryDatatypes::processNewTerm( Node n ){
   //see if it is rewritten to be something different
   Node rn = Rewriter::rewrite( n );
   if( rn!=n && !areEqual( rn, n ) ){
-    Node eq = n.getType().isBoolean() ? rn.iffNode( n ) : rn.eqNode( n );
+    Node eq = rn.eqNode( n );
     d_pending.push_back( eq );
     d_pending_exp[ eq ] = d_true;
     Trace("datatypes-infer") << "DtInfer : rewrite : " << eq << std::endl;
@@ -2053,7 +1997,7 @@ bool TheoryDatatypes::mustCommunicateFact( Node n, Node exp ){
       const Datatype& dt = ((DatatypeType)(tn).toType()).getDatatype();
       addLemma = dt.involvesExternalType();
     }
-  }else if( n.getKind()==LEQ || n.getKind()==IFF || n.getKind()==OR ){
+  }else if( n.getKind()==LEQ || n.getKind()==OR ){
     addLemma = true;
   }
   if( addLemma ){
@@ -2085,8 +2029,23 @@ bool TheoryDatatypes::areDisequal( TNode a, TNode b ){
   }else if( hasTerm( a ) && hasTerm( b ) ){
     return d_equalityEngine.areDisequal( a, b, false );
   }else{
+    //TODO : constants here?
     return false;
   }
+}
+
+bool TheoryDatatypes::areCareDisequal( TNode x, TNode y ) {
+  Assert( d_equalityEngine.hasTerm( x ) );
+  Assert( d_equalityEngine.hasTerm( y ) );
+  if( d_equalityEngine.isTriggerTerm(x, THEORY_DATATYPES) && d_equalityEngine.isTriggerTerm(y, THEORY_DATATYPES) ){
+    TNode x_shared = d_equalityEngine.getTriggerTermRepresentative(x, THEORY_DATATYPES);
+    TNode y_shared = d_equalityEngine.getTriggerTermRepresentative(y, THEORY_DATATYPES);
+    EqualityStatus eqStatus = d_valuation.getEqualityStatus(x_shared, y_shared);
+    if( eqStatus==EQUALITY_FALSE_AND_PROPAGATED || eqStatus==EQUALITY_FALSE || eqStatus==EQUALITY_FALSE_IN_MODEL ){
+      return true;
+    }
+  }
+  return false;
 }
 
 TNode TheoryDatatypes::getRepresentative( TNode a ){
@@ -2110,7 +2069,7 @@ void TheoryDatatypes::printModelDebug( const char* c ){
   eq::EqClassesIterator eqcs_i = eq::EqClassesIterator( &d_equalityEngine );
   while( !eqcs_i.isFinished() ){
     Node eqc = (*eqcs_i);
-    if( !eqc.getType().isBoolean() ){
+    //if( !eqc.getType().isBoolean() ){
       if( eqc.getType().isDatatype() ){
         Trace( c ) << "DATATYPE : ";
       }
@@ -2155,7 +2114,7 @@ void TheoryDatatypes::printModelDebug( const char* c ){
           Trace( c ) << std::endl;
         }
       }
-    }
+    //}
     ++eqcs_i;
   }
 }
@@ -2200,6 +2159,34 @@ bool TheoryDatatypes::checkClashModEq( TNode n1, TNode n2, std::vector< Node >& 
     }
   }
   return false;
+}
+
+void TheoryDatatypes::getRelevantTerms( std::set<Node>& termSet ) {
+  // Compute terms appearing in assertions and shared terms
+  computeRelevantTerms(termSet);
+  
+  //also include non-singleton equivalence classes
+  eq::EqClassesIterator eqcs_i = eq::EqClassesIterator( &d_equalityEngine );
+  while( !eqcs_i.isFinished() ){
+    TNode r = (*eqcs_i);
+    bool addedFirst = false;
+    Node first;
+    eq::EqClassIterator eqc_i = eq::EqClassIterator( r, &d_equalityEngine );
+    while( !eqc_i.isFinished() ){
+      TNode n = (*eqc_i);
+      if( first.isNull() ){
+        first = n;
+      }else{
+        if( !addedFirst ){
+          addedFirst = true;
+          termSet.insert( first );
+        }
+        termSet.insert( n );
+      }
+      ++eqc_i;
+    }
+    ++eqcs_i;
+  }
 }
 
 std::pair<bool, Node> TheoryDatatypes::entailmentCheck(TNode lit, const EntailmentCheckParameters* params, EntailmentCheckSideEffects* out) {

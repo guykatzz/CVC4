@@ -724,6 +724,7 @@ bool QuantifiersEngine::registerQuantifier( Node f ){
       //if( options::finiteModelFind() ){
       //  ((uf::TheoryUF*)d_te->theoryOf( THEORY_UF ))->getStrongSolver()->registerQuantifier( f );
       //}
+      Trace("quant-debug")  << "...finish." << std::endl;
       d_quants[f] = true;
       return true;
     }
@@ -1274,8 +1275,7 @@ bool QuantifiersEngine::addSplit( Node n, bool reqPhase, bool reqPhasePol ){
 bool QuantifiersEngine::addSplitEquality( Node n1, Node n2, bool reqPhase, bool reqPhasePol ){
   //Assert( !areEqual( n1, n2 ) );
   //Assert( !areDisequal( n1, n2 ) );
-  Kind knd = n1.getType()==NodeManager::currentNM()->booleanType() ? IFF : EQUAL;
-  Node fm = NodeManager::currentNM()->mkNode( knd, n1, n2 );
+  Node fm = NodeManager::currentNM()->mkNode( EQUAL, n1, n2 );
   return addSplit( fm );
 }
 

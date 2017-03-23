@@ -46,8 +46,6 @@
 #include "options/arith_options.h"
 #include "options/arrays_options.h"
 #include "options/base_options.h"
-#include "options/boolean_term_conversion_mode.h"
-#include "options/booleans_options.h"
 #include "options/booleans_options.h"
 #include "options/bv_options.h"
 #include "options/datatypes_options.h"
@@ -72,13 +70,11 @@
 #include "proof/theory_proof.h"
 #include "proof/unsat_core.h"
 #include "prop/prop_engine.h"
-#include "smt/boolean_terms.h"
 #include "smt/command.h"
 #include "smt/command_list.h"
-#include "smt/ite_removal.h"
+#include "smt/term_formula_removal.h"
 #include "smt/logic_request.h"
 #include "smt/managed_ostreams.h"
-#include "smt/model_postprocessor.h"
 #include "smt/smt_engine_scope.h"
 #include "smt/update_ostream.h"
 #include "smt_util/boolean_simplification.h"
@@ -185,8 +181,6 @@ public:
 struct SmtEngineStatistics {
   /** time spent in definition-expansion */
   TimerStat d_definitionExpansionTime;
-  /** time spent in Boolean term rewriting */
-  TimerStat d_rewriteBooleanTermsTime;
   /** time spent in non-clausal simplification */
   TimerStat d_nonclausalSimplificationTime;
   /** time spent in miplib pass */
@@ -233,7 +227,6 @@ struct SmtEngineStatistics {
 
   SmtEngineStatistics() :
     d_definitionExpansionTime("smt::SmtEngine::definitionExpansionTime"),
-    d_rewriteBooleanTermsTime("smt::SmtEngine::rewriteBooleanTermsTime"),
     d_nonclausalSimplificationTime("smt::SmtEngine::nonclausalSimplificationTime"),
     d_miplibPassTime("smt::SmtEngine::miplibPassTime"),
     d_numMiplibAssertionsRemoved("smt::SmtEngine::numMiplibAssertionsRemoved", 0),
@@ -258,7 +251,6 @@ struct SmtEngineStatistics {
  {
 
     smtStatisticsRegistry()->registerStat(&d_definitionExpansionTime);
-    smtStatisticsRegistry()->registerStat(&d_rewriteBooleanTermsTime);
     smtStatisticsRegistry()->registerStat(&d_nonclausalSimplificationTime);
     smtStatisticsRegistry()->registerStat(&d_miplibPassTime);
     smtStatisticsRegistry()->registerStat(&d_numMiplibAssertionsRemoved);
@@ -284,7 +276,6 @@ struct SmtEngineStatistics {
 
   ~SmtEngineStatistics() {
     smtStatisticsRegistry()->unregisterStat(&d_definitionExpansionTime);
-    smtStatisticsRegistry()->unregisterStat(&d_rewriteBooleanTermsTime);
     smtStatisticsRegistry()->unregisterStat(&d_nonclausalSimplificationTime);
     smtStatisticsRegistry()->unregisterStat(&d_miplibPassTime);
     smtStatisticsRegistry()->unregisterStat(&d_numMiplibAssertionsRemoved);
@@ -510,9 +501,6 @@ class SmtEnginePrivate : public NodeManagerListener {
   /** Size of assertions array when preprocessing starts */
   unsigned d_realAssertionsEnd;
 
-  /** The converter for Boolean terms -> BITVECTOR(1). */
-  BooleanTermConverter* d_booleanTermConverter;
-
   /** A circuit propagator for non-clausal propositional deduction */
   booleans::CircuitPropagator d_propagator;
   bool d_propagatorNeedsFinish;
@@ -567,7 +555,7 @@ public:
   IteSkolemMap d_iteSkolemMap;
 
   /** Instance of the ITE remover */
-  RemoveITE d_iteRemover;
+  RemoveTermFormulas d_iteRemover;
 
 private:
 
@@ -614,6 +602,9 @@ private:
   // Lift bit-vectors of size 1 to booleans
   void bvToBool();
 
+  // Convert booleans to bit-vectors of size 1
+  void boolToBv();
+  
   // Abstract common structure over small domains to UF
   // return true if changes were made.
   void bvAbstraction();
@@ -676,7 +667,6 @@ public:
     d_listenerRegistrations(new ListenerRegistrationList()),
     d_nonClausalLearnedLiterals(),
     d_realAssertionsEnd(0),
-    d_booleanTermConverter(NULL),
     d_propagator(d_nonClausalLearnedLiterals, true, true),
     d_propagatorNeedsFinish(false),
     d_assertions(),
@@ -755,10 +745,6 @@ public:
     if(d_propagatorNeedsFinish) {
       d_propagator.finish();
       d_propagatorNeedsFinish = false;
-    }
-    if(d_booleanTermConverter != NULL) {
-      delete d_booleanTermConverter;
-      d_booleanTermConverter = NULL;
     }
     d_smt.d_nodeManager->unsubscribeEvents(this);
   }
@@ -857,11 +843,6 @@ public:
   Node expandDefinitions(TNode n, NodeToNodeHashMap& cache,
                          bool expandOnly = false)
       throw(TypeCheckingException, LogicException, UnsafeInterruptException);
-
-  /**
-   * Rewrite Boolean terms in a Node.
-   */
-  Node rewriteBooleanTerms(TNode n);
 
   /**
    * Simplify node "in" by expanding definitions and applying any
@@ -1393,8 +1374,16 @@ void SmtEngine::setDefaults() {
       if(options::bitvectorToBool.wasSetByUser()) {
         throw OptionException("bv-to-bool not supported with unsat cores");
       }
-      Notice() << "SmtEngine: turning off bitvector-to-bool support unsat-cores" << endl;
+      Notice() << "SmtEngine: turning off bitvector-to-bool to support unsat-cores" << endl;
       options::bitvectorToBool.set(false);
+    }
+
+    if(options::boolToBitvector()) {
+      if(options::boolToBitvector.wasSetByUser()) {
+        throw OptionException("bool-to-bv not supported with unsat cores");
+      }
+      Notice() << "SmtEngine: turning off bool-to-bitvector to support unsat-cores" << endl;
+      options::boolToBitvector.set(false);
     }
 
     if(options::bvIntroducePow2()) {
@@ -1446,6 +1435,15 @@ void SmtEngine::setDefaults() {
     }
     d_logic = log;
     d_logic.lock();
+  }
+  if(d_logic.isTheoryEnabled(THEORY_ARRAY) || d_logic.isTheoryEnabled(THEORY_DATATYPES) || d_logic.isTheoryEnabled(THEORY_SETS)) {
+    if(!d_logic.isTheoryEnabled(THEORY_UF)) {
+      LogicInfo log(d_logic.getUnlockedCopy());
+      Trace("smt") << "because a theory that permits Boolean terms is enabled, also enabling UF" << endl;
+      log.enableTheory(THEORY_UF);
+      d_logic = log;
+      d_logic.lock();
+    }
   }
 
   // by default, symmetry breaker is on only for QF_UF
@@ -2059,7 +2057,7 @@ void SmtEngine::setInfo(const std::string& key, const CVC4::SExpr& value)
         value.getValue() == "2.0" ) {
       // supported SMT-LIB version
       if(!options::outputLanguage.wasSetByUser() &&
-         options::outputLanguage() == language::output::LANG_SMTLIB_V2_5) {
+         ( options::outputLanguage() == language::output::LANG_SMTLIB_V2_5 || options::outputLanguage() == language::output::LANG_SMTLIB_V2_6 )) {
         options::outputLanguage.set(language::output::LANG_SMTLIB_V2_0);
         *options::out() << language::SetLanguage(language::output::LANG_SMTLIB_V2_0);
       }
@@ -2071,6 +2069,15 @@ void SmtEngine::setInfo(const std::string& key, const CVC4::SExpr& value)
          options::outputLanguage() == language::output::LANG_SMTLIB_V2_0) {
         options::outputLanguage.set(language::output::LANG_SMTLIB_V2_5);
         *options::out() << language::SetLanguage(language::output::LANG_SMTLIB_V2_5);
+      }
+      return;
+    } else if( (value.isRational() && value.getRationalValue() == Rational(13, 5)) ||
+               value.getValue() == "2.6" ) {
+      // supported SMT-LIB version
+      if(!options::outputLanguage.wasSetByUser() &&
+         options::outputLanguage() == language::output::LANG_SMTLIB_V2_0) {
+        options::outputLanguage.set(language::output::LANG_SMTLIB_V2_6);
+        *options::out() << language::SetLanguage(language::output::LANG_SMTLIB_V2_6);
       }
       return;
     }
@@ -2298,7 +2305,7 @@ Node SmtEnginePrivate::expandDefinitions(TNode n, hash_map<Node, Node, NodeHashF
       }
 
       // otherwise expand it
-      bool doExpand = ( k == kind::APPLY && n.getOperator().getKind() != kind::LAMBDA );
+      bool doExpand = k == kind::APPLY;
       if( !doExpand ){
         if( options::macrosQuant() ){
           //expand if we have inferred an operator corresponds to a defined function
@@ -2306,35 +2313,47 @@ Node SmtEnginePrivate::expandDefinitions(TNode n, hash_map<Node, Node, NodeHashF
         }
       }
       if (doExpand) {
-        // application of a user-defined symbol
-        TNode func = n.getOperator();
-        SmtEngine::DefinedFunctionMap::const_iterator i = d_smt.d_definedFunctions->find(func);
-        if(i == d_smt.d_definedFunctions->end()) {
-          throw TypeCheckingException(n.toExpr(), string("Undefined function: `") + func.toString() + "'");
-        }
-        DefinedFunction def = (*i).second;
-        vector<Node> formals = def.getFormals();
-
-        if(Debug.isOn("expand")) {
-          Debug("expand") << "found: " << n << endl;
-          Debug("expand") << " func: " << func << endl;
-          string name = func.getAttribute(expr::VarNameAttr());
-          Debug("expand") << "     : \"" << name << "\"" << endl;
-        }
-        if(Debug.isOn("expand")) {
-          Debug("expand") << " defn: " << def.getFunction() << endl
-                          << "       [";
-          if(formals.size() > 0) {
-            copy( formals.begin(), formals.end() - 1,
-                  ostream_iterator<Node>(Debug("expand"), ", ") );
-            Debug("expand") << formals.back();
+        vector<Node> formals;
+        TNode fm;
+        if( n.getOperator().getKind() == kind::LAMBDA ){
+          TNode op = n.getOperator();
+          // lambda
+          for( unsigned i=0; i<op[0].getNumChildren(); i++ ){
+            formals.push_back( op[0][i] );
           }
-          Debug("expand") << "]" << endl
-                          << "       " << def.getFunction().getType() << endl
-                          << "       " << def.getFormula() << endl;
-        }
+          fm = op[1];
+        }else{
+          // application of a user-defined symbol
+          TNode func = n.getOperator();
+          SmtEngine::DefinedFunctionMap::const_iterator i = d_smt.d_definedFunctions->find(func);
+          if(i == d_smt.d_definedFunctions->end()) {
+            throw TypeCheckingException(n.toExpr(), string("Undefined function: `") + func.toString() + "'");
+          }
+          DefinedFunction def = (*i).second;
+          formals = def.getFormals();
 
-        TNode fm = def.getFormula();
+          if(Debug.isOn("expand")) {
+            Debug("expand") << "found: " << n << endl;
+            Debug("expand") << " func: " << func << endl;
+            string name = func.getAttribute(expr::VarNameAttr());
+            Debug("expand") << "     : \"" << name << "\"" << endl;
+          }
+          if(Debug.isOn("expand")) {
+            Debug("expand") << " defn: " << def.getFunction() << endl
+                            << "       [";
+            if(formals.size() > 0) {
+              copy( formals.begin(), formals.end() - 1,
+                    ostream_iterator<Node>(Debug("expand"), ", ") );
+              Debug("expand") << formals.back();
+            }
+            Debug("expand") << "]" << endl
+                            << "       " << def.getFunction().getType() << endl
+                            << "       " << def.getFormula() << endl;
+          }
+
+          fm = def.getFormula();
+        }
+        
         Node instance = fm.substitute(formals.begin(), formals.end(),
                                       n.begin(), n.end());
         Debug("expand") << "made : " << instance << endl;
@@ -2918,7 +2937,7 @@ bool SmtEnginePrivate::nonClausalSimplify() {
     for (; pos != newSubstitutions.end(); ++pos) {
       // Add back this substitution as an assertion
       TNode lhs = (*pos).first, rhs = newSubstitutions.apply((*pos).second);
-      Node n = NodeManager::currentNM()->mkNode(lhs.getType().isBoolean() ? kind::IFF : kind::EQUAL, lhs, rhs);
+      Node n = NodeManager::currentNM()->mkNode(kind::EQUAL, lhs, rhs);
       substitutionsBuilder << n;
       Trace("simplify") << "SmtEnginePrivate::nonClausalSimplify(): will notify SAT layer of substitution: " << n << endl;
     }
@@ -3024,6 +3043,16 @@ void SmtEnginePrivate::bvToBool() {
   spendResource(options::preprocessStep());
   std::vector<Node> new_assertions;
   d_smt.d_theoryEngine->ppBvToBool(d_assertions.ref(), new_assertions);
+  for (unsigned i = 0; i < d_assertions.size(); ++ i) {
+    d_assertions.replace(i, Rewriter::rewrite(new_assertions[i]));
+  }
+}
+
+void SmtEnginePrivate::boolToBv() {
+  Trace("bool-to-bv") << "SmtEnginePrivate::boolToBv()" << endl;
+  spendResource(options::preprocessStep());
+  std::vector<Node> new_assertions;
+  d_smt.d_theoryEngine->ppBoolToBv(d_assertions.ref(), new_assertions);
   for (unsigned i = 0; i < d_assertions.size(); ++ i) {
     d_assertions.replace(i, Rewriter::rewrite(new_assertions[i]));
   }
@@ -3775,42 +3804,6 @@ bool SmtEnginePrivate::checkForBadSkolems(TNode n, TNode skolem, hash_map<Node, 
   return false;
 }
 
-Node SmtEnginePrivate::rewriteBooleanTerms(TNode n) {
-  TimerStat::CodeTimer codeTimer(d_smt.d_stats->d_rewriteBooleanTermsTime);
-
-  spendResource(options::preprocessStep());
-
-  if(d_booleanTermConverter == NULL) {
-    // This needs to be initialized _after_ the whole SMT framework is in place, subscribed
-    // to ExprManager notifications, etc.  Otherwise we might miss the "BooleanTerm" datatype
-    // definition, and not dump it properly.
-    d_booleanTermConverter = new BooleanTermConverter(d_smt);
-  }
-  Node retval = d_booleanTermConverter->rewriteBooleanTerms(n);
-  if(retval != n) {
-    switch(booleans::BooleanTermConversionMode mode = options::booleanTermConversionMode()) {
-    case booleans::BOOLEAN_TERM_CONVERT_TO_BITVECTORS:
-    case booleans::BOOLEAN_TERM_CONVERT_NATIVE:
-      if(!d_smt.d_logic.isTheoryEnabled(THEORY_BV)) {
-        d_smt.d_logic = d_smt.d_logic.getUnlockedCopy();
-        d_smt.d_logic.enableTheory(THEORY_BV);
-        d_smt.d_logic.lock();
-      }
-      break;
-    case booleans::BOOLEAN_TERM_CONVERT_TO_DATATYPES:
-      if(!d_smt.d_logic.isTheoryEnabled(THEORY_DATATYPES)) {
-        d_smt.d_logic = d_smt.d_logic.getUnlockedCopy();
-        d_smt.d_logic.enableTheory(THEORY_DATATYPES);
-        d_smt.d_logic.lock();
-      }
-      break;
-    default:
-      Unhandled(mode);
-    }
-  }
-  return retval;
-}
-
 void SmtEnginePrivate::processAssertions() {
   TimerStat::CodeTimer paTimer(d_smt.d_stats->d_processAssertionsTime);
   spendResource(options::preprocessStep());
@@ -3904,15 +3897,6 @@ void SmtEnginePrivate::processAssertions() {
     dumpAssertions("post-bv-abstraction", d_assertions);
   }
 
-  dumpAssertions("pre-boolean-terms", d_assertions);
-  {
-    Chat() << "rewriting Boolean terms..." << endl;
-    for(unsigned i = 0, i_end = d_assertions.size(); i != i_end; ++i) {
-      d_assertions.replace(i, rewriteBooleanTerms(d_assertions[i]));
-    }
-  }
-  dumpAssertions("post-boolean-terms", d_assertions);
-
   Debug("smt") << " d_assertions     : " << d_assertions.size() << endl;
 
   dumpAssertions("pre-constrain-subtypes", d_assertions);
@@ -3985,6 +3969,14 @@ void SmtEnginePrivate::processAssertions() {
     dumpAssertions("post-bv-to-bool", d_assertions);
     Trace("smt") << "POST bvToBool" << endl;
   }
+  // Convert non-top-level Booleans to bit-vectors of size 1
+  if(options::boolToBitvector()) {
+    dumpAssertions("pre-bool-to-bv", d_assertions);
+    Chat() << "...doing boolToBv..." << endl;
+    boolToBv();
+    dumpAssertions("post-bool-to-bv", d_assertions);
+    Trace("smt") << "POST boolToBv" << endl;
+  }
   if(options::sepPreSkolemEmp()) {
     for (unsigned i = 0; i < d_assertions.size(); ++ i) {
       Node prev = d_assertions[i];
@@ -3996,6 +3988,7 @@ void SmtEnginePrivate::processAssertions() {
       }
     }
   }
+
   if( d_smt.d_logic.isQuantified() ){
     Trace("smt-proc") << "SmtEnginePrivate::processAssertions() : pre-quant-preprocess" << endl;
 
@@ -4523,17 +4516,7 @@ Result SmtEngine::assertFormula(const Expr& ex, bool inUnsatCore) throw(TypeChec
 }/* SmtEngine::assertFormula() */
 
 Node SmtEngine::postprocess(TNode node, TypeNode expectedType) const {
-  ModelPostprocessor mpost;
-  NodeVisitor<ModelPostprocessor> visitor;
-  Node value = visitor.run(mpost, node);
-  Debug("boolean-terms") << "postproc: got " << value << " expect type " << expectedType << endl;
-  Node realValue = mpost.rewriteAs(value, expectedType);
-  Debug("boolean-terms") << "postproc: realval " << realValue << " expect type " << expectedType << endl;
-  if(options::condenseFunctionValues()) {
-    realValue = Rewriter::rewrite(realValue);
-    Debug("boolean-terms") << "postproc: after rewrite " << realValue << endl;
-  }
-  return realValue;
+  return node;
 }
 
 Expr SmtEngine::simplify(const Expr& ex) throw(TypeCheckingException, LogicException, UnsafeInterruptException) {
@@ -4627,8 +4610,9 @@ Expr SmtEngine::getValue(const Expr& ex) const throw(ModalException, TypeCheckin
   // used by the Model classes.  It's not clear to me exactly how these
   // two are different, but they need to be unified.  This ugly hack here
   // is to fix bug 554 until we can revamp boolean-terms and models [MGD]
+  
+  //AJR : necessary?
   if(!n.getType().isFunction()) {
-    n = d_private->rewriteBooleanTerms(n);
     n = Rewriter::rewrite(n);
   }
 
@@ -4732,7 +4716,6 @@ CVC4::SExpr SmtEngine::getAssignment() throw(ModalException, UnsafeInterruptExce
     // Expand, then normalize
     hash_map<Node, Node, NodeHashFunction> cache;
     Node n = d_private->expandDefinitions(*i, cache);
-    n = d_private->rewriteBooleanTerms(n);
     n = Rewriter::rewrite(n);
 
     Trace("smt") << "--- getting value of " << n << endl;

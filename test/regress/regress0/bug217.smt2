@@ -1,6 +1,6 @@
 ; EXPECT: unsat
 (set-logic QF_UF)
-(set-info :status sat)
+(set-info :status unsat)
 (set-option :produce-models true)
 (declare-fun f (Bool) Bool)
 (declare-fun x () Bool)

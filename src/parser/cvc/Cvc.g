@@ -245,6 +245,7 @@ tokens {
   SETS_CARD_TOK = 'CARD';
   
   FMF_CARD_TOK = 'HAS_CARD';
+  UNIVSET_TOK = 'UNIVERSE';
 
   // these are parsed by special NUMBER_OR_RANGEOP rule, below
   DECIMAL_LITERAL;
@@ -356,7 +357,7 @@ Kind getOperatorKind(int type, bool& negate) {
 
   switch(type) {
     // booleanBinop
-  case IFF_TOK: return kind::IFF;
+  case IFF_TOK: return kind::EQUAL;
   case IMPLIES_TOK: return kind::IMPLIES;
   case OR_TOK: return kind::OR;
   case XOR_TOK: return kind::XOR;
@@ -440,16 +441,6 @@ Expr createPrecedenceTree(Parser* parser, ExprManager* em,
   Expr rhs = createPrecedenceTree(parser, em, expressions, operators, pivot + 1, stopIndex);
 
   switch(k) {
-  case kind::EQUAL: {
-    if(lhs.getType().isBoolean()) {
-      if(parser->strictModeEnabled()) {
-        WarningOnce() << "Warning: in strict parsing mode, will not convert BOOL = BOOL to BOOL <=> BOOL" << std::endl;
-      } else {
-        k = kind::IFF;
-      }
-    }
-    break;
-  }
   case kind::LEQ          : if(lhs.getType().isSet()) { k = kind::SUBSET; } break;
   case kind::MINUS        : if(lhs.getType().isSet()) { k = kind::SETMINUS; } break;
   case kind::BITVECTOR_AND: if(lhs.getType().isSet()) { k = kind::INTERSECTION; } break;
@@ -1696,16 +1687,21 @@ bvBinop[unsigned& op]
 bvNegTerm[CVC4::Expr& f]
     /* BV neg */
   : BVNEG_TOK bvNegTerm[f]
-    { f = MK_EXPR(CVC4::kind::BITVECTOR_NOT, f); }
-  | TRANSPOSE_TOK bvNegTerm[f]
+    { f = f.getType().isSet() ? MK_EXPR(CVC4::kind::COMPLEMENT, f) : MK_EXPR(CVC4::kind::BITVECTOR_NOT, f); }
+  | relationTerm[f]
+  ;
+
+relationTerm[CVC4::Expr& f]
+    /* relation terms */
+  : TRANSPOSE_TOK relationTerm[f]
     { f = MK_EXPR(CVC4::kind::TRANSPOSE, f); } 
-  | TRANSCLOSURE_TOK bvNegTerm[f]
+  | TRANSCLOSURE_TOK relationTerm[f]
     { f = MK_EXPR(CVC4::kind::TCLOSURE, f); }
-  | TUPLE_TOK LPAREN bvNegTerm[f] RPAREN
+  | TUPLE_TOK LPAREN relationTerm[f] RPAREN
     { std::vector<Type> types;
       std::vector<Expr> args;
       args.push_back(f);
-	  types.push_back(f.getType());
+	    types.push_back(f.getType());
       DatatypeType t = EXPR_MANAGER->mkTupleType(types);
       const Datatype& dt = t.getDatatype();
       args.insert( args.begin(), dt[0].getConstructor() );
@@ -1842,6 +1838,8 @@ postfixTerm[CVC4::Expr& f]
           f = MK_EXPR(CVC4::kind::APPLY_CONSTRUCTOR, v);
         } else if(f.getKind() == CVC4::kind::EMPTYSET && t.isSet()) {
           f = MK_CONST(CVC4::EmptySet(t));
+        } else if(f.getKind() == CVC4::kind::UNIVERSE_SET && t.isSet()) {
+          f = EXPR_MANAGER->mkUniqueVar(t, kind::UNIVERSE_SET);
         } else {
           if(f.getType() != t) {
             PARSER_STATE->parseError("Type ascription not satisfied.");
@@ -2075,6 +2073,10 @@ simpleTerm[CVC4::Expr& f]
     /* empty set literal */
   | LBRACE RBRACE
     { f = MK_CONST(EmptySet(Type())); }
+  | UNIVSET_TOK
+    { //booleanType is placeholder
+      f = EXPR_MANAGER->mkUniqueVar(EXPR_MANAGER->booleanType(), kind::UNIVERSE_SET);
+    }
 
     /* finite set literal */
   | LBRACE formula[f] { args.push_back(f); }

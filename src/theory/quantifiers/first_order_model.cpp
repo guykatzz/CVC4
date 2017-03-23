@@ -62,7 +62,7 @@ unsigned FirstOrderModel::getNumAssertedQuantifiers() {
 }
 
 Node FirstOrderModel::getAssertedQuantifier( unsigned i, bool ordered ) { 
-  if( !ordered || d_forall_rlv_assert.empty() ){
+  if( !ordered ){
     return d_forall_asserts[i]; 
   }else{
     Assert( d_forall_rlv_assert.size()==d_forall_asserts.size() );
@@ -70,6 +70,7 @@ Node FirstOrderModel::getAssertedQuantifier( unsigned i, bool ordered ) {
   }
 }
 
+//AJR : FIXME : this function is only used by bounded integers, can likely be removed.
 Node FirstOrderModel::getCurrentModelValue( Node n, bool partial ) {
   std::vector< Node > children;
   if( n.getNumChildren()>0 ){
@@ -92,7 +93,8 @@ Node FirstOrderModel::getCurrentModelValue( Node n, bool partial ) {
       return nn;
     }
   }else{
-    return getRepresentative(n);
+    //return getRepresentative(n);
+    return getValue(n);
   }
 }
 
@@ -148,9 +150,9 @@ void FirstOrderModel::reset_round() {
   d_quant_active.clear();
   
   //order the quantified formulas
+  d_forall_rlv_assert.clear();
   if( !d_forall_rlv_vec.empty() ){
     Trace("fm-relevant") << "Build sorted relevant list..." << std::endl;
-    d_forall_rlv_assert.clear();
     Trace("fm-relevant-debug") << "Mark asserted quantified formulas..." << std::endl;
     std::map< Node, bool > qassert;
     for( unsigned i=0; i<d_forall_asserts.size(); i++ ){
@@ -179,6 +181,10 @@ void FirstOrderModel::reset_round() {
     }
     Trace("fm-relevant-debug") << "Sizes : " << d_forall_rlv_assert.size() << " " << d_forall_asserts.size() << std::endl;
     Assert( d_forall_rlv_assert.size()==d_forall_asserts.size() );
+  }else{
+    for( unsigned i=0; i<d_forall_asserts.size(); i++ ){
+      d_forall_rlv_assert.push_back( d_forall_asserts[i] );
+    }
   }
 }
 
@@ -203,10 +209,6 @@ int FirstOrderModel::getRelevanceValue( Node q ) {
   }
 }
 
-//bool FirstOrderModel::isQuantifierAsserted( TNode q ) {
-//  return d_forall_asserts.find( q )!=d_forall_asserts.end();
-//}
-
 void FirstOrderModel::setQuantifierActive( TNode q, bool active ) {
   d_quant_active[q] = active;
 }
@@ -220,6 +222,10 @@ bool FirstOrderModel::isQuantifierActive( TNode q ) {
   }
 }
 
+bool FirstOrderModel::isQuantifierAsserted( TNode q ) {
+  Assert( d_forall_rlv_assert.size()==d_forall_asserts.size() );
+  return std::find( d_forall_rlv_assert.begin(), d_forall_rlv_assert.end(), q )!=d_forall_rlv_assert.end();
+}
 
 FirstOrderModelIG::FirstOrderModelIG(QuantifiersEngine * qe, context::Context* c, std::string name) :
 FirstOrderModel(qe, c,name) {
@@ -323,7 +329,7 @@ int FirstOrderModelIG::evaluate( Node n, int& depIndex, RepSetIterator* ri ){
     }else{
       return 0;
     }
-  }else if( n.getKind()==IFF ){
+  }else if( n.getKind()==EQUAL && n[0].getType().isBoolean() ){
     int depIndex1;
     int eVal = evaluate( n[0], depIndex1, ri );
     if( eVal!=0 ){

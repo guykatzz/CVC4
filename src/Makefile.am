@@ -104,6 +104,8 @@ libcvc4_la_SOURCES = \
 	proof/unsat_core.h \
 	proof/proof_output_channel.cpp \
 	proof/proof_output_channel.h \
+	proof/simplify_boolean_node.cpp \
+	proof/simplify_boolean_node.h \
 	prop/cnf_stream.cpp \
 	prop/cnf_stream.h \
 	prop/prop_engine.cpp \
@@ -117,16 +119,14 @@ libcvc4_la_SOURCES = \
 	prop/cryptominisat.cpp \
 	prop/theory_proxy.cpp \
 	prop/theory_proxy.h \
-	smt/boolean_terms.cpp \
-	smt/boolean_terms.h \
 	smt/command.cpp \
 	smt/command.h \
 	smt/command_list.cpp \
 	smt/command_list.h \
 	smt/dump.cpp \
 	smt/dump.h \
-	smt/ite_removal.cpp \
-	smt/ite_removal.h \
+	smt/term_formula_removal.cpp \
+	smt/term_formula_removal.h \
 	smt/logic_exception.h \
 	smt/logic_request.cpp \
 	smt/logic_request.h \
@@ -134,8 +134,6 @@ libcvc4_la_SOURCES = \
 	smt/managed_ostreams.h \
 	smt/model.cpp \
 	smt/model.h \
-	smt/model_postprocessor.cpp \
-	smt/model_postprocessor.h \
 	smt/smt_engine.cpp \
 	smt/smt_engine.h \
 	smt/smt_engine_check_proof.cpp \

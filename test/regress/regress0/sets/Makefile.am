@@ -71,8 +71,14 @@ TESTS =	\
 	card-4.smt2 \
 	card-5.smt2 \
 	card-6.smt2 \
-	card-7.smt2
-
+	card-7.smt2 \
+	abt-min.smt2 \
+	abt-te-exh.smt2 \
+	abt-te-exh2.smt2 \
+	univset-simp.smt2 \
+	complement.cvc \
+	complement2.cvc \
+    complement3.cvc
 
 EXTRA_DIST = $(TESTS)
 

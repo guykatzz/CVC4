@@ -14,7 +14,7 @@
 #include "theory/quantifiers/inst_strategy_cbqi.h"
 
 #include "options/quantifiers_options.h"
-#include "smt/ite_removal.h"
+#include "smt/term_formula_removal.h"
 #include "theory/arith/partial_model.h"
 #include "theory/arith/theory_arith.h"
 #include "theory/arith/theory_arith_private.h"
@@ -193,7 +193,7 @@ void InstStrategyCbqi::reset_round( Theory::Effort effort ) {
                 Assert( index<(int)d_nested_qe_waitlist[q].size() );
                 Node nq = d_nested_qe_waitlist[q][index];
                 Node nqeqn = doNestedQENode( d_nested_qe_info[nq].d_q, q, nq, d_nested_qe_info[nq].d_inst_terms, d_nested_qe_info[nq].d_doVts );
-                Node dqelem = nq.iffNode( nqeqn ); 
+                Node dqelem = nq.eqNode( nqeqn ); 
                 Trace("cbqi-lemma") << "Delayed nested quantifier elimination lemma : " << dqelem << std::endl;
                 d_quantEngine->getOutputChannel().lemma( dqelem );
                 d_nested_qe_waitlist_proc[q] = index + 1;
